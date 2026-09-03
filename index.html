@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Grow Local Matchmaking</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark">GL</span>
+      <div>
+        <strong>Grow Local</strong>
+        <span>Matchmaking</span>
+      </div>
+    </div>
+    <nav aria-label="Main navigation">
+      <button class="nav-btn active" data-view="dashboard">Dashboard</button>
+      <button class="nav-btn" data-view="businesses">Businesses</button>
+      <button class="nav-btn" data-view="nonprofits">Nonprofits</button>
+      <button class="nav-btn" data-view="matches">Matches</button>
+      <button class="nav-btn" data-view="research">Research Notes</button>
+    </nav>
+  </aside>
+
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Verified Consulting Lab</p>
+        <h1 id="page-title">Grow Local Dashboard</h1>
+      </div>
+      <button class="primary-btn" id="seed-btn">Reset Demo Data</button>
+    </header>
+
+    <section id="view-root" class="view-root"></section>
+  </main>
+
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>
