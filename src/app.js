@@ -76,7 +76,7 @@ function renderDashboard() {
     <section class="panel">
       <h2>Core Loop</h2>
       <ol class="loop-list">
-        <li>A nonprofit or school submits a campaign request.</li>
+        <li>A nonprofit or community organization submits a campaign request.</li>
         <li>Raise Local filters local businesses by must-haves: category, cause, geography, support, timing, and capacity.</li>
         <li>The strongest 3-5 matches explain why they fit; Tenyse can review or override.</li>
         <li>Once accepted, the campaign launches. Stripe split payments are future scope.</li>
@@ -94,7 +94,7 @@ function renderRequests() {
   setTitle("Campaign Requests");
   root.innerHTML = `
     <section class="panel">
-      <h2>Nonprofit / School Intake</h2>
+      <h2>Nonprofit Intake</h2>
       ${requestForm()}
     </section>
     <section class="entity-list">${data.campaignRequests.map(requestCard).join("")}</section>

@@ -5,7 +5,7 @@ export const DEMO_DATA = {
     {
       id: "request-fresh-start",
       organizationName: "Fresh Start Pantry",
-      organizationType: "Nonprofit",
+      organizationType: "501(c)(3) nonprofit",
       contactName: "Maya Thompson",
       email: "maya@example.org",
       phone: "555-0198",
@@ -28,7 +28,7 @@ export const DEMO_DATA = {
     {
       id: "request-art-room",
       organizationName: "PS 118 Art Room",
-      organizationType: "School",
+      organizationType: "School / PTA",
       contactName: "Jordan Lee",
       email: "jordan@example.edu",
       phone: "555-0142",

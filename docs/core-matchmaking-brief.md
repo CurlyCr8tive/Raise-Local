@@ -10,7 +10,7 @@ Motto: Raise Funds, Buy Local.
 
 ## Phase One Core Loop
 
-1. A nonprofit, school, or community organization submits a campaign request.
+1. A nonprofit or community organization submits a campaign request.
 2. Raise Local matches that request to local businesses whose profiles fit.
 3. Tenyse or the system flags a top match; both sides can save, request an
    introduction, accept, or decline.
@@ -22,7 +22,7 @@ part of this first prototype.
 
 ## Two Sides Of The Match
 
-Nonprofit / school side:
+Nonprofit side:
 
 - Submits a structured campaign request.
 - Represents the demand side: the organization needs funding or support.

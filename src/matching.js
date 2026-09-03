@@ -1,4 +1,4 @@
-export const ORGANIZATION_TYPES = ["School", "Nonprofit", "Community group"];
+export const ORGANIZATION_TYPES = ["School / PTA", "501(c)(3) nonprofit", "Community organization", "Faith-based nonprofit"];
 
 export const CAUSE_AREAS = [
   "Education",

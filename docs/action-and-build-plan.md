@@ -7,8 +7,9 @@ Tenyse was away. Raise Local is now the primary build focus for the remaining
 project window.
 
 Raise Local is a two-sided matchmaking platform, powered by Verified
-Consulting, that connects nonprofits, schools, PTAs, and community groups with
-local businesses that can support fundraising campaigns and events.
+Consulting, that connects nonprofits and community organizations, including
+schools and PTAs, with local businesses that can support fundraising campaigns
+and events.
 
 Motto: Raise Funds, Buy Local.
 
@@ -28,7 +29,7 @@ Motto: Raise Funds, Buy Local.
 Show that Raise Local is not a generic directory. It is a focused matchmaking
 loop:
 
-1. A nonprofit or school explains what it needs.
+1. A nonprofit or community organization explains what it needs.
 2. Businesses define what they can offer and what they can handle.
 3. Raise Local recommends only workable matches.
 4. Each recommendation explains the fit.
@@ -38,7 +39,7 @@ loop:
 
 In scope:
 
-- Nonprofit / school campaign request quiz.
+- Nonprofit campaign request quiz.
 - Business match profile quiz.
 - Must-have filters:
   - Cause or category alignment.
@@ -68,10 +69,10 @@ Out of scope for phase one:
 
 ## Data To Capture
 
-Nonprofit / school campaign request:
+Nonprofit campaign request:
 
 - Organization name.
-- Organization type: school, nonprofit, community group.
+- Organization type: school/PTA, 501(c)(3), community organization, or faith-based nonprofit.
 - Contact name, email, phone.
 - Campaign description.
 - Funding goal.
