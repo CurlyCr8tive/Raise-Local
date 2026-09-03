@@ -1,6 +1,6 @@
-# Grow Local Platform
+# Raise Local Platform
 
-Standalone prototype for Tenyse's Grow Local concept: a matchmaking platform
+Standalone prototype for Tenyse's Raise Local concept: a matchmaking platform
 that helps small businesses find aligned nonprofit partners.
 
 ## Current Build

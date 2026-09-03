@@ -1,8 +1,8 @@
 {
-  "name": "grow-local-platform",
+  "name": "raise-local-platform",
   "version": "0.1.0",
   "private": true,
-  "description": "Standalone prototype for Grow Local nonprofit and small-business matchmaking.",
+  "description": "Standalone prototype for Raise Local nonprofit and small-business matchmaking.",
   "type": "module",
   "scripts": {
     "start": "python3 -m http.server 4173",

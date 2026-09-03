@@ -37,7 +37,7 @@ function render() {
 }
 
 function renderDashboard() {
-  setTitle("Grow Local Dashboard");
+  setTitle("Raise Local Dashboard");
   const matches = buildMatches(data.businesses, data.nonprofits);
   const topMatch = matches[0];
   root.innerHTML = `
@@ -55,7 +55,7 @@ function renderDashboard() {
 
     <section class="panel">
       <h2>Build Focus</h2>
-      <p class="muted">This prototype keeps the first Grow Local direction narrow: intake both sides, score fit, and give Tenyse a review queue before outreach. Fundraising payments, public directories, and automation can wait until the matchmaking loop is validated.</p>
+      <p class="muted">This prototype keeps the first Raise Local direction narrow: intake both sides, score fit, and give Tenyse a review queue before outreach. Fundraising payments, public directories, and automation can wait until the matchmaking loop is validated.</p>
     </section>
   `;
 }
@@ -101,7 +101,7 @@ function renderResearch() {
   root.innerHTML = `
     <section class="panel">
       <h2>Product Direction</h2>
-      <p>Grow Local is a separate platform concept from the VC Portal coaching/client dashboard.</p>
+      <p>Raise Local is a separate platform concept from the VC Portal coaching/client dashboard.</p>
       <p class="muted">Short-term: match small businesses with nonprofits. Long-term: expand into a fundraising platform that makes community partnerships easier and more fun to run.</p>
     </section>
     <section class="panel">

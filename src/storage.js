@@ -1,4 +1,4 @@
-const STORAGE_KEY = "grow_local_platform_v1";
+const STORAGE_KEY = "raise_local_platform_v1";
 
 export const DEMO_DATA = {
   businesses: [
