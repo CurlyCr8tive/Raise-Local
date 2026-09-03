@@ -13,7 +13,7 @@ Motto: Raise Funds, Buy Local.
 ## Current Build
 
 - Dashboard with the phase-one core loop and top match.
-- Intro quiz landing screen with nonprofit and business paths.
+- One-question-at-a-time intro quiz with nonprofit and business paths.
 - Nonprofit campaign request intake.
 - Business intake form.
 - Match review queue with explainable V1 filtered matches.

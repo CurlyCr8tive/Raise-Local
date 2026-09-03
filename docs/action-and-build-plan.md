@@ -37,12 +37,13 @@ loop:
 
 Tonight's priority deliverable:
 
-- Send Tenyse screenshots of the intro quiz landing screen.
+- Send Tenyse screenshots of the intro quiz landing screen and the one-question-at-a-time flow.
 - Show the two quiz paths:
   - Nonprofit side: "I need a business partner for a campaign."
   - Business side: "I want to support community fundraisers."
-- Show that the quiz collects must-haves, nice-to-haves, support type,
-  location, timing, and capacity before matching.
+- Show that each answer submits before the next question appears, then the quiz
+  collects must-haves, nice-to-haves, support type, location, timing, and
+  capacity before matching.
 - Explain that Supabase and Google Form wiring come next after the fields are
   approved.
 

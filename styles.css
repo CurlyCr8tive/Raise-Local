@@ -404,6 +404,66 @@ textarea {
   height: 100%;
 }
 
+.quiz-question {
+  margin: 18px 0;
+}
+
+.quiz-question h3 {
+  font-size: clamp(1.5rem, 4vw, 2.4rem);
+  line-height: 1.08;
+  margin-bottom: 18px;
+  max-width: 760px;
+}
+
+.option-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.quiz-option {
+  align-items: center;
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  min-height: 56px;
+  padding: 13px;
+}
+
+.quiz-option:hover,
+.quiz-option.selected {
+  border-color: var(--coral);
+  box-shadow: 0 0 0 3px rgba(252, 103, 100, 0.14);
+}
+
+.quiz-option input {
+  accent-color: var(--coral);
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.quiz-option span {
+  font-weight: 700;
+}
+
+.quiz-actions {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  margin-top: 18px;
+  padding-top: 16px;
+}
+
+.quiz-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .success-banner {
   background: #fff5db;
   border: 1px solid rgba(224, 166, 57, 0.55);

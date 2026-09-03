@@ -15,6 +15,8 @@ import { loadData, resetDemoData, saveData } from "./storage.js";
 let data = loadData();
 let activeView = "intro";
 let quizAudience = null;
+let quizStep = 0;
+let quizAnswers = {};
 let quizConfirmation = "";
 
 const root = document.getElementById("view-root");
@@ -42,6 +44,47 @@ function currentMatches() {
   return buildMatches(data.campaignRequests, data.businesses, data.matches);
 }
 
+const NONPROFIT_QUESTIONS = [
+  { key: "organizationName", label: "What's the name of your organization?", type: "text", placeholder: "PS 118 PTA" },
+  { key: "organizationType", label: "What type of nonprofit are you?", type: "single", options: ORGANIZATION_TYPES },
+  { key: "contactName", label: "Who should we contact?", type: "text", placeholder: "Your name" },
+  { key: "email", label: "What's the best email for follow-up?", type: "email", placeholder: "you@example.org" },
+  { key: "phone", label: "What's the best phone number?", type: "tel", placeholder: "555-0100" },
+  { key: "campaignDescription", label: "What are you raising funds for?", type: "textarea", placeholder: "Tell us about the campaign, event, or need." },
+  { key: "fundingGoal", label: "What's your fundraising goal?", type: "number", placeholder: "5000" },
+  { key: "eventType", label: "What kind of campaign is this?", type: "single", options: EVENT_TYPES },
+  { key: "causeArea", label: "Which cause area fits best?", type: "single", options: CAUSE_AREAS },
+  { key: "supportNeeds", label: "What kind of support do you need?", type: "multi", options: SUPPORT_NEEDS },
+  { key: "businessPreference", label: "What type of business would be ideal?", type: "single", options: BUSINESS_CATEGORIES },
+  { key: "geography", label: "Where should the business be located or able to serve?", type: "text", placeholder: "Brooklyn, Washington DC, Maryland, zip code, etc." },
+  { key: "startDate", label: "When should the campaign start?", type: "date" },
+  { key: "endDate", label: "When should the campaign end?", type: "date" },
+  { key: "minimumSize", label: "What's the minimum size you need covered?", type: "number", placeholder: "50" },
+  { key: "idealSize", label: "What's the ideal size?", type: "number", placeholder: "100" },
+  { key: "mustHaves", label: "What are your must-haves?", type: "textarea", placeholder: "What would make a match impossible if missing?" },
+  { key: "niceToHaves", label: "What would be nice to have?", type: "textarea", placeholder: "What would make the match even better?" },
+  { key: "priorFundraiser", label: "Have you run a fundraiser like this before?", type: "single", options: ["No", "Yes - with a local partner", "Yes - with an online platform", "Not sure"] },
+];
+
+const BUSINESS_QUESTIONS = [
+  { key: "name", label: "What's your business name?", type: "text", placeholder: "YAMAAS! Olive Oil" },
+  { key: "category", label: "What type of business are you?", type: "single", options: BUSINESS_CATEGORIES.filter((item) => item !== "No preference") },
+  { key: "serviceAreas", label: "Where can you serve campaigns?", type: "text", placeholder: "Brooklyn, Washington DC, Maryland" },
+  { key: "causeAreas", label: "What causes do you want to support?", type: "multi", options: CAUSE_AREAS },
+  { key: "offerTypes", label: "What can your business offer?", type: "multi", options: SUPPORT_NEEDS },
+  { key: "contributionTypes", label: "How are you open to contributing?", type: "multi", options: CONTRIBUTION_TYPES },
+  { key: "minimumCapacity", label: "What's the smallest order or event size that makes sense?", type: "number", placeholder: "30" },
+  { key: "maximumCapacity", label: "What's the largest order or event size you can handle?", type: "number", placeholder: "200" },
+  { key: "idealEventSize", label: "What's your ideal event size?", type: "number", placeholder: "100" },
+  { key: "campaignCap", label: "How many campaigns can you support at one time?", type: "number", placeholder: "2" },
+  { key: "activeCampaigns", label: "How many campaigns are you already supporting?", type: "number", placeholder: "0" },
+  { key: "estimatedUnitContribution", label: "About how much does each sale/order contribute?", type: "number", placeholder: "15" },
+  { key: "availableFrom", label: "When are you available from?", type: "date" },
+  { key: "availableTo", label: "When are you available until?", type: "date" },
+  { key: "fulfillmentOptions", label: "How can people receive or experience what you offer?", type: "multi", options: ["Delivery", "Pickup", "In person", "Venue rental"] },
+  { key: "notes", label: "Anything else Raise Local should know?", type: "textarea", placeholder: "Limits, ideal partners, venue details, accessibility, minimums, or timing notes." },
+];
+
 function render() {
   const views = {
     intro: renderIntro,
@@ -56,11 +99,15 @@ function render() {
 
 function renderIntro() {
   setTitle("Intro Quiz");
+  const questions = quizAudience === "business" ? BUSINESS_QUESTIONS : NONPROFIT_QUESTIONS;
+  const question = questions[quizStep];
+  const progress = Math.round(((quizStep + 1) / questions.length) * 100);
+
   root.innerHTML = `
     <section class="intro-hero">
       <p class="eyebrow">Raise Funds, Buy Local</p>
       <h2>Let's find the right local partnership.</h2>
-      <p>Answer a few focused questions so Raise Local can understand what you need, what you offer, and which matches are actually workable.</p>
+      <p>Answer one question at a time so Raise Local can understand what you need, what you offer, and which matches are actually workable.</p>
     </section>
 
     ${quizConfirmation ? `<section class="success-banner" role="status">${escapeHtml(quizConfirmation)}</section>` : ""}
@@ -81,8 +128,8 @@ function renderIntro() {
     <section class="panel quiz-panel">
       ${
         quizAudience === "business"
-          ? `<h2>Business Intro Quiz</h2>${businessForm({ quizMode: true })}`
-          : `<h2>Nonprofit Intro Quiz</h2>${requestForm({ quizMode: true })}`
+          ? `<h2>Business Intro Quiz</h2>${quizQuestionHtml(question, progress, questions.length)}`
+          : `<h2>Nonprofit Intro Quiz</h2>${quizQuestionHtml(question, progress, questions.length)}`
       }
     </section>
   `;
@@ -90,13 +137,158 @@ function renderIntro() {
   root.querySelectorAll("[data-quiz-audience]").forEach((button) => {
     button.addEventListener("click", () => {
       quizAudience = button.dataset.quizAudience;
+      quizStep = 0;
+      quizAnswers = {};
       quizConfirmation = "";
       renderIntro();
     });
   });
 
-  if (quizAudience === "business") wireBusinessForm({ fromQuiz: true });
-  else wireRequestForm({ fromQuiz: true });
+  wireGuidedQuiz(questions);
+}
+
+function quizQuestionHtml(question, progress, total) {
+  return `
+    <form id="guided-quiz-form">
+      <div class="progress-rail" aria-label="Quiz progress"><span style="width:${progress}%;"></span></div>
+      <p class="small-label">Question ${quizStep + 1} of ${total}</p>
+      <div class="quiz-question">
+        <h3>${escapeHtml(question.label)}</h3>
+        ${quizInputHtml(question)}
+      </div>
+      <div class="quiz-actions">
+        <button class="secondary-btn" type="button" id="quiz-back" ${quizStep === 0 ? "disabled" : ""}>Back</button>
+        <button class="primary-btn" type="submit">${quizStep === total - 1 ? "Finish Quiz" : "Submit Answer"}</button>
+      </div>
+    </form>
+  `;
+}
+
+function quizInputHtml(question) {
+  const saved = quizAnswers[question.key];
+  if (question.type === "single") {
+    return `<div class="option-grid">${question.options.map((option) => optionButton(question, option, saved === option, "radio")).join("")}</div>`;
+  }
+  if (question.type === "multi") {
+    const selected = Array.isArray(saved) ? saved : [];
+    return `<div class="option-grid">${question.options.map((option) => optionButton(question, option, selected.includes(option), "checkbox")).join("")}</div>`;
+  }
+  if (question.type === "textarea") {
+    return `<textarea id="quiz-answer" rows="4" placeholder="${escapeHtml(question.placeholder || "")}">${escapeHtml(saved || "")}</textarea>`;
+  }
+  return `<input id="quiz-answer" type="${escapeHtml(question.type)}" placeholder="${escapeHtml(question.placeholder || "")}" value="${escapeHtml(saved || "")}" />`;
+}
+
+function optionButton(question, option, checked, inputType) {
+  return `
+    <label class="quiz-option ${checked ? "selected" : ""}">
+      <input type="${inputType}" name="quiz-answer" value="${escapeHtml(option)}" ${checked ? "checked" : ""} />
+      <span>${escapeHtml(option)}</span>
+    </label>
+  `;
+}
+
+function wireGuidedQuiz(questions) {
+  const form = document.getElementById("guided-quiz-form");
+  document.getElementById("quiz-back").addEventListener("click", () => {
+    if (quizStep === 0) return;
+    quizStep -= 1;
+    renderIntro();
+  });
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const question = questions[quizStep];
+    const answer = readQuizAnswer(question);
+    if (isBlankAnswer(answer)) return;
+    quizAnswers[question.key] = answer;
+    if (quizStep < questions.length - 1) {
+      quizStep += 1;
+      renderIntro();
+      return;
+    }
+    saveQuizResult();
+  });
+}
+
+function readQuizAnswer(question) {
+  if (question.type === "single") {
+    return document.querySelector('input[name="quiz-answer"]:checked')?.value || "";
+  }
+  if (question.type === "multi") {
+    return [...document.querySelectorAll('input[name="quiz-answer"]:checked')].map((input) => input.value);
+  }
+  return document.getElementById("quiz-answer").value.trim();
+}
+
+function isBlankAnswer(answer) {
+  return Array.isArray(answer) ? answer.length === 0 : !String(answer || "").trim();
+}
+
+function saveQuizResult() {
+  if (quizAudience === "business") {
+    data.businesses = [businessFromQuizAnswers(), ...data.businesses];
+    quizConfirmation = "Business profile saved. Raise Local can now recommend fit-based campaign opportunities.";
+  } else {
+    data.campaignRequests = [requestFromQuizAnswers(), ...data.campaignRequests];
+    quizConfirmation = "Campaign request saved. Raise Local can now compare it against business profiles.";
+  }
+  saveData(data);
+  quizStep = 0;
+  quizAnswers = {};
+  activeView = "matches";
+  render();
+}
+
+function requestFromQuizAnswers() {
+  return {
+    id: `request-${crypto.randomUUID()}`,
+    organizationName: quizAnswers.organizationName,
+    organizationType: quizAnswers.organizationType,
+    contactName: quizAnswers.contactName,
+    email: quizAnswers.email,
+    phone: quizAnswers.phone,
+    campaignDescription: quizAnswers.campaignDescription,
+    fundingGoal: Number(quizAnswers.fundingGoal) || 0,
+    startDate: quizAnswers.startDate,
+    endDate: quizAnswers.endDate,
+    causeArea: quizAnswers.causeArea,
+    businessPreference: quizAnswers.businessPreference,
+    eventType: quizAnswers.eventType,
+    supportNeeds: quizAnswers.supportNeeds || [],
+    minimumSize: Number(quizAnswers.minimumSize) || 0,
+    idealSize: Number(quizAnswers.idealSize) || 0,
+    geography: quizAnswers.geography,
+    mustHaves: quizAnswers.mustHaves,
+    niceToHaves: quizAnswers.niceToHaves,
+    priorFundraiser: quizAnswers.priorFundraiser,
+    status: "new",
+  };
+}
+
+function businessFromQuizAnswers() {
+  return {
+    id: `business-${crypto.randomUUID()}`,
+    name: quizAnswers.name,
+    category: quizAnswers.category,
+    serviceAreas: splitSelections(quizAnswers.serviceAreas),
+    causeAreas: quizAnswers.causeAreas || [],
+    contributionTypes: quizAnswers.contributionTypes || [],
+    offerTypes: quizAnswers.offerTypes || [],
+    minimumCapacity: Number(quizAnswers.minimumCapacity) || 0,
+    maximumCapacity: Number(quizAnswers.maximumCapacity) || 0,
+    idealEventSize: Number(quizAnswers.idealEventSize) || 0,
+    campaignCap: Number(quizAnswers.campaignCap) || 0,
+    activeCampaigns: Number(quizAnswers.activeCampaigns) || 0,
+    estimatedUnitContribution: Number(quizAnswers.estimatedUnitContribution) || 0,
+    availableFrom: quizAnswers.availableFrom,
+    availableTo: quizAnswers.availableTo,
+    fulfillmentOptions: quizAnswers.fulfillmentOptions || [],
+    notes: quizAnswers.notes,
+    rating: null,
+    reviewNote: "",
+    unavailable: false,
+    status: "ready",
+  };
 }
 
 function renderDashboard() {
