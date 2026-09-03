@@ -1,24 +1,21 @@
-export const CAUSES = [
+export const ORGANIZATION_TYPES = ["School", "Nonprofit", "Community group"];
+
+export const CAUSE_AREAS = [
+  "Education",
+  "Youth",
+  "Health",
+  "Arts",
+  "Community",
   "Food access",
-  "Youth development",
-  "Arts and culture",
-  "Health and wellness",
   "Workforce development",
-  "Animal welfare",
-  "Housing stability",
-  "Environmental justice",
+  "Other",
 ];
 
-export const AUDIENCES = [
-  "Families",
-  "Young professionals",
-  "Corporate teams",
-  "Local residents",
-  "Students",
-  "Donors",
-  "Founders",
-  "Hospitality community",
-];
+export const BUSINESS_CATEGORIES = ["Food and beverage", "Retail", "Services", "No preference"];
+
+export const CONTRIBUTION_TYPES = ["Product donation", "Percent of sales", "Sponsorship dollars", "Event hosting"];
+
+export const MATCH_STATUSES = ["recommended", "accepted", "declined", "launched"];
 
 export function splitSelections(value) {
   return String(value || "")
@@ -27,61 +24,72 @@ export function splitSelections(value) {
     .filter(Boolean);
 }
 
-function overlapScore(left = [], right = [], weight) {
-  if (!left.length || !right.length) return 0;
+function sameText(left, right) {
+  return String(left || "").trim().toLowerCase() === String(right || "").trim().toLowerCase();
+}
+
+function hasOverlap(left = [], right = []) {
   const rightSet = new Set(right.map((item) => item.toLowerCase()));
-  const matches = left.filter((item) => rightSet.has(item.toLowerCase())).length;
-  return Math.min(weight, matches * weight);
+  return left.some((item) => rightSet.has(item.toLowerCase()));
 }
 
-function budgetFitScore(businessBudget, nonprofitMinimum) {
-  const budget = Number(businessBudget) || 0;
-  const minimum = Number(nonprofitMinimum) || 0;
-  if (!minimum || !budget) return 4;
-  if (budget >= minimum * 2) return 18;
-  if (budget >= minimum) return 14;
-  if (budget >= minimum * 0.7) return 8;
-  return 2;
+function categoryFits(request, business) {
+  return request.businessPreference === "No preference" || sameText(request.businessPreference, business.category);
 }
 
-function activationFitScore(business, nonprofit) {
-  const desired = new Set((business.activationTypes || []).map((item) => item.toLowerCase()));
-  const available = new Set((nonprofit.activationNeeds || []).map((item) => item.toLowerCase()));
-  if (!desired.size || !available.size) return 6;
-  let score = 0;
-  desired.forEach((item) => {
-    if (available.has(item)) score += 10;
-  });
-  return Math.min(score, 24);
+function geographyFits(request, business) {
+  const requestGeo = String(request.geography || "").trim().toLowerCase();
+  const serviceAreas = (business.serviceAreas || []).map((item) => item.toLowerCase());
+  return Boolean(requestGeo && serviceAreas.some((area) => area.includes(requestGeo) || requestGeo.includes(area)));
 }
 
-export function scoreMatch(business, nonprofit) {
-  const causeScore = overlapScore(business.causes, nonprofit.causes, 14);
-  const audienceScore = overlapScore(business.audiences, nonprofit.audiences, 10);
-  const budgetScore = budgetFitScore(business.monthlyBudget, nonprofit.minimumContribution);
-  const activationScore = activationFitScore(business, nonprofit);
-  const geographyScore = business.market && nonprofit.market && business.market === nonprofit.market ? 12 : 4;
-  const total = Math.min(100, causeScore + audienceScore + budgetScore + activationScore + geographyScore);
+function availabilityFits(request, business) {
+  if (!request.startDate || !request.endDate || !business.availableFrom || !business.availableTo) return true;
+  return request.startDate >= business.availableFrom && request.endDate <= business.availableTo;
+}
+
+export function scoreMatch(request, business) {
+  const causeFit = hasOverlap([request.causeArea], business.causeAreas || []);
+  const businessTypeFit = categoryFits(request, business);
+  const geographyFit = geographyFits(request, business);
+  const contributionFit = (business.contributionTypes || []).length > 0;
+  const availabilityFit = availabilityFits(request, business);
+
+  const total =
+    (causeFit ? 30 : 0) +
+    (businessTypeFit ? 25 : 0) +
+    (geographyFit ? 25 : 0) +
+    (contributionFit ? 10 : 0) +
+    (availabilityFit ? 10 : 0);
 
   return {
     total,
+    filters: { causeFit, businessTypeFit, geographyFit, contributionFit, availabilityFit },
     reasons: [
-      causeScore ? "Cause alignment" : "",
-      audienceScore ? "Audience overlap" : "",
-      budgetScore >= 14 ? "Budget fit" : "",
-      activationScore >= 10 ? "Activation fit" : "",
-      geographyScore === 12 ? "Same market" : "",
+      causeFit ? `Supports ${request.causeArea}` : "",
+      businessTypeFit ? `Fits ${request.businessPreference.toLowerCase()} preference` : "",
+      geographyFit ? `Serves ${request.geography}` : "",
+      contributionFit ? "Has a contribution type on file" : "",
+      availabilityFit ? "Available during campaign window" : "",
     ].filter(Boolean),
   };
 }
 
-export function buildMatches(businesses, nonprofits) {
-  return businesses
-    .flatMap((business) =>
-      nonprofits.map((nonprofit) => {
-        const score = scoreMatch(business, nonprofit);
-        return { id: `${business.id}-${nonprofit.id}`, business, nonprofit, ...score };
+export function buildMatches(campaignRequests, businesses, existingMatches = []) {
+  return campaignRequests
+    .flatMap((request) =>
+      businesses.map((business) => {
+        const score = scoreMatch(request, business);
+        const saved = existingMatches.find((match) => match.requestId === request.id && match.businessId === business.id);
+        return {
+          id: `${request.id}-${business.id}`,
+          request,
+          business,
+          status: saved?.status || "recommended",
+          ...score,
+        };
       })
     )
+    .filter((match) => match.filters.causeFit && match.filters.businessTypeFit && match.filters.geographyFit)
     .sort((a, b) => b.total - a.total);
 }

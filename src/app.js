@@ -1,4 +1,12 @@
-import { AUDIENCES, CAUSES, buildMatches, splitSelections } from "./matching.js";
+import {
+  BUSINESS_CATEGORIES,
+  CAUSE_AREAS,
+  CONTRIBUTION_TYPES,
+  MATCH_STATUSES,
+  ORGANIZATION_TYPES,
+  buildMatches,
+  splitSelections,
+} from "./matching.js";
 import { loadData, resetDemoData, saveData } from "./storage.js";
 
 let data = loadData();
@@ -25,191 +33,312 @@ function setTitle(text) {
   navButtons.forEach((button) => button.classList.toggle("active", button.dataset.view === activeView));
 }
 
+function currentMatches() {
+  return buildMatches(data.campaignRequests, data.businesses, data.matches);
+}
+
 function render() {
   const views = {
     dashboard: renderDashboard,
+    requests: renderRequests,
     businesses: renderBusinesses,
-    nonprofits: renderNonprofits,
     matches: renderMatches,
-    research: renderResearch,
+    brief: renderBrief,
   };
   views[activeView]();
 }
 
 function renderDashboard() {
   setTitle("Raise Local Dashboard");
-  const matches = buildMatches(data.businesses, data.nonprofits);
+  const matches = currentMatches();
+  const accepted = matches.filter((match) => match.status === "accepted").length;
+  const launched = matches.filter((match) => match.status === "launched").length;
   const topMatch = matches[0];
+
   root.innerHTML = `
+    <section class="mission-panel">
+      <div>
+        <p class="eyebrow">Raise Funds, Buy Local</p>
+        <h2>Raise Local, powered by Verified Consulting, connects nonprofits and community organizations with local businesses that are ready to partner, support, and grow with them.</h2>
+      </div>
+    </section>
+
     <section class="metric-grid">
-      <div class="metric-card"><span>Businesses</span><strong>${data.businesses.length}</strong></div>
-      <div class="metric-card"><span>Nonprofits</span><strong>${data.nonprofits.length}</strong></div>
-      <div class="metric-card"><span>Possible Matches</span><strong>${matches.length}</strong></div>
-      <div class="metric-card"><span>Top Score</span><strong>${topMatch ? topMatch.total : 0}%</strong></div>
+      <div class="metric-card"><span>Campaign Requests</span><strong>${data.campaignRequests.length}</strong></div>
+      <div class="metric-card"><span>Business Profiles</span><strong>${data.businesses.length}</strong></div>
+      <div class="metric-card"><span>Recommended Matches</span><strong>${matches.length}</strong></div>
+      <div class="metric-card"><span>Accepted / Launched</span><strong>${accepted} / ${launched}</strong></div>
     </section>
 
     <section class="panel">
-      <h2>Best Current Match</h2>
-      ${topMatch ? matchCard(topMatch) : `<p class="muted">Add at least one business and one nonprofit to see matches.</p>`}
+      <h2>Core Loop</h2>
+      <ol class="loop-list">
+        <li>A nonprofit or school submits a campaign request.</li>
+        <li>Raise Local filters local businesses by category, cause, and geography.</li>
+        <li>Tenyse reviews the top fit, then the business accepts or declines.</li>
+        <li>Once accepted, the campaign launches. Stripe split payments are future scope.</li>
+      </ol>
     </section>
 
     <section class="panel">
-      <h2>Build Focus</h2>
-      <p class="muted">This prototype keeps the first Raise Local direction narrow: intake both sides, score fit, and give Tenyse a review queue before outreach. Fundraising payments, public directories, and automation can wait until the matchmaking loop is validated.</p>
+      <h2>Top Match To Review</h2>
+      ${topMatch ? matchCard(topMatch) : `<p class="muted">Add one campaign request and one business profile to see matches.</p>`}
     </section>
   `;
+}
+
+function renderRequests() {
+  setTitle("Campaign Requests");
+  root.innerHTML = `
+    <section class="panel">
+      <h2>Nonprofit / School Intake</h2>
+      ${requestForm()}
+    </section>
+    <section class="entity-list">${data.campaignRequests.map(requestCard).join("")}</section>
+  `;
+  wireRequestForm();
 }
 
 function renderBusinesses() {
-  setTitle("Businesses");
+  setTitle("Business Profiles");
   root.innerHTML = `
     <section class="panel">
-      <h2>Add Business</h2>
-      ${entityForm("business")}
+      <h2>Business Match Profile</h2>
+      ${businessForm()}
     </section>
-    <section class="entity-list">${data.businesses.map((item) => entityCard(item, "business")).join("")}</section>
+    <section class="entity-list">${data.businesses.map(businessCard).join("")}</section>
   `;
-  wireEntityForm("business");
-}
-
-function renderNonprofits() {
-  setTitle("Nonprofits");
-  root.innerHTML = `
-    <section class="panel">
-      <h2>Add Nonprofit</h2>
-      ${entityForm("nonprofit")}
-    </section>
-    <section class="entity-list">${data.nonprofits.map((item) => entityCard(item, "nonprofit")).join("")}</section>
-  `;
-  wireEntityForm("nonprofit");
+  wireBusinessForm();
 }
 
 function renderMatches() {
-  setTitle("Matches");
-  const matches = buildMatches(data.businesses, data.nonprofits);
+  setTitle("Match Review");
+  const matches = currentMatches();
   root.innerHTML = `
     <section class="panel">
-      <h2>Match Review Queue</h2>
-      <p class="muted">Scores are directional, not final. Tenyse still decides which introductions are worth making.</p>
+      <h2>Recommended Matches</h2>
+      <p class="muted">A match appears only when business category, cause area, and geography overlap. Scores explain fit; they do not guarantee quality, legitimacy, funding, or partnership success.</p>
     </section>
-    <section class="match-grid">${matches.map(matchCard).join("")}</section>
+    <section class="match-grid">${matches.length ? matches.map(matchCard).join("") : `<p class="muted">No matches yet.</p>`}</section>
   `;
+  root.querySelectorAll("[data-status-update]").forEach((select) => {
+    select.addEventListener("change", () => {
+      upsertMatchStatus(select.dataset.requestId, select.dataset.businessId, select.value);
+      render();
+    });
+  });
 }
 
-function renderResearch() {
-  setTitle("Research Notes");
+function renderBrief() {
+  setTitle("Build Brief");
   root.innerHTML = `
     <section class="panel">
-      <h2>Product Direction</h2>
-      <p>Raise Local is a separate platform concept from the VC Portal coaching/client dashboard.</p>
-      <p class="muted">Short-term: match small businesses with nonprofits. Long-term: expand into a fundraising platform that makes community partnerships easier and more fun to run.</p>
+      <h2>Phase One Scope</h2>
+      <p>Build a two-sided matchmaking product under Verified Consulting that captures structured user needs and capabilities, recommends relevant nonprofit-to-business connections, explains why each match fits, and learns from user actions and real-world outcomes.</p>
+      <div class="scope-grid">
+        <div>
+          <p class="small-label">In scope now</p>
+          <ul>
+            <li>Campaign request intake.</li>
+            <li>Business match profiles.</li>
+            <li>Explainable filtered matching.</li>
+            <li>Accept, decline, and launch statuses.</li>
+            <li>Human review before introductions.</li>
+          </ul>
+        </div>
+        <div>
+          <p class="small-label">Not in scope yet</p>
+          <ul>
+            <li>Open marketplace browsing.</li>
+            <li>Opaque AI matching.</li>
+            <li>In-app messaging.</li>
+            <li>E-commerce storefronts.</li>
+            <li>Stripe checkout and 40/45/15 split payouts.</li>
+          </ul>
+        </div>
+      </div>
     </section>
     <section class="panel">
-      <h2>Near-Term Jobs To Be Done</h2>
+      <h2>Trust Guardrails</h2>
       <ul>
-        <li>Capture business goals, audience, market, budget, and preferred activation type.</li>
-        <li>Capture nonprofit causes, audience, market, minimum contribution, and partnership needs.</li>
-        <li>Score likely fit and explain why each match surfaced.</li>
-        <li>Keep Tenyse in review before an introduction is made.</li>
-        <li>Use interviews, starting with Sophia & Grace, to tune the matching criteria.</li>
+        <li>Let users decide what profile details are public versus matching-only.</li>
+        <li>Show verification or moderation signals for profile trust.</li>
+        <li>Never imply a match guarantees business quality, nonprofit legitimacy, financial results, or success.</li>
+        <li>Add reporting and blocking before public launch.</li>
+        <li>Collect only data needed for matching and operations, with clear consent.</li>
       </ul>
     </section>
   `;
 }
 
-function entityForm(type) {
-  const isBusiness = type === "business";
+function requestForm() {
   return `
-    <form id="${type}-form">
+    <form id="request-form">
       <div class="form-grid">
-        <div class="field-row">
-          <label for="${type}-name">${isBusiness ? "Business" : "Nonprofit"} Name</label>
-          <input id="${type}-name" required />
-        </div>
-        <div class="field-row">
-          <label for="${type}-market">Market</label>
-          <input id="${type}-market" placeholder="New York" required />
-        </div>
-        <div class="field-row">
-          <label for="${type}-contact">Contact</label>
-          <input id="${type}-contact" placeholder="Founder, development lead, etc." />
-        </div>
-        <div class="field-row">
-          <label for="${type}-budget">${isBusiness ? "Monthly Partnership Budget" : "Minimum Contribution"}</label>
-          <input id="${type}-budget" type="number" min="0" step="50" />
-        </div>
+        ${inputField("request-org", "Organization name", "PS 118 Art Room")}
+        ${selectField("request-type", "Organization type", ORGANIZATION_TYPES)}
+        ${inputField("request-contact", "Contact name", "Jordan Lee")}
+        ${inputField("request-email", "Email", "contact@example.org", "email")}
+        ${inputField("request-phone", "Phone", "555-0100", "tel")}
+        ${inputField("request-goal", "Funding goal", "5000", "number")}
       </div>
       <div class="form-grid">
-        <div class="field-row">
-          <label for="${type}-causes">Causes</label>
-          <select id="${type}-causes" multiple>${CAUSES.map((item) => `<option>${item}</option>`).join("")}</select>
-        </div>
-        <div class="field-row">
-          <label for="${type}-audiences">Audiences</label>
-          <select id="${type}-audiences" multiple>${AUDIENCES.map((item) => `<option>${item}</option>`).join("")}</select>
-        </div>
+        ${inputField("request-start", "Campaign start date", "", "date")}
+        ${inputField("request-end", "Campaign end date", "", "date")}
+        ${selectField("request-cause", "Category or cause area", CAUSE_AREAS)}
+        ${selectField("request-preference", "Business type preference", BUSINESS_CATEGORIES)}
+      </div>
+      ${inputField("request-geo", "Local geography", "Neighborhood, borough, or zip code")}
+      <div class="field-row">
+        <label for="request-description">What is the campaign for?</label>
+        <textarea id="request-description" rows="3" required></textarea>
       </div>
       <div class="field-row">
-        <label for="${type}-activations">${isBusiness ? "Preferred Activations" : "Partnership Needs"} <span class="muted">(comma separated)</span></label>
-        <input id="${type}-activations" placeholder="Round-up campaign, sponsored event, volunteer day" />
+        <label for="request-prior">Have you run a fundraiser like this before?</label>
+        <input id="request-prior" placeholder="Yes/no, and platform if yes" />
       </div>
-      <div class="field-row">
-        <label for="${type}-goals">Goals</label>
-        <textarea id="${type}-goals" rows="3"></textarea>
-      </div>
-      <button class="primary-btn" type="submit">Add ${isBusiness ? "Business" : "Nonprofit"}</button>
+      <button class="primary-btn" type="submit">Submit Campaign Request</button>
     </form>
   `;
+}
+
+function businessForm() {
+  return `
+    <form id="business-form">
+      <div class="form-grid">
+        ${inputField("business-name", "Business name", "YAMAAS! Olive Oil")}
+        ${selectField("business-category", "Business category", BUSINESS_CATEGORIES.filter((item) => item !== "No preference"))}
+      </div>
+      ${inputField("business-areas", "Location / service area", "Brooklyn, Queens")}
+      <div class="form-grid">
+        ${multiSelectField("business-causes", "Cause areas they want to support", CAUSE_AREAS)}
+        ${multiSelectField("business-contributions", "Contribution types", CONTRIBUTION_TYPES)}
+      </div>
+      <div class="form-grid">
+        ${inputField("business-from", "Available from", "", "date")}
+        ${inputField("business-to", "Available to", "", "date")}
+      </div>
+      <div class="field-row">
+        <label for="business-notes">Notes</label>
+        <textarea id="business-notes" rows="3"></textarea>
+      </div>
+      <button class="primary-btn" type="submit">Save Business Profile</button>
+    </form>
+  `;
+}
+
+function inputField(id, label, placeholder = "", type = "text") {
+  return `<div class="field-row"><label for="${id}">${label}</label><input id="${id}" type="${type}" placeholder="${placeholder}" required /></div>`;
+}
+
+function selectField(id, label, options) {
+  return `<div class="field-row"><label for="${id}">${label}</label><select id="${id}">${options.map((item) => `<option>${item}</option>`).join("")}</select></div>`;
+}
+
+function multiSelectField(id, label, options) {
+  return `<div class="field-row"><label for="${id}">${label}</label><select id="${id}" multiple required>${options.map((item) => `<option>${item}</option>`).join("")}</select></div>`;
 }
 
 function selectedOptions(id) {
   return [...document.getElementById(id).selectedOptions].map((option) => option.value);
 }
 
-function wireEntityForm(type) {
-  document.getElementById(`${type}-form`).addEventListener("submit", (event) => {
+function wireRequestForm() {
+  document.getElementById("request-form").addEventListener("submit", (event) => {
     event.preventDefault();
-    const isBusiness = type === "business";
-    const item = {
-      id: `${type}-${crypto.randomUUID()}`,
-      name: document.getElementById(`${type}-name`).value.trim(),
-      market: document.getElementById(`${type}-market`).value.trim(),
-      contact: document.getElementById(`${type}-contact`).value.trim(),
-      causes: selectedOptions(`${type}-causes`),
-      audiences: selectedOptions(`${type}-audiences`),
-      goals: document.getElementById(`${type}-goals`).value.trim(),
-      status: "new",
-    };
-    if (isBusiness) {
-      item.monthlyBudget = Number(document.getElementById(`${type}-budget`).value) || 0;
-      item.activationTypes = splitSelections(document.getElementById(`${type}-activations`).value);
-      data.businesses = [item, ...data.businesses];
-    } else {
-      item.minimumContribution = Number(document.getElementById(`${type}-budget`).value) || 0;
-      item.activationNeeds = splitSelections(document.getElementById(`${type}-activations`).value);
-      data.nonprofits = [item, ...data.nonprofits];
-    }
+    data.campaignRequests = [
+      {
+        id: `request-${crypto.randomUUID()}`,
+        organizationName: value("request-org"),
+        organizationType: value("request-type"),
+        contactName: value("request-contact"),
+        email: value("request-email"),
+        phone: value("request-phone"),
+        campaignDescription: value("request-description"),
+        fundingGoal: Number(value("request-goal")) || 0,
+        startDate: value("request-start"),
+        endDate: value("request-end"),
+        causeArea: value("request-cause"),
+        businessPreference: value("request-preference"),
+        geography: value("request-geo"),
+        priorFundraiser: value("request-prior"),
+        status: "new",
+      },
+      ...data.campaignRequests,
+    ];
     saveData(data);
     render();
   });
 }
 
-function entityCard(item, type) {
-  const activations = type === "business" ? item.activationTypes : item.activationNeeds;
-  const amount = type === "business" ? item.monthlyBudget : item.minimumContribution;
+function wireBusinessForm() {
+  document.getElementById("business-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    data.businesses = [
+      {
+        id: `business-${crypto.randomUUID()}`,
+        name: value("business-name"),
+        category: value("business-category"),
+        serviceAreas: splitSelections(value("business-areas")),
+        causeAreas: selectedOptions("business-causes"),
+        contributionTypes: selectedOptions("business-contributions"),
+        availableFrom: value("business-from"),
+        availableTo: value("business-to"),
+        notes: value("business-notes"),
+        status: "ready",
+      },
+      ...data.businesses,
+    ];
+    saveData(data);
+    render();
+  });
+}
+
+function value(id) {
+  return document.getElementById(id).value.trim();
+}
+
+function upsertMatchStatus(requestId, businessId, status) {
+  const existing = data.matches.find((match) => match.requestId === requestId && match.businessId === businessId);
+  if (existing) existing.status = status;
+  else data.matches.push({ requestId, businessId, status });
+  saveData(data);
+}
+
+function requestCard(request) {
   return `
     <article class="entity-card">
       <div class="entity-head">
         <div>
-          <h3>${escapeHtml(item.name)}</h3>
-          <p class="muted">${escapeHtml(item.market)} · ${escapeHtml(item.contact || "No contact yet")}</p>
+          <h3>${escapeHtml(request.organizationName)}</h3>
+          <p class="muted">${escapeHtml(request.organizationType)} · ${escapeHtml(request.geography)} · $${Number(request.fundingGoal).toLocaleString()}</p>
         </div>
-        <span class="status-pill status-${escapeHtml(item.status || "new")}">${escapeHtml(item.status || "new")}</span>
+        <span class="status-pill status-new">new</span>
       </div>
-      <p>${escapeHtml(item.goals || "No goals entered yet.")}</p>
-      <p class="small-label">${type === "business" ? "Budget" : "Minimum"}</p>
-      <p>$${Number(amount || 0).toLocaleString()}</p>
-      <div class="tag-row">${[...(item.causes || []), ...(item.audiences || []), ...(activations || [])].map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}</div>
+      <p>${escapeHtml(request.campaignDescription)}</p>
+      <div class="tag-row">
+        <span class="tag">${escapeHtml(request.causeArea)}</span>
+        <span class="tag">${escapeHtml(request.businessPreference)}</span>
+        <span class="tag">${escapeHtml(request.startDate || "No start date")} to ${escapeHtml(request.endDate || "No end date")}</span>
+      </div>
+    </article>
+  `;
+}
+
+function businessCard(business) {
+  return `
+    <article class="entity-card">
+      <div class="entity-head">
+        <div>
+          <h3>${escapeHtml(business.name)}</h3>
+          <p class="muted">${escapeHtml(business.category)} · ${escapeHtml((business.serviceAreas || []).join(", "))}</p>
+        </div>
+        <span class="status-pill status-ready">ready</span>
+      </div>
+      <p>${escapeHtml(business.notes || "No notes entered yet.")}</p>
+      <div class="tag-row">
+        ${[...(business.causeAreas || []), ...(business.contributionTypes || [])].map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}
+      </div>
     </article>
   `;
 }
@@ -219,19 +348,25 @@ function matchCard(match) {
     <article class="match-card">
       <div class="match-head">
         <div>
-          <h3>${escapeHtml(match.business.name)} + ${escapeHtml(match.nonprofit.name)}</h3>
-          <p class="muted">${escapeHtml(match.business.market)} partnership introduction</p>
+          <h3>${escapeHtml(match.request.organizationName)} + ${escapeHtml(match.business.name)}</h3>
+          <p class="muted">${escapeHtml(match.request.causeArea)} campaign in ${escapeHtml(match.request.geography)}</p>
         </div>
         <div class="score">${match.total}%</div>
       </div>
-      <p>${escapeHtml(match.nonprofit.goals)}</p>
+      <p>${escapeHtml(match.request.campaignDescription)}</p>
       <div class="tag-row">${match.reasons.map((reason) => `<span class="tag">${escapeHtml(reason)}</span>`).join("")}</div>
-      <div class="split-actions" style="margin-top:14px;">
-        <button class="secondary-btn" type="button">Review</button>
-        <button class="primary-btn" type="button">Draft Intro</button>
+      <div class="match-actions">
+        <label for="status-${escapeHtml(match.id)}">Match status</label>
+        <select id="status-${escapeHtml(match.id)}" data-status-update data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">
+          ${MATCH_STATUSES.map((status) => `<option value="${status}" ${match.status === status ? "selected" : ""}>${statusLabel(status)}</option>`).join("")}
+        </select>
       </div>
     </article>
   `;
+}
+
+function statusLabel(status) {
+  return status.split("_").map((part) => part[0].toUpperCase() + part.slice(1)).join(" ");
 }
 
 function escapeHtml(value) {

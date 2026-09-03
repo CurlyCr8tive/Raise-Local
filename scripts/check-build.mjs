@@ -28,24 +28,32 @@ function run(label, command, args) {
 function assertMatchingRules() {
   const business = {
     id: "biz",
-    market: "New York",
-    monthlyBudget: 1000,
-    causes: ["Food access"],
-    audiences: ["Families"],
-    activationTypes: ["Round-up campaign"],
+    category: "Food and beverage",
+    serviceAreas: ["Brooklyn", "Queens"],
+    causeAreas: ["Food access"],
+    contributionTypes: ["Percent of sales"],
+    availableFrom: "2026-09-01",
+    availableTo: "2026-10-30",
   };
-  const nonprofit = {
-    id: "np",
-    market: "New York",
-    minimumContribution: 500,
-    causes: ["Food access"],
-    audiences: ["Families"],
-    activationNeeds: ["Round-up campaign"],
+  const request = {
+    id: "request",
+    causeArea: "Food access",
+    businessPreference: "Food and beverage",
+    geography: "Brooklyn",
+    startDate: "2026-09-15",
+    endDate: "2026-10-15",
   };
-  const score = scoreMatch(business, nonprofit);
-  assert.equal(score.total, 64);
-  assert.deepEqual(score.reasons, ["Cause alignment", "Audience overlap", "Budget fit", "Activation fit", "Same market"]);
-  assert.equal(buildMatches([business], [nonprofit])[0].total, 64);
+  const score = scoreMatch(request, business);
+  assert.equal(score.total, 100);
+  assert.deepEqual(score.reasons, [
+    "Supports Food access",
+    "Fits food and beverage preference",
+    "Serves Brooklyn",
+    "Has a contribution type on file",
+    "Available during campaign window",
+  ]);
+  assert.equal(buildMatches([request], [business])[0].total, 100);
+  assert.equal(buildMatches([{ ...request, geography: "Bronx" }], [business]).length, 0);
 }
 
 walk(root);
