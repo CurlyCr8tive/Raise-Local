@@ -35,6 +35,17 @@ loop:
 4. Each recommendation explains the fit.
 5. Both sides must confirm interest before contact details are shared.
 
+Tonight's priority deliverable:
+
+- Send Tenyse screenshots of the intro quiz landing screen.
+- Show the two quiz paths:
+  - Nonprofit side: "I need a business partner for a campaign."
+  - Business side: "I want to support community fundraisers."
+- Show that the quiz collects must-haves, nice-to-haves, support type,
+  location, timing, and capacity before matching.
+- Explain that Supabase and Google Form wiring come next after the fields are
+  approved.
+
 ## Phase One Build Scope
 
 In scope:

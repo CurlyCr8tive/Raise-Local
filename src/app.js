@@ -13,7 +13,9 @@ import {
 import { loadData, resetDemoData, saveData } from "./storage.js";
 
 let data = loadData();
-let activeView = "dashboard";
+let activeView = "intro";
+let quizAudience = null;
+let quizConfirmation = "";
 
 const root = document.getElementById("view-root");
 const title = document.getElementById("page-title");
@@ -42,6 +44,7 @@ function currentMatches() {
 
 function render() {
   const views = {
+    intro: renderIntro,
     dashboard: renderDashboard,
     requests: renderRequests,
     businesses: renderBusinesses,
@@ -49,6 +52,51 @@ function render() {
     brief: renderBrief,
   };
   views[activeView]();
+}
+
+function renderIntro() {
+  setTitle("Intro Quiz");
+  root.innerHTML = `
+    <section class="intro-hero">
+      <p class="eyebrow">Raise Funds, Buy Local</p>
+      <h2>Let's find the right local partnership.</h2>
+      <p>Answer a few focused questions so Raise Local can understand what you need, what you offer, and which matches are actually workable.</p>
+    </section>
+
+    ${quizConfirmation ? `<section class="success-banner" role="status">${escapeHtml(quizConfirmation)}</section>` : ""}
+
+    <section class="quiz-choice-grid" aria-label="Choose quiz path">
+      <button type="button" class="choice-card ${quizAudience === "request" ? "active" : ""}" data-quiz-audience="request">
+        <span>For nonprofits</span>
+        <strong>I need a business partner for a campaign.</strong>
+        <small>Tell us your goal, timing, location, must-haves, and the kind of support you need.</small>
+      </button>
+      <button type="button" class="choice-card ${quizAudience === "business" ? "active" : ""}" data-quiz-audience="business">
+        <span>For local businesses</span>
+        <strong>I want to support community fundraisers.</strong>
+        <small>Tell us your service area, offer type, availability, and capacity so we only send workable requests.</small>
+      </button>
+    </section>
+
+    <section class="panel quiz-panel">
+      ${
+        quizAudience === "business"
+          ? `<h2>Business Intro Quiz</h2>${businessForm({ quizMode: true })}`
+          : `<h2>Nonprofit Intro Quiz</h2>${requestForm({ quizMode: true })}`
+      }
+    </section>
+  `;
+
+  root.querySelectorAll("[data-quiz-audience]").forEach((button) => {
+    button.addEventListener("click", () => {
+      quizAudience = button.dataset.quizAudience;
+      quizConfirmation = "";
+      renderIntro();
+    });
+  });
+
+  if (quizAudience === "business") wireBusinessForm({ fromQuiz: true });
+  else wireRequestForm({ fromQuiz: true });
 }
 
 function renderDashboard() {
@@ -186,9 +234,10 @@ function renderBrief() {
   `;
 }
 
-function requestForm() {
+function requestForm({ quizMode = false } = {}) {
   return `
     <form id="request-form">
+      ${quizMode ? `<div class="progress-rail"><span style="width:25%;"></span></div>` : ""}
       <div class="quiz-intro">
         <p class="eyebrow">Step 1 of 4</p>
         <h3>Tell us about your organization and what you need.</h3>
@@ -236,14 +285,15 @@ function requestForm() {
         <label for="request-prior">Have you run a fundraiser like this before?</label>
         <input id="request-prior" placeholder="Yes/no, and platform if yes" />
       </div>
-      <button class="primary-btn" type="submit">Submit Campaign Request</button>
+      <button class="primary-btn" type="submit">${quizMode ? "Finish Nonprofit Quiz" : "Submit Campaign Request"}</button>
     </form>
   `;
 }
 
-function businessForm() {
+function businessForm({ quizMode = false } = {}) {
   return `
     <form id="business-form">
+      ${quizMode ? `<div class="progress-rail"><span style="width:25%;"></span></div>` : ""}
       <div class="quiz-intro">
         <p class="eyebrow">Step 1 of 4</p>
         <h3>Let's get to know your business and how you want to support your community.</h3>
@@ -287,7 +337,7 @@ function businessForm() {
         <label for="business-notes">Notes</label>
         <textarea id="business-notes" rows="3"></textarea>
       </div>
-      <button class="primary-btn" type="submit">Save Business Profile</button>
+      <button class="primary-btn" type="submit">${quizMode ? "Finish Business Quiz" : "Save Business Profile"}</button>
     </form>
   `;
 }
@@ -312,7 +362,7 @@ function selectedOptions(id) {
   return [...document.getElementById(id).selectedOptions].map((option) => option.value);
 }
 
-function wireRequestForm() {
+function wireRequestForm({ fromQuiz = false } = {}) {
   document.getElementById("request-form").addEventListener("submit", (event) => {
     event.preventDefault();
     data.campaignRequests = [
@@ -342,11 +392,15 @@ function wireRequestForm() {
       ...data.campaignRequests,
     ];
     saveData(data);
+    if (fromQuiz) {
+      quizConfirmation = "Campaign request saved. Raise Local can now compare it against business profiles.";
+      activeView = "matches";
+    }
     render();
   });
 }
 
-function wireBusinessForm() {
+function wireBusinessForm({ fromQuiz = false } = {}) {
   document.getElementById("business-form").addEventListener("submit", (event) => {
     event.preventDefault();
     data.businesses = [
@@ -376,6 +430,10 @@ function wireBusinessForm() {
       ...data.businesses,
     ];
     saveData(data);
+    if (fromQuiz) {
+      quizConfirmation = "Business profile saved. Raise Local can now recommend fit-based campaign opportunities.";
+      activeView = "matches";
+    }
     render();
   });
 }

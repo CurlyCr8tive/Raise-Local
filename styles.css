@@ -314,6 +314,106 @@ textarea {
   padding: 22px;
 }
 
+.intro-hero {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  margin-bottom: 16px;
+  padding: 28px;
+}
+
+.intro-hero h2 {
+  font-size: clamp(2rem, 5vw, 4rem);
+  line-height: 1.02;
+  margin-bottom: 12px;
+  max-width: 780px;
+}
+
+.intro-hero p:last-child {
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.55;
+  margin-bottom: 0;
+  max-width: 720px;
+}
+
+.quiz-choice-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 18px;
+}
+
+.choice-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+  cursor: pointer;
+  padding: 18px;
+  text-align: left;
+}
+
+.choice-card:hover,
+.choice-card.active {
+  border-color: var(--coral);
+  outline: 3px solid rgba(252, 103, 100, 0.16);
+}
+
+.choice-card span {
+  color: var(--coral);
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 800;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.choice-card strong {
+  display: block;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.28rem;
+  line-height: 1.2;
+  margin-bottom: 8px;
+}
+
+.choice-card small {
+  color: var(--muted);
+  display: block;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.quiz-panel {
+  max-width: 980px;
+}
+
+.progress-rail {
+  background: var(--blush);
+  border-radius: 999px;
+  height: 8px;
+  margin-bottom: 18px;
+  overflow: hidden;
+}
+
+.progress-rail span {
+  background: var(--amber);
+  display: block;
+  height: 100%;
+}
+
+.success-banner {
+  background: #fff5db;
+  border: 1px solid rgba(224, 166, 57, 0.55);
+  border-radius: var(--radius);
+  color: #5f440d;
+  font-weight: 700;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+}
+
 .mission-panel h2 {
   font-size: clamp(1.5rem, 3vw, 2.6rem);
   line-height: 1.12;
@@ -375,7 +475,8 @@ textarea {
 
   .metric-grid,
   .form-grid,
-  .scope-grid {
+  .scope-grid,
+  .quiz-choice-grid {
     grid-template-columns: 1fr;
   }
 
