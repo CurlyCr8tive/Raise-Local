@@ -1,15 +1,16 @@
 :root {
-  --ink: #1f12ba;
-  --muted: #665f8f;
-  --line: #eadde4;
-  --paper: #fdf7f2;
+  --ink: #004030;
+  --muted: #4d665e;
+  --line: #d8e6df;
+  --paper: #f7fbf8;
   --panel: #ffffff;
-  --field: #fffaf7;
-  --navy: #1f12ba;
-  --blush: #f5cad0;
-  --coral: #fc6764;
-  --amber: #e0a639;
-  --shadow: 0 18px 38px rgba(31, 43, 71, 0.1);
+  --field: #f4f8f6;
+  --forest: #004030;
+  --green: #1e8459;
+  --orange: #f1892f;
+  --cream: #fdf7f2;
+  --success: #e0a639;
+  --shadow: 0 18px 38px rgba(0, 64, 48, 0.1);
   --radius: 8px;
 }
 
@@ -35,34 +36,31 @@ textarea {
 }
 
 .sidebar {
-  background: var(--navy);
+  background: var(--forest);
   color: #fff;
   min-height: 100vh;
   padding: 24px 18px;
 }
 
 .brand {
-  align-items: center;
-  display: flex;
-  gap: 12px;
+  display: grid;
+  gap: 10px;
   margin-bottom: 30px;
 }
 
-.brand-mark {
-  align-items: center;
-  background: var(--coral);
-  border-radius: 8px;
-  display: inline-flex;
-  font-weight: 800;
-  height: 42px;
-  justify-content: center;
-  width: 42px;
+.brand img {
+  background: #fff;
+  border-radius: var(--radius);
+  display: block;
+  max-width: 172px;
+  padding: 8px;
+  width: 100%;
 }
 
-.brand span:last-child {
-  color: #b8c4d8;
-  display: block;
+.brand span {
+  color: #e7f3ee;
   font-size: 0.78rem;
+  font-weight: 700;
 }
 
 nav {
@@ -74,7 +72,7 @@ nav {
   background: transparent;
   border: 0;
   border-radius: 8px;
-  color: #dce5f2;
+  color: #e7f3ee;
   cursor: pointer;
   padding: 11px 12px;
   text-align: left;
@@ -100,7 +98,7 @@ nav {
 }
 
 .eyebrow {
-  color: var(--coral);
+  color: var(--orange);
   font-size: 0.78rem;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -116,7 +114,8 @@ p {
 }
 
 h1 {
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 800;
   font-size: 1.75rem;
   margin-bottom: 0;
 }
@@ -132,14 +131,14 @@ h1 {
 }
 
 .primary-btn {
-  background: var(--coral);
+  background: var(--orange);
   color: #fff;
 }
 
 .secondary-btn {
   background: var(--panel);
   border: 1px solid var(--line);
-  color: var(--ink);
+  color: var(--forest);
 }
 
 .danger-btn {
@@ -226,19 +225,19 @@ h1 {
 }
 
 .tag {
-  background: var(--blush);
+  background: #e7f3ee;
   border-radius: 999px;
-  color: var(--navy);
+  color: var(--forest);
   font-size: 0.76rem;
   font-weight: 700;
   padding: 5px 8px;
 }
 
 .score {
-  background: #edf4ff;
-  border: 1px solid #b9cdec;
+  background: #e7f3ee;
+  border: 1px solid #b9d8ca;
   border-radius: 8px;
-  color: var(--navy);
+  color: var(--forest);
   font-weight: 800;
   min-width: 94px;
   padding: 8px;
@@ -291,18 +290,18 @@ textarea {
 }
 
 .status-new {
-  background: var(--blush);
-  color: var(--navy);
+  background: #fff0df;
+  color: #8a4b0c;
 }
 
 .status-ready {
-  background: #fff5db;
-  color: #725112;
+  background: #e7f3ee;
+  color: var(--forest);
 }
 
 .status-active {
-  background: #edf4ff;
-  color: var(--navy);
+  background: #fff5db;
+  color: #725112;
 }
 
 .mission-panel {
@@ -315,7 +314,10 @@ textarea {
 }
 
 .intro-hero {
-  background: var(--panel);
+  background:
+    linear-gradient(rgba(0, 64, 48, 0.86), rgba(0, 64, 48, 0.88)),
+    url("assets/raise-local-symbol-hires.png") right 30px center / 180px auto no-repeat,
+    var(--forest);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
@@ -324,6 +326,7 @@ textarea {
 }
 
 .intro-hero h2 {
+  color: #fff;
   font-size: clamp(2rem, 5vw, 4rem);
   line-height: 1.02;
   margin-bottom: 12px;
@@ -331,7 +334,7 @@ textarea {
 }
 
 .intro-hero p:last-child {
-  color: var(--muted);
+  color: #e7f3ee;
   font-size: 1rem;
   line-height: 1.55;
   margin-bottom: 0;
@@ -358,12 +361,12 @@ textarea {
 
 .choice-card:hover,
 .choice-card.active {
-  border-color: var(--coral);
-  outline: 3px solid rgba(252, 103, 100, 0.16);
+  border-color: var(--orange);
+  outline: 3px solid rgba(241, 137, 47, 0.18);
 }
 
 .choice-card span {
-  color: var(--coral);
+  color: var(--orange);
   display: block;
   font-size: 0.78rem;
   font-weight: 800;
@@ -373,8 +376,9 @@ textarea {
 
 .choice-card strong {
   display: block;
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 1.28rem;
+  font-weight: 800;
   line-height: 1.2;
   margin-bottom: 8px;
 }
@@ -391,7 +395,7 @@ textarea {
 }
 
 .progress-rail {
-  background: var(--blush);
+  background: #e7f3ee;
   border-radius: 999px;
   height: 8px;
   margin-bottom: 18px;
@@ -399,7 +403,7 @@ textarea {
 }
 
 .progress-rail span {
-  background: var(--amber);
+  background: var(--success);
   display: block;
   height: 100%;
 }
@@ -435,12 +439,12 @@ textarea {
 
 .quiz-option:hover,
 .quiz-option.selected {
-  border-color: var(--coral);
-  box-shadow: 0 0 0 3px rgba(252, 103, 100, 0.14);
+  border-color: var(--orange);
+  box-shadow: 0 0 0 3px rgba(241, 137, 47, 0.16);
 }
 
 .quiz-option input {
-  accent-color: var(--coral);
+  accent-color: var(--orange);
   flex: 0 0 auto;
   width: auto;
 }
@@ -505,7 +509,7 @@ textarea {
 }
 
 .quiz-intro {
-  border-left: 4px solid var(--coral);
+  border-left: 4px solid var(--orange);
   margin: 16px 0 12px;
   padding-left: 12px;
 }
@@ -547,5 +551,6 @@ textarea {
 }
 h2,
 h3 {
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 800;
 }
