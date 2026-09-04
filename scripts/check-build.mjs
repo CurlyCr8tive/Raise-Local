@@ -57,10 +57,9 @@ function assertMatchingRules() {
     "Supports Food access",
     "Fits food and beverage preference",
     "Serves Brooklyn",
-    "Has a contribution type on file",
     "Available during campaign window",
     "Offers the support needed",
-    "Capacity range can cover the request",
+    "Capacity range can cover the expected participation",
   ]);
   assert.equal(buildMatches([request], [business])[0].total, 100);
   assert.equal(buildMatches([{ ...request, geography: "Bronx" }], [business]).length, 0);

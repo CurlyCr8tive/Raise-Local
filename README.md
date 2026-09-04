@@ -19,6 +19,8 @@ Motto: Raise Funds, Buy Local.
 - Business intake form.
 - Match review queue with explainable V1 filtered matches.
 - Save, request intro, accept, decline, and launch status tracking.
+- Compatibility score, why-this-match-fit reasons, notification records, and
+  admin override notes.
 - Build brief and trust guardrails page.
 - Action and build plan from the September 3 meeting.
 - Local browser storage for demo data.
@@ -42,8 +44,8 @@ This is separate from the Verified Consulting client portal. The first build
 focuses only on validating the matching loop:
 
 - A nonprofit or community organization submits a campaign request.
-- Raise Local matches that request to businesses whose category, cause area,
-  and geography overlap.
+- Raise Local matches that request to businesses whose location, cause,
+  partnership type, offer, timing, capacity, and minimums overlap.
 - Both sides save, request an intro, accept, or decline.
 - The campaign launches once accepted.
 

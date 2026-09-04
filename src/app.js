@@ -1,11 +1,15 @@
 import {
   BUSINESS_CATEGORIES,
+  BUSINESS_GOALS,
   CAUSE_AREAS,
   CONTRIBUTION_TYPES,
   DECLINE_REASONS,
   EVENT_TYPES,
+  FULFILLMENT_OPTIONS,
+  FULFILLMENT_SCOPE,
   MATCH_STATUSES,
   ORGANIZATION_TYPES,
+  PARTNERSHIP_TYPES,
   SUPPORT_NEEDS,
   buildMatches,
   splitSelections,
@@ -47,18 +51,28 @@ function currentMatches() {
 const NONPROFIT_QUESTIONS = [
   { key: "organizationName", label: "What's the name of your organization?", type: "text", placeholder: "PS 118 PTA" },
   { key: "organizationType", label: "What type of nonprofit are you?", type: "single", options: ORGANIZATION_TYPES },
+  { key: "website", label: "What's your website?", type: "url", placeholder: "https://example.org" },
+  { key: "socialLinks", label: "Add any social links we should keep on file.", type: "textarea", placeholder: "Instagram, LinkedIn, Facebook, etc." },
+  { key: "classification", label: "How should we classify your organization?", type: "single", options: ["501(c)(3)", "School / PTA", "Community group", "Faith-based organization", "Other"] },
   { key: "contactName", label: "Who should we contact?", type: "text", placeholder: "Your name" },
   { key: "email", label: "What's the best email for follow-up?", type: "email", placeholder: "you@example.org" },
   { key: "phone", label: "What's the best phone number?", type: "tel", placeholder: "555-0100" },
+  { key: "communitiesServed", label: "Which local communities do you serve?", type: "text", placeholder: "Brooklyn families, Queens students, Crown Heights, etc." },
+  { key: "mission", label: "What is your mission or primary community focus?", type: "textarea", placeholder: "A short mission statement or focus area." },
+  { key: "audienceServed", label: "Who is the audience or population served?", type: "text", placeholder: "Students, parents, donors, neighborhood families, etc." },
+  { key: "audienceSize", label: "About how large is your supporter, parent, donor, or email audience?", type: "number", placeholder: "500" },
   { key: "campaignDescription", label: "What are you raising funds for?", type: "textarea", placeholder: "Tell us about the campaign, event, or need." },
   { key: "fundingGoal", label: "What's your fundraising goal?", type: "number", placeholder: "5000" },
+  { key: "partnershipTypesNeeded", label: "What type of partnership do you need?", type: "multi", options: PARTNERSHIP_TYPES },
   { key: "eventType", label: "What kind of campaign is this?", type: "single", options: EVENT_TYPES },
   { key: "causeArea", label: "Which cause area fits best?", type: "single", options: CAUSE_AREAS },
   { key: "supportNeeds", label: "What kind of support do you need?", type: "multi", options: SUPPORT_NEEDS },
-  { key: "businessPreference", label: "What type of business would be ideal?", type: "single", options: BUSINESS_CATEGORIES },
+  { key: "preferredCategories", label: "What types of businesses would be ideal?", type: "multi", options: BUSINESS_CATEGORIES },
   { key: "geography", label: "Where should the business be located or able to serve?", type: "text", placeholder: "Brooklyn, Washington DC, Maryland, zip code, etc." },
   { key: "startDate", label: "When should the campaign start?", type: "date" },
   { key: "endDate", label: "When should the campaign end?", type: "date" },
+  { key: "partnershipDeadline", label: "When do you need a partner confirmed by?", type: "date" },
+  { key: "expectedParticipation", label: "How many supporters do you expect to participate?", type: "number", placeholder: "100" },
   { key: "minimumSize", label: "What's the minimum size you need covered?", type: "number", placeholder: "50" },
   { key: "idealSize", label: "What's the ideal size?", type: "number", placeholder: "100" },
   { key: "mustHaves", label: "What are your must-haves?", type: "textarea", placeholder: "What would make a match impossible if missing?" },
@@ -68,11 +82,19 @@ const NONPROFIT_QUESTIONS = [
 
 const BUSINESS_QUESTIONS = [
   { key: "name", label: "What's your business name?", type: "text", placeholder: "YAMAAS! Olive Oil" },
+  { key: "website", label: "What's your website?", type: "url", placeholder: "https://example.com" },
+  { key: "socialLinks", label: "Add any social links we should keep on file.", type: "textarea", placeholder: "Instagram, TikTok, LinkedIn, press links, etc." },
   { key: "category", label: "What type of business are you?", type: "single", options: BUSINESS_CATEGORIES.filter((item) => item !== "No preference") },
+  { key: "businessGoals", label: "What do you want to get out of participating?", type: "multi", options: BUSINESS_GOALS },
   { key: "serviceAreas", label: "Where can you serve campaigns?", type: "text", placeholder: "Brooklyn, Washington DC, Maryland" },
+  { key: "fulfillmentScope", label: "How far can you fulfill campaigns?", type: "single", options: FULFILLMENT_SCOPE },
   { key: "causeAreas", label: "What causes do you want to support?", type: "multi", options: CAUSE_AREAS },
   { key: "offerTypes", label: "What can your business offer?", type: "multi", options: SUPPORT_NEEDS },
   { key: "contributionTypes", label: "How are you open to contributing?", type: "multi", options: CONTRIBUTION_TYPES },
+  { key: "partnershipTypes", label: "Which partnership types are you open to?", type: "multi", options: PARTNERSHIP_TYPES },
+  { key: "productsServices", label: "What products or services can you offer through partnerships?", type: "textarea", placeholder: "Cookie boxes, catering, venue space, gift cards, workshops, etc." },
+  { key: "averagePriceRange", label: "What is the average product or service price range?", type: "text", placeholder: "$15-$40" },
+  { key: "minimumOrderRequirement", label: "What's your minimum order or campaign requirement?", type: "number", placeholder: "500" },
   { key: "minimumCapacity", label: "What's the smallest order or event size that makes sense?", type: "number", placeholder: "30" },
   { key: "maximumCapacity", label: "What's the largest order or event size you can handle?", type: "number", placeholder: "200" },
   { key: "idealEventSize", label: "What's your ideal event size?", type: "number", placeholder: "100" },
@@ -81,7 +103,9 @@ const BUSINESS_QUESTIONS = [
   { key: "estimatedUnitContribution", label: "About how much does each sale/order contribute?", type: "number", placeholder: "15" },
   { key: "availableFrom", label: "When are you available from?", type: "date" },
   { key: "availableTo", label: "When are you available until?", type: "date" },
-  { key: "fulfillmentOptions", label: "How can people receive or experience what you offer?", type: "multi", options: ["Delivery", "Pickup", "In person", "Venue rental"] },
+  { key: "leadTimeDays", label: "How much lead time do you need before participating?", type: "number", placeholder: "14" },
+  { key: "fulfillmentOptions", label: "How can people receive or experience what you offer?", type: "multi", options: FULFILLMENT_OPTIONS },
+  { key: "orgTypesSupported", label: "What types of organizations do you want to work with?", type: "multi", options: ORGANIZATION_TYPES },
   { key: "notes", label: "Anything else Raise Local should know?", type: "textarea", placeholder: "Limits, ideal partners, venue details, accessibility, minimums, or timing notes." },
 ];
 
@@ -244,17 +268,28 @@ function requestFromQuizAnswers() {
     id: `request-${crypto.randomUUID()}`,
     organizationName: quizAnswers.organizationName,
     organizationType: quizAnswers.organizationType,
+    website: quizAnswers.website,
+    socialLinks: quizAnswers.socialLinks,
+    classification: quizAnswers.classification,
     contactName: quizAnswers.contactName,
     email: quizAnswers.email,
     phone: quizAnswers.phone,
+    communitiesServed: quizAnswers.communitiesServed,
+    mission: quizAnswers.mission,
+    audienceServed: quizAnswers.audienceServed,
+    audienceSize: Number(quizAnswers.audienceSize) || 0,
     campaignDescription: quizAnswers.campaignDescription,
     fundingGoal: Number(quizAnswers.fundingGoal) || 0,
     startDate: quizAnswers.startDate,
     endDate: quizAnswers.endDate,
+    partnershipDeadline: quizAnswers.partnershipDeadline,
     causeArea: quizAnswers.causeArea,
-    businessPreference: quizAnswers.businessPreference,
+    businessPreference: quizAnswers.preferredCategories?.[0] || "No preference",
+    preferredCategories: quizAnswers.preferredCategories || [],
     eventType: quizAnswers.eventType,
+    partnershipTypesNeeded: quizAnswers.partnershipTypesNeeded || [],
     supportNeeds: quizAnswers.supportNeeds || [],
+    expectedParticipation: Number(quizAnswers.expectedParticipation) || 0,
     minimumSize: Number(quizAnswers.minimumSize) || 0,
     idealSize: Number(quizAnswers.idealSize) || 0,
     geography: quizAnswers.geography,
@@ -269,11 +304,19 @@ function businessFromQuizAnswers() {
   return {
     id: `business-${crypto.randomUUID()}`,
     name: quizAnswers.name,
+    website: quizAnswers.website,
+    socialLinks: quizAnswers.socialLinks,
     category: quizAnswers.category,
+    businessGoals: quizAnswers.businessGoals || [],
     serviceAreas: splitSelections(quizAnswers.serviceAreas),
+    fulfillmentScope: quizAnswers.fulfillmentScope,
     causeAreas: quizAnswers.causeAreas || [],
     contributionTypes: quizAnswers.contributionTypes || [],
+    partnershipTypes: quizAnswers.partnershipTypes || [],
     offerTypes: quizAnswers.offerTypes || [],
+    productsServices: quizAnswers.productsServices,
+    averagePriceRange: quizAnswers.averagePriceRange,
+    minimumOrderRequirement: Number(quizAnswers.minimumOrderRequirement) || 0,
     minimumCapacity: Number(quizAnswers.minimumCapacity) || 0,
     maximumCapacity: Number(quizAnswers.maximumCapacity) || 0,
     idealEventSize: Number(quizAnswers.idealEventSize) || 0,
@@ -282,7 +325,9 @@ function businessFromQuizAnswers() {
     estimatedUnitContribution: Number(quizAnswers.estimatedUnitContribution) || 0,
     availableFrom: quizAnswers.availableFrom,
     availableTo: quizAnswers.availableTo,
+    leadTimeDays: Number(quizAnswers.leadTimeDays) || 0,
     fulfillmentOptions: quizAnswers.fulfillmentOptions || [],
+    orgTypesSupported: quizAnswers.orgTypesSupported || [],
     notes: quizAnswers.notes,
     rating: null,
     reviewNote: "",
@@ -360,7 +405,7 @@ function renderMatches() {
   root.innerHTML = `
     <section class="panel">
       <h2>Recommended Matches</h2>
-      <p class="muted">A match appears only when the must-haves work. Recommendations explain why they fit and use careful forecast language instead of promising results.</p>
+      <p class="muted">A match appears only when the must-haves work. Recommendations explain why they fit, surface the strongest 3-5 options, and record accept, pass, save, introduction, and admin override decisions.</p>
     </section>
     <section class="match-grid">${matches.length ? matches.map(matchCard).join("") : `<p class="muted">No matches yet.</p>`}</section>
   `;
@@ -379,6 +424,11 @@ function renderMatches() {
   root.querySelectorAll("[data-decline-note]").forEach((textarea) => {
     textarea.addEventListener("change", () => {
       upsertMatchFeedback(textarea.dataset.requestId, textarea.dataset.businessId, { declineNote: textarea.value.trim() });
+    });
+  });
+  root.querySelectorAll("[data-admin-note]").forEach((textarea) => {
+    textarea.addEventListener("change", () => {
+      upsertMatchFeedback(textarea.dataset.requestId, textarea.dataset.businessId, { adminNote: textarea.value.trim() });
     });
   });
 }
@@ -636,8 +686,11 @@ function value(id) {
 
 function upsertMatchStatus(requestId, businessId, status) {
   const existing = data.matches.find((match) => match.requestId === requestId && match.businessId === businessId);
-  if (existing) existing.status = status;
-  else data.matches.push({ requestId, businessId, status });
+  const notificationStatuses = ["intro_requested", "accepted", "launched"];
+  const fields = { status };
+  if (notificationStatuses.includes(status)) fields.notifiedAt = new Date().toISOString();
+  if (existing) Object.assign(existing, fields);
+  else data.matches.push({ requestId, businessId, ...fields });
   saveData(data);
 }
 
@@ -698,11 +751,13 @@ function matchCard(match) {
           <h3>${escapeHtml(match.request.organizationName)} + ${escapeHtml(match.business.name)}</h3>
           <p class="muted">${escapeHtml(match.request.causeArea)} campaign in ${escapeHtml(match.request.geography)}</p>
         </div>
-        <div class="score">${escapeHtml(match.label)}</div>
+        <div class="score"><span>${escapeHtml(match.label)}</span><strong>${match.total}</strong><small>compatibility</small></div>
       </div>
       <p>${escapeHtml(match.request.campaignDescription)}</p>
       <p class="forecast">${escapeHtml(match.forecast)}</p>
+      <p class="muted">Business goals: ${escapeHtml((match.business.businessGoals || []).slice(0, 4).join(", ") || "Not captured yet")}</p>
       <div class="tag-row">${match.reasons.map((reason) => `<span class="tag">${escapeHtml(reason)}</span>`).join("")}</div>
+      ${match.notifiedAt ? `<p class="notification-note">Email notification queued for ${escapeHtml(match.request.email)} and ${escapeHtml(match.business.name)} on ${formatDateTime(match.notifiedAt)}.</p>` : ""}
       <div class="match-actions">
         <label for="status-${escapeHtml(match.id)}">Match status</label>
         <select id="status-${escapeHtml(match.id)}" data-status-update data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">
@@ -714,9 +769,15 @@ function matchCard(match) {
           ${DECLINE_REASONS.map((reason) => `<option value="${reason}" ${match.declineReason === reason ? "selected" : ""}>${reason}</option>`).join("")}
         </select>
         <textarea data-decline-note data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}" rows="2" placeholder="Optional note for learning why this was not a fit">${escapeHtml(match.declineNote || "")}</textarea>
+        <label for="admin-${escapeHtml(match.id)}">Admin override / intro note</label>
+        <textarea id="admin-${escapeHtml(match.id)}" data-admin-note data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}" rows="2" placeholder="Manual recommendation, intro context, or override reason">${escapeHtml(match.adminNote || "")}</textarea>
       </div>
     </article>
   `;
+}
+
+function formatDateTime(value) {
+  return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value));
 }
 
 function statusLabel(status) {

@@ -38,12 +38,56 @@ Business side:
 In V1, a match is a business whose profile overlaps with the campaign request
 on:
 
-- Business category.
-- Cause area.
-- Geography.
+- Location or service area.
+- Cause alignment.
+- Partnership type.
+- Business category or preferred business type.
+- Business capacity and nonprofit expected participation.
+- Timing and availability.
+- Financial requirements or minimum order/campaign requirements.
+- What the nonprofit needs and what the business can offer.
 
-Contribution type, availability, support type, and capacity improve the
-recommendation, but the first filter stays intentionally simple and explainable.
+The system should prevent clearly incompatible matches, rank the remaining
+options, surface the strongest 3-5, show a compatibility score, and explain why
+each match fits in plain language.
+
+## Match Actions And Records
+
+Each match should let users or the Raise Local admin team:
+
+- Save.
+- Request an introduction.
+- Accept.
+- Pass or decline with a reason.
+- Launch once both sides are ready.
+- Record an admin override or manual recommendation note.
+
+When a match moves to introduction requested, accepted, or launched, the system
+should record that email notifications need to go to both sides. Those
+notifications can be automated after Supabase and email service wiring are in
+place.
+
+## Business Bot Questions
+
+The business-side bot should capture what the business wants to get out of
+participating, not only what it will give. Goals include new customers,
+community visibility, brand awareness, foot traffic, product trial, social media
+exposure, email/newsletter exposure, CSR/community impact, event participation,
+long-term nonprofit partnerships, content opportunities, and local press.
+
+The phase-one business profile should also capture website, social links,
+category, location/service area, fulfillment scope, size or capacity, products
+or services available for partnerships, average price range, minimum order or
+campaign requirement, maximum capacity, lead time, fulfillment options, causes,
+organization types served, and partnership types.
+
+## Nonprofit Bot Questions
+
+The nonprofit-side bot should capture website, social links, organization
+classification, location and communities served, mission, population/audience
+served, audience size, expected participation, campaign goal, amount to raise,
+campaign dates, partner deadline, preferred business categories, type of partner
+needed, and partnership type needed.
 
 ## Product Guardrails
 

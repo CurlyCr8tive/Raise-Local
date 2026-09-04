@@ -42,8 +42,9 @@ Tonight's priority deliverable:
   - Nonprofit side: "I need a business partner for a campaign."
   - Business side: "I want to support community fundraisers."
 - Show that each answer submits before the next question appears, then the quiz
-  collects must-haves, nice-to-haves, support type, location, timing, and
-  capacity before matching.
+  collects must-haves, nice-to-haves, audience/participation, support type,
+  partnership type, location, timing, capacity, and financial minimums before
+  matching.
 - Explain that Supabase and Google Form wiring come next after the fields are
   approved.
 
@@ -59,8 +60,12 @@ In scope:
   - Campaign or event type.
   - Needed support type.
   - Business capacity range.
+  - Nonprofit audience size and expected participation.
   - Timing and availability.
+  - Financial requirements and minimum campaign/order requirements.
+  - What each side wants and can offer.
   - Business campaign cap / unavailable status.
+- Compatibility score for every recommended match.
 - Top 3-5 recommended matches.
 - Plain-language explanations for each match.
 - Forecast language such as: "could potentially reach your goal by selling X
@@ -68,6 +73,8 @@ In scope:
 - Accept, pass, save, request introduction, and launch statuses.
 - Decline reason and notes field.
 - Manual review or override by Tenyse/Jess.
+- Email notification record when a match moves to introduction requested,
+  accepted, or launched.
 - Simple 1-5 business rating after campaign completion.
 
 Out of scope for phase one:
@@ -86,12 +93,19 @@ Nonprofit campaign request:
 - Organization name.
 - Organization type: school/PTA, 501(c)(3), community organization, or faith-based nonprofit.
 - Contact name, email, phone.
+- Website and social links.
+- Classification such as 501(c)(3), school/PTA, community group, or other.
+- Communities served, mission, population/audience served, audience size, and
+  expected participation.
 - Campaign description.
 - Funding goal.
 - Campaign start and end dates.
 - Fundraiser deadline.
 - Category or cause area.
 - Event or campaign type.
+- Partnership type needed: fundraising, sponsorship, food/beverage, venue,
+  event activation, product donation, hosted event, or percentage-of-sales
+  campaign.
 - Needed support: food, services, venue, products, sponsorship.
 - Local geography: neighborhood, borough, city, zip code, DC, or Maryland.
 - Ideal size and minimum-maximum range.
@@ -103,12 +117,22 @@ Nonprofit campaign request:
 Business match profile:
 
 - Business name and category.
+- Website and social links.
 - Contact details.
 - Location and service areas.
+- Local, regional, or national fulfillment capability.
+- Business goals such as new customers, foot traffic, product trial, social
+  exposure, email exposure, brand awareness, CSR/community impact, event
+  participation, content opportunities, local press, or long-term nonprofit
+  partnerships.
 - Cause areas they support.
 - Offer type: food, beverage, products, services, venue space, sponsorship.
 - Contribution type: product donation, percent of sales, sponsorship dollars,
   event hosting.
+- Partnership types they are open to.
+- Products or services they can offer.
+- Average price range.
+- Minimum order or campaign requirement.
 - Minimum and maximum order or event capacity.
 - Ideal event size.
 - Campaign cap.
@@ -126,15 +150,20 @@ The first version should be strict:
 - Filter unavailable or sold-out businesses first.
 - Filter by location, service area, cause/category, support type, timing, and
   capacity.
+- Filter by partnership type, nonprofit expected participation, and financial
+  minimums.
 - Rank the remaining options by fit.
 - Show the strongest 3-5 matches.
-- Explain the match in normal language instead of relying on a raw percentage.
+- Show a compatibility score and explain the match in normal language so the
+  score is not a black box.
 
 ## Trust And Learning
 
 - Both sides confirm interest before contact details are shared.
 - If either side declines, collect a reason: timing, location, capacity, budget,
   support type, or not the right fit.
+- Keep introduction history and match status changes on file.
+- Learn from accepted, passed, saved, and intro-requested matches.
 - After a completed campaign, nonprofits can leave a 1-5 star rating and an
   optional explanation.
 - Require a note for very low ratings before enforcement.

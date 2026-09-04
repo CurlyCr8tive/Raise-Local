@@ -11,13 +11,34 @@ export const CAUSE_AREAS = [
   "Other",
 ];
 
-export const BUSINESS_CATEGORIES = ["Food and beverage", "Retail", "Services", "No preference"];
+export const BUSINESS_CATEGORIES = ["Food and beverage", "Restaurant", "Beverage", "Retail", "Wellness", "Services", "Venue", "Local media", "No preference"];
 
 export const CONTRIBUTION_TYPES = ["Product donation", "Percent of sales", "Sponsorship dollars", "Event hosting"];
 
 export const EVENT_TYPES = ["Food-based fundraiser", "Gala", "Happy hour", "Community event", "Sponsorship campaign", "Product fundraiser"];
 
-export const SUPPORT_NEEDS = ["Food", "Beverage", "Products", "Services", "Venue space", "Sponsorship"];
+export const PARTNERSHIP_TYPES = ["Fundraising", "Event sponsorship", "Percentage of sales campaign", "Hosted event", "Food/beverage", "Venue", "Event activation", "Product donation"];
+
+export const BUSINESS_GOALS = [
+  "New customers",
+  "Community visibility",
+  "Brand awareness",
+  "Foot traffic",
+  "Product trial",
+  "Social media exposure",
+  "Email/newsletter exposure",
+  "CSR/community impact",
+  "Event participation",
+  "Long-term nonprofit partnerships",
+  "Content opportunities",
+  "Local press",
+];
+
+export const FULFILLMENT_OPTIONS = ["Shipping", "Delivery", "Pickup", "In person"];
+
+export const FULFILLMENT_SCOPE = ["Local", "Regional", "National"];
+
+export const SUPPORT_NEEDS = ["Food", "Beverage", "Products", "Services", "Venue space", "Sponsorship", "Event activation"];
 
 export const DECLINE_REASONS = ["Timing", "Location", "Capacity", "Budget or minimum", "Support type", "Not the right fit"];
 
@@ -40,7 +61,8 @@ function hasOverlap(left = [], right = []) {
 }
 
 function categoryFits(request, business) {
-  return request.businessPreference === "No preference" || sameText(request.businessPreference, business.category);
+  const preferences = request.preferredCategories?.length ? request.preferredCategories : [request.businessPreference];
+  return preferences.includes("No preference") || preferences.some((preference) => sameText(preference, business.category));
 }
 
 function geographyFits(request, business) {
@@ -59,12 +81,24 @@ function supportFits(request, business) {
   return hasOverlap(request.supportNeeds, business.offerTypes);
 }
 
+function partnershipFits(request, business) {
+  if (!request.partnershipTypesNeeded?.length || !business.partnershipTypes?.length) return true;
+  return hasOverlap(request.partnershipTypesNeeded, business.partnershipTypes);
+}
+
 function capacityFits(request, business) {
-  const minimum = Number(request.minimumSize) || 0;
-  const ideal = Number(request.idealSize) || minimum;
+  const minimum = Number(request.minimumSize || request.expectedParticipation) || 0;
+  const ideal = Number(request.idealSize || request.expectedParticipation) || minimum;
   const businessMin = Number(business.minimumCapacity) || 0;
-  const businessMax = Number(business.maximumCapacity) || Infinity;
+  const businessMax = Number(business.maximumCapacity || business.maximumOrderCapacity) || Infinity;
   return ideal >= businessMin && minimum <= businessMax;
+}
+
+function financialFits(request, business) {
+  const goal = Number(request.fundingGoal) || 0;
+  const minimum = Number(business.minimumOrderRequirement || business.minimumCampaignRequirement) || 0;
+  if (!goal || !minimum) return true;
+  return goal >= minimum;
 }
 
 function capFits(business) {
@@ -92,33 +126,37 @@ export function scoreMatch(request, business) {
   const businessTypeFit = categoryFits(request, business);
   const geographyFit = geographyFits(request, business);
   const contributionFit = (business.contributionTypes || []).length > 0;
+  const partnershipFit = partnershipFits(request, business);
   const availabilityFit = availabilityFits(request, business);
   const supportFit = supportFits(request, business);
   const capacityFit = capacityFits(request, business);
+  const financialFit = financialFits(request, business);
   const capFit = capFits(business);
 
   const total =
-    (causeFit ? 22 : 0) +
-    (businessTypeFit ? 18 : 0) +
-    (geographyFit ? 20 : 0) +
-    (contributionFit ? 10 : 0) +
+    (causeFit ? 18 : 0) +
+    (businessTypeFit ? 14 : 0) +
+    (geographyFit ? 18 : 0) +
+    (partnershipFit ? 12 : 0) +
     (availabilityFit ? 10 : 0) +
     (supportFit ? 10 : 0) +
-    (capacityFit ? 10 : 0);
+    (capacityFit ? 10 : 0) +
+    (financialFit ? 8 : 0);
 
   return {
     total,
     label: fitLabel(total),
     forecast: forecast(request, business),
-    filters: { causeFit, businessTypeFit, geographyFit, contributionFit, availabilityFit, supportFit, capacityFit, capFit },
+    filters: { causeFit, businessTypeFit, geographyFit, contributionFit, partnershipFit, availabilityFit, supportFit, capacityFit, financialFit, capFit },
     reasons: [
       causeFit ? `Supports ${request.causeArea}` : "",
-      businessTypeFit ? `Fits ${request.businessPreference.toLowerCase()} preference` : "",
+      businessTypeFit ? `Fits ${((request.preferredCategories || [request.businessPreference]).join(", ")).toLowerCase()} preference` : "",
       geographyFit ? `Serves ${request.geography}` : "",
-      contributionFit ? "Has a contribution type on file" : "",
+      partnershipFit && request.partnershipTypesNeeded?.length ? "Open to the needed partnership type" : "",
       availabilityFit ? "Available during campaign window" : "",
       supportFit ? "Offers the support needed" : "",
-      capacityFit ? "Capacity range can cover the request" : "",
+      capacityFit ? "Capacity range can cover the expected participation" : "",
+      financialFit && (business.minimumOrderRequirement || business.minimumCampaignRequirement) ? "Minimums fit the fundraising target" : "",
     ].filter(Boolean),
   };
 }
@@ -136,6 +174,8 @@ export function buildMatches(campaignRequests, businesses, existingMatches = [])
           status: saved?.status || "recommended",
           declineReason: saved?.declineReason || "",
           declineNote: saved?.declineNote || "",
+          adminNote: saved?.adminNote || "",
+          notifiedAt: saved?.notifiedAt || "",
           ...score,
         };
       })
@@ -145,8 +185,10 @@ export function buildMatches(campaignRequests, businesses, existingMatches = [])
         match.filters.causeFit &&
         match.filters.businessTypeFit &&
         match.filters.geographyFit &&
+        match.filters.partnershipFit &&
         match.filters.supportFit &&
         match.filters.capacityFit &&
+        match.filters.financialFit &&
         match.filters.capFit
     )
     .sort((a, b) => b.total - a.total)

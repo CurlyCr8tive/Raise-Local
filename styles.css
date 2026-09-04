@@ -239,9 +239,34 @@ h1 {
   border-radius: 8px;
   color: var(--forest);
   font-weight: 800;
-  min-width: 94px;
+  display: grid;
+  min-width: 112px;
   padding: 8px;
   text-align: center;
+}
+
+.score span,
+.score small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.score strong {
+  font-size: 1.65rem;
+  line-height: 1;
+}
+
+.notification-note {
+  background: #fff8ea;
+  border: 1px solid #f0d39a;
+  border-radius: 8px;
+  color: #704500;
+  font-size: 0.86rem;
+  font-weight: 700;
+  margin: 12px 0 0;
+  padding: 10px;
 }
 
 .muted {
