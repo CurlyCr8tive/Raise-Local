@@ -757,6 +757,12 @@ function matchCard(match) {
       <p class="forecast">${escapeHtml(match.forecast)}</p>
       <p class="muted">Business goals: ${escapeHtml((match.business.businessGoals || []).slice(0, 4).join(", ") || "Not captured yet")}</p>
       <div class="tag-row">${match.reasons.map((reason) => `<span class="tag">${escapeHtml(reason)}</span>`).join("")}</div>
+      <details class="decision-path">
+        <summary>Decision tree path</summary>
+        <ul>
+          ${(match.decisionStages || []).map((stage) => `<li class="${stage.passed ? "passed" : "blocked"}"><strong>${escapeHtml(stage.label)}:</strong> ${stage.passed ? escapeHtml(stage.reason || "Passed") : escapeHtml(stage.blocker || "Blocked")}</li>`).join("")}
+        </ul>
+      </details>
       ${match.notifiedAt ? `<p class="notification-note">Email notification queued for ${escapeHtml(match.request.email)} and ${escapeHtml(match.business.name)} on ${formatDateTime(match.notifiedAt)}.</p>` : ""}
       <div class="match-actions">
         <label for="status-${escapeHtml(match.id)}">Match status</label>

@@ -51,62 +51,6 @@ export function splitSelections(value) {
     .filter(Boolean);
 }
 
-function sameText(left, right) {
-  return String(left || "").trim().toLowerCase() === String(right || "").trim().toLowerCase();
-}
-
-function hasOverlap(left = [], right = []) {
-  const rightSet = new Set(right.map((item) => item.toLowerCase()));
-  return left.some((item) => rightSet.has(item.toLowerCase()));
-}
-
-function categoryFits(request, business) {
-  const preferences = request.preferredCategories?.length ? request.preferredCategories : [request.businessPreference];
-  return preferences.includes("No preference") || preferences.some((preference) => sameText(preference, business.category));
-}
-
-function geographyFits(request, business) {
-  const requestGeo = String(request.geography || "").trim().toLowerCase();
-  const serviceAreas = (business.serviceAreas || []).map((item) => item.toLowerCase());
-  return Boolean(requestGeo && serviceAreas.some((area) => area.includes(requestGeo) || requestGeo.includes(area)));
-}
-
-function availabilityFits(request, business) {
-  if (!request.startDate || !request.endDate || !business.availableFrom || !business.availableTo) return true;
-  return request.startDate >= business.availableFrom && request.endDate <= business.availableTo;
-}
-
-function supportFits(request, business) {
-  if (!request.supportNeeds?.length || !business.offerTypes?.length) return true;
-  return hasOverlap(request.supportNeeds, business.offerTypes);
-}
-
-function partnershipFits(request, business) {
-  if (!request.partnershipTypesNeeded?.length || !business.partnershipTypes?.length) return true;
-  return hasOverlap(request.partnershipTypesNeeded, business.partnershipTypes);
-}
-
-function capacityFits(request, business) {
-  const minimum = Number(request.minimumSize || request.expectedParticipation) || 0;
-  const ideal = Number(request.idealSize || request.expectedParticipation) || minimum;
-  const businessMin = Number(business.minimumCapacity) || 0;
-  const businessMax = Number(business.maximumCapacity || business.maximumOrderCapacity) || Infinity;
-  return ideal >= businessMin && minimum <= businessMax;
-}
-
-function financialFits(request, business) {
-  const goal = Number(request.fundingGoal) || 0;
-  const minimum = Number(business.minimumOrderRequirement || business.minimumCampaignRequirement) || 0;
-  if (!goal || !minimum) return true;
-  return goal >= minimum;
-}
-
-function capFits(business) {
-  const activeCampaigns = Number(business.activeCampaigns) || 0;
-  const campaignCap = Number(business.campaignCap) || Infinity;
-  return !business.unavailable && activeCampaigns < campaignCap;
-}
-
 function fitLabel(total) {
   if (total >= 85) return "Strong fit";
   if (total >= 70) return "Good fit";
@@ -122,42 +66,17 @@ function forecast(request, business) {
 }
 
 export function scoreMatch(request, business) {
-  const causeFit = hasOverlap([request.causeArea], business.causeAreas || []);
-  const businessTypeFit = categoryFits(request, business);
-  const geographyFit = geographyFits(request, business);
-  const contributionFit = (business.contributionTypes || []).length > 0;
-  const partnershipFit = partnershipFits(request, business);
-  const availabilityFit = availabilityFits(request, business);
-  const supportFit = supportFits(request, business);
-  const capacityFit = capacityFits(request, business);
-  const financialFit = financialFits(request, business);
-  const capFit = capFits(business);
-
-  const total =
-    (causeFit ? 18 : 0) +
-    (businessTypeFit ? 14 : 0) +
-    (geographyFit ? 18 : 0) +
-    (partnershipFit ? 12 : 0) +
-    (availabilityFit ? 10 : 0) +
-    (supportFit ? 10 : 0) +
-    (capacityFit ? 10 : 0) +
-    (financialFit ? 8 : 0);
+  const decision = evaluateDecisionTreeMatch(request, business);
 
   return {
-    total,
-    label: fitLabel(total),
+    total: decision.total,
+    label: fitLabel(decision.total),
     forecast: forecast(request, business),
-    filters: { causeFit, businessTypeFit, geographyFit, contributionFit, partnershipFit, availabilityFit, supportFit, capacityFit, financialFit, capFit },
-    reasons: [
-      causeFit ? `Supports ${request.causeArea}` : "",
-      businessTypeFit ? `Fits ${((request.preferredCategories || [request.businessPreference]).join(", ")).toLowerCase()} preference` : "",
-      geographyFit ? `Serves ${request.geography}` : "",
-      partnershipFit && request.partnershipTypesNeeded?.length ? "Open to the needed partnership type" : "",
-      availabilityFit ? "Available during campaign window" : "",
-      supportFit ? "Offers the support needed" : "",
-      capacityFit ? "Capacity range can cover the expected participation" : "",
-      financialFit && (business.minimumOrderRequirement || business.minimumCampaignRequirement) ? "Minimums fit the fundraising target" : "",
-    ].filter(Boolean),
+    filters: Object.fromEntries(decision.stages.map((stage) => [stage.key, stage.passed])),
+    decisionStages: decision.stages,
+    blockers: decision.blockers,
+    rejected: decision.rejected,
+    reasons: decision.reasons,
   };
 }
 
@@ -182,15 +101,9 @@ export function buildMatches(campaignRequests, businesses, existingMatches = [])
     )
     .filter(
       (match) =>
-        match.filters.causeFit &&
-        match.filters.businessTypeFit &&
-        match.filters.geographyFit &&
-        match.filters.partnershipFit &&
-        match.filters.supportFit &&
-        match.filters.capacityFit &&
-        match.filters.financialFit &&
-        match.filters.capFit
+        !match.rejected
     )
     .sort((a, b) => b.total - a.total)
     .slice(0, 5);
 }
+import { evaluateDecisionTreeMatch } from "./decision-tree-agent.js";

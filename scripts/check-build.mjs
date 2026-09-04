@@ -54,10 +54,10 @@ function assertMatchingRules() {
   const score = scoreMatch(request, business);
   assert.equal(score.total, 100);
   assert.deepEqual(score.reasons, [
+    "Available during campaign window",
+    "Serves Brooklyn",
     "Supports Food access",
     "Fits food and beverage preference",
-    "Serves Brooklyn",
-    "Available during campaign window",
     "Offers the support needed",
     "Capacity range can cover the expected participation",
   ]);

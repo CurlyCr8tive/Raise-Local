@@ -269,6 +269,40 @@ h1 {
   padding: 10px;
 }
 
+.decision-path {
+  border-top: 1px solid var(--line);
+  margin-top: 12px;
+  padding-top: 10px;
+}
+
+.decision-path summary {
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.decision-path ul {
+  display: grid;
+  gap: 7px;
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+
+.decision-path li {
+  border-radius: 8px;
+  font-size: 0.82rem;
+  padding: 8px;
+}
+
+.decision-path .passed {
+  background: #e7f3ee;
+}
+
+.decision-path .blocked {
+  background: #ffe6e1;
+}
+
 .muted {
   color: var(--muted);
 }

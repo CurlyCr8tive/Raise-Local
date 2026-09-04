@@ -51,6 +51,32 @@ The system should prevent clearly incompatible matches, rank the remaining
 options, surface the strongest 3-5, show a compatibility score, and explain why
 each match fits in plain language.
 
+## Decision Tree Agent
+
+The matching algorithm should behave like a decision tree agent, not a black-box
+directory search. Each survey submission is evaluated through the same sequence:
+
+1. Availability: remove businesses that are unavailable, over campaign cap, or
+   outside the requested dates.
+2. Location: confirm the business can serve the requested neighborhood, borough,
+   city, region, or shipping area.
+3. Cause alignment: confirm the nonprofit cause overlaps with the business's
+   community interests.
+4. Business type: compare the requested partner category against the business
+   profile.
+5. Partnership type: compare fundraising, sponsorship, percent-of-sales, hosted
+   event, venue, product donation, or event activation needs.
+6. Offer fit: compare what the nonprofit needs with what the business can offer.
+7. Capacity: compare expected participation and minimum/ideal size with the
+   business's capacity range.
+8. Financial minimums: confirm the fundraising goal can support the business's
+   minimum order or campaign requirement.
+9. Business goals: use the business's commercial goals to enrich explanations
+   and future ranking.
+
+Any failed required branch blocks the match from the recommended list. Passed
+branches become the plain-language "why this match fits" explanation.
+
 ## Match Actions And Records
 
 Each match should let users or the Raise Local admin team:

@@ -144,7 +144,7 @@ Business match profile:
 
 ## Matching Logic
 
-The first version should be strict:
+The first version should run as an explainable decision tree agent:
 
 - If a must-have is missing, do not recommend the match.
 - Filter unavailable or sold-out businesses first.
@@ -156,6 +156,7 @@ The first version should be strict:
 - Show the strongest 3-5 matches.
 - Show a compatibility score and explain the match in normal language so the
   score is not a black box.
+- Show the decision path so Tenyse can explain why each branch passed.
 
 ## Trust And Learning
 
