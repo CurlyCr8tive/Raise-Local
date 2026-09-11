@@ -577,6 +577,19 @@ textarea {
   margin-bottom: 0;
 }
 
+.other-input {
+  margin-top: 10px;
+}
+
+.other-input.is-hidden {
+  display: none;
+}
+
+.results-panel h2 {
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  line-height: 1.2;
+}
+
 .forecast {
   background: #fff5db;
   border: 1px solid rgba(224, 166, 57, 0.5);
