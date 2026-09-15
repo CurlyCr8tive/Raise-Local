@@ -18,6 +18,7 @@ import {
   splitSelections,
 } from "./matching.js";
 import { loadData, resetDemoData, saveData } from "./storage.js";
+import { syncBusinessProfile, syncCampaignRequest } from "./remote-sync.js";
 
 let data = loadData();
 let activeView = "intro";
@@ -373,12 +374,14 @@ function finishCoreQuiz() {
     quizActiveRecordId = business.id;
     quizResultsPreview = computeMatchPreview("business", business);
     quizConfirmation = "Business profile saved. Raise Local can now recommend fit-based campaign opportunities.";
+    syncBusinessProfile(business);
   } else {
     const request = requestFromQuizAnswers();
     data.campaignRequests = [request, ...data.campaignRequests];
     quizActiveRecordId = request.id;
     quizResultsPreview = computeMatchPreview("request", request);
     quizConfirmation = "Campaign request saved. Raise Local can now compare it against business profiles.";
+    syncCampaignRequest(request);
   }
   saveData(data);
   quizPhase = "results";
