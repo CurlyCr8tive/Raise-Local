@@ -22,6 +22,7 @@ let quizAudience = null;
 let quizStep = 0;
 let quizAnswers = {};
 let quizConfirmation = "";
+let quizResult = null;
 
 const root = document.getElementById("view-root");
 const title = document.getElementById("page-title");
@@ -49,64 +50,51 @@ function currentMatches() {
 }
 
 const NONPROFIT_QUESTIONS = [
-  { key: "organizationName", label: "What's the name of your organization?", type: "text", placeholder: "PS 118 PTA" },
-  { key: "organizationType", label: "What type of nonprofit are you?", type: "single", options: ORGANIZATION_TYPES },
-  { key: "website", label: "What's your website?", type: "url", placeholder: "https://example.org" },
-  { key: "socialLinks", label: "Add any social links we should keep on file.", type: "textarea", placeholder: "Instagram, LinkedIn, Facebook, etc." },
-  { key: "classification", label: "How should we classify your organization?", type: "single", options: ["501(c)(3)", "School / PTA", "Community group", "Faith-based organization", "Other"] },
-  { key: "contactName", label: "Who should we contact?", type: "text", placeholder: "Your name" },
-  { key: "email", label: "What's the best email for follow-up?", type: "email", placeholder: "you@example.org" },
-  { key: "phone", label: "What's the best phone number?", type: "tel", placeholder: "555-0100" },
-  { key: "communitiesServed", label: "Which local communities do you serve?", type: "text", placeholder: "Brooklyn families, Queens students, Crown Heights, etc." },
-  { key: "mission", label: "What is your mission or primary community focus?", type: "textarea", placeholder: "A short mission statement or focus area." },
-  { key: "audienceServed", label: "Who is the audience or population served?", type: "text", placeholder: "Students, parents, donors, neighborhood families, etc." },
-  { key: "audienceSize", label: "About how large is your supporter, parent, donor, or email audience?", type: "number", placeholder: "500" },
-  { key: "campaignDescription", label: "What are you raising funds for?", type: "textarea", placeholder: "Tell us about the campaign, event, or need." },
-  { key: "fundingGoal", label: "What's your fundraising goal?", type: "number", placeholder: "5000" },
-  { key: "partnershipTypesNeeded", label: "What type of partnership do you need?", type: "multi", options: PARTNERSHIP_TYPES },
-  { key: "eventType", label: "What kind of campaign is this?", type: "single", options: EVENT_TYPES },
-  { key: "causeArea", label: "Which cause area fits best?", type: "single", options: CAUSE_AREAS },
-  { key: "supportNeeds", label: "What kind of support do you need?", type: "multi", options: SUPPORT_NEEDS },
-  { key: "preferredCategories", label: "What types of businesses would be ideal?", type: "multi", options: BUSINESS_CATEGORIES },
-  { key: "geography", label: "Where should the business be located or able to serve?", type: "text", placeholder: "Brooklyn, Washington DC, Maryland, zip code, etc." },
-  { key: "startDate", label: "When should the campaign start?", type: "date" },
-  { key: "endDate", label: "When should the campaign end?", type: "date" },
-  { key: "partnershipDeadline", label: "When do you need a partner confirmed by?", type: "date" },
-  { key: "expectedParticipation", label: "How many supporters do you expect to participate?", type: "number", placeholder: "100" },
-  { key: "minimumSize", label: "What's the minimum size you need covered?", type: "number", placeholder: "50" },
-  { key: "idealSize", label: "What's the ideal size?", type: "number", placeholder: "100" },
-  { key: "mustHaves", label: "What are your must-haves?", type: "textarea", placeholder: "What would make a match impossible if missing?" },
-  { key: "niceToHaves", label: "What would be nice to have?", type: "textarea", placeholder: "What would make the match even better?" },
-  { key: "priorFundraiser", label: "Have you run a fundraiser like this before?", type: "single", options: ["No", "Yes - with a local partner", "Yes - with an online platform", "Not sure"] },
+  { key: "organizationType", label: "What kind of organization are you?", type: "single", options: ORGANIZATION_TYPES },
+  { key: "campaignDescription", label: "What are you raising funds for?", type: "single", options: ["School supplies", "Program expenses", "Food or pantry support", "Youth activities", "Arts or creative programming", "Sports or extracurriculars", "Emergency/community need", "General operating support", "Other"], allowOther: true },
+  { key: "causeArea", label: "What cause area fits best?", type: "single", options: CAUSE_AREAS },
+  { key: "fundingGoal", label: "How much are you hoping to raise?", type: "single", options: ["Under $1,000", "$1,000-$2,500", "$2,500-$5,000", "$5,000-$10,000", "$10,000+", "Not sure yet"] },
+  { key: "preferredCategories", label: "What kind of business partner would help most?", type: "multi", options: BUSINESS_CATEGORIES, allowOther: true },
+  { key: "partnershipTypesNeeded", label: "What kind of partnership do you want?", type: "multi", options: ["Percentage of sales campaign", "Product donation", "Event sponsorship", "Hosted event", "Venue", "Event activation", "Not sure", "Other"], allowOther: true },
+  { key: "geography", label: "Where should the partner be able to serve?", type: "single", options: ["Same neighborhood", "Same borough/city", "Within 10 miles", "NYC-wide", "Regional partner is okay", "Online/shipping is okay", "Other"], allowOther: true },
+  { key: "partnershipDeadline", label: "When do you need this?", type: "single", options: ["This month", "Next month", "In 2-3 months", "Flexible", "Specific date", "Other"], allowOther: true },
+  { key: "expectedParticipation", label: "About how many people could participate?", type: "single", options: ["Under 25", "25-50", "51-100", "101-250", "250+", "Not sure"] },
+  { key: "mustHaves", label: "What's one must-have for a good match?", type: "single", options: ["Low/no upfront cost", "Family-friendly", "Local business", "Can handle our audience size", "Available quickly", "Other"], allowOther: true },
+  { key: "organizationName", label: "Nice. What's your organization name?", type: "text", placeholder: "PS 118 PTA", contactStep: true },
+  { key: "contactName", label: "Who should we contact?", type: "text", placeholder: "Your name", contactStep: true },
+  { key: "email", label: "What's the best email for follow-up?", type: "email", placeholder: "you@example.org", contactStep: true },
+  { key: "website", label: "Website or social link?", type: "text", placeholder: "Website, Instagram, LinkedIn, etc.", contactStep: true },
 ];
 
 const BUSINESS_QUESTIONS = [
-  { key: "name", label: "What's your business name?", type: "text", placeholder: "YAMAAS! Olive Oil" },
-  { key: "website", label: "What's your website?", type: "url", placeholder: "https://example.com" },
-  { key: "socialLinks", label: "Add any social links we should keep on file.", type: "textarea", placeholder: "Instagram, TikTok, LinkedIn, press links, etc." },
   { key: "category", label: "What type of business are you?", type: "single", options: BUSINESS_CATEGORIES.filter((item) => item !== "No preference") },
   { key: "businessGoals", label: "What do you want to get out of participating?", type: "multi", options: BUSINESS_GOALS },
-  { key: "serviceAreas", label: "Where can you serve campaigns?", type: "text", placeholder: "Brooklyn, Washington DC, Maryland" },
-  { key: "fulfillmentScope", label: "How far can you fulfill campaigns?", type: "single", options: FULFILLMENT_SCOPE },
+  { key: "offerTypes", label: "What can you offer?", type: "multi", options: ["Food", "Beverage", "Products", "Gift cards", "Venue space", "Catering", "Workshops/classes", "Sponsorship", "Event activation", "Other"], allowOther: true },
   { key: "causeAreas", label: "What causes do you want to support?", type: "multi", options: CAUSE_AREAS },
-  { key: "offerTypes", label: "What can your business offer?", type: "multi", options: SUPPORT_NEEDS },
-  { key: "contributionTypes", label: "How are you open to contributing?", type: "multi", options: CONTRIBUTION_TYPES },
-  { key: "partnershipTypes", label: "Which partnership types are you open to?", type: "multi", options: PARTNERSHIP_TYPES },
-  { key: "productsServices", label: "What products or services can you offer through partnerships?", type: "textarea", placeholder: "Cookie boxes, catering, venue space, gift cards, workshops, etc." },
-  { key: "averagePriceRange", label: "What is the average product or service price range?", type: "text", placeholder: "$15-$40" },
-  { key: "minimumOrderRequirement", label: "What's your minimum order or campaign requirement?", type: "number", placeholder: "500" },
-  { key: "minimumCapacity", label: "What's the smallest order or event size that makes sense?", type: "number", placeholder: "30" },
-  { key: "maximumCapacity", label: "What's the largest order or event size you can handle?", type: "number", placeholder: "200" },
-  { key: "idealEventSize", label: "What's your ideal event size?", type: "number", placeholder: "100" },
-  { key: "campaignCap", label: "How many campaigns can you support at one time?", type: "number", placeholder: "2" },
-  { key: "activeCampaigns", label: "How many campaigns are you already supporting?", type: "number", placeholder: "0" },
-  { key: "estimatedUnitContribution", label: "About how much does each sale/order contribute?", type: "number", placeholder: "15" },
-  { key: "availableFrom", label: "When are you available from?", type: "date" },
-  { key: "availableTo", label: "When are you available until?", type: "date" },
-  { key: "leadTimeDays", label: "How much lead time do you need before participating?", type: "number", placeholder: "14" },
-  { key: "fulfillmentOptions", label: "How can people receive or experience what you offer?", type: "multi", options: FULFILLMENT_OPTIONS },
-  { key: "orgTypesSupported", label: "What types of organizations do you want to work with?", type: "multi", options: ORGANIZATION_TYPES },
-  { key: "notes", label: "Anything else Raise Local should know?", type: "textarea", placeholder: "Limits, ideal partners, venue details, accessibility, minimums, or timing notes." },
+  { key: "partnershipTypes", label: "What partnership types are you open to?", type: "multi", options: ["Fundraising", "Percentage of sales campaign", "Product donation", "Event sponsorship", "Hosted event", "Event activation", "Not sure", "Other"], allowOther: true },
+  { key: "serviceAreas", label: "Where can you serve campaigns?", type: "single", options: ["Same neighborhood only", "Same borough/city", "NYC-wide", "Tri-state area", "Regional", "National via shipping", "Online only", "Other"], allowOther: true },
+  { key: "idealEventSize", label: "What size campaign works best?", type: "single", options: ["Under 25", "25-50", "51-100", "101-250", "250+", "Depends"] },
+  { key: "leadTimeDays", label: "How much lead time do you need?", type: "single", options: ["Less than 1 week", "1-2 weeks", "3-4 weeks", "1-2 months", "Flexible"] },
+  { key: "campaignCap", label: "How many campaigns can you support at once?", type: "single", options: ["1", "2", "3-5", "Depends on season"] },
+  { key: "mustHaves", label: "What would make a match exciting for you?", type: "multi", options: ["Strong local audience", "Press/media potential", "Repeat customers", "Social content", "Easy fulfillment", "Meaningful cause", "Other"], allowOther: true },
+  { key: "name", label: "Great. What's your business name?", type: "text", placeholder: "YAMAAS! Olive Oil", contactStep: true },
+  { key: "contactName", label: "Who should we contact?", type: "text", placeholder: "Your name", contactStep: true },
+  { key: "email", label: "What's the best email for follow-up?", type: "email", placeholder: "you@example.com", contactStep: true },
+  { key: "website", label: "Website or social link?", type: "text", placeholder: "Website, Instagram, LinkedIn, etc.", contactStep: true },
+  { key: "fulfillmentScope", label: "How far can you fulfill campaigns?", type: "single", options: FULFILLMENT_SCOPE, profileStep: true },
+  { key: "contributionTypes", label: "How are you open to contributing?", type: "multi", options: CONTRIBUTION_TYPES, profileStep: true },
+  { key: "productsServices", label: "What products or services can you offer through partnerships?", type: "textarea", placeholder: "Cookie boxes, catering, venue space, gift cards, workshops, etc.", profileStep: true },
+  { key: "averagePriceRange", label: "What is the average product or service price range?", type: "text", placeholder: "$15-$40", profileStep: true },
+  { key: "minimumOrderRequirement", label: "What's your minimum order or campaign requirement?", type: "number", placeholder: "500", profileStep: true },
+  { key: "minimumCapacity", label: "What's the smallest order or event size that makes sense?", type: "number", placeholder: "30", profileStep: true },
+  { key: "maximumCapacity", label: "What's the largest order or event size you can handle?", type: "number", placeholder: "200", profileStep: true },
+  { key: "activeCampaigns", label: "How many campaigns are you already supporting?", type: "number", placeholder: "0", profileStep: true },
+  { key: "estimatedUnitContribution", label: "About how much does each sale/order contribute?", type: "number", placeholder: "15", profileStep: true },
+  { key: "availableFrom", label: "When are you available from?", type: "date", profileStep: true },
+  { key: "availableTo", label: "When are you available until?", type: "date", profileStep: true },
+  { key: "fulfillmentOptions", label: "How can people receive or experience what you offer?", type: "multi", options: FULFILLMENT_OPTIONS, profileStep: true },
+  { key: "orgTypesSupported", label: "What types of organizations do you want to work with?", type: "multi", options: ORGANIZATION_TYPES, profileStep: true },
+  { key: "notes", label: "Anything else Raise Local should know?", type: "textarea", placeholder: "Limits, ideal partners, venue details, accessibility, minimums, or timing notes.", profileStep: true },
 ];
 
 function render() {
@@ -122,30 +110,31 @@ function render() {
 }
 
 function renderIntro() {
-  setTitle("Intro Quiz");
-  const questions = quizAudience === "business" ? BUSINESS_QUESTIONS : NONPROFIT_QUESTIONS;
+  setTitle("Match Finder");
+  const questions = activeQuizQuestions();
   const question = questions[quizStep];
   const progress = Math.round(((quizStep + 1) / questions.length) * 100);
 
   root.innerHTML = `
     <section class="intro-hero">
       <p class="eyebrow">Raise Funds, Buy Local</p>
-      <h2>Let's find the right local partnership.</h2>
-      <p>Answer one question at a time so Raise Local can understand what you need, what you offer, and which matches are actually workable.</p>
+      <h2>Find your local match.</h2>
+      <p>Ten quick match signals first, contact details at the end, then Raise Local previews where the strongest fit may be.</p>
     </section>
 
     ${quizConfirmation ? `<section class="success-banner" role="status">${escapeHtml(quizConfirmation)}</section>` : ""}
+    ${quizResult ? quizResultHtml(quizResult) : ""}
 
     <section class="quiz-choice-grid" aria-label="Choose quiz path">
       <button type="button" class="choice-card ${quizAudience === "request" ? "active" : ""}" data-quiz-audience="request">
         <span>For nonprofits</span>
         <strong>I need a business partner for a campaign.</strong>
-        <small>Tell us your goal, timing, location, must-haves, and the kind of support you need.</small>
+        <small>Share your goal, timing, audience size, and must-have match signal.</small>
       </button>
       <button type="button" class="choice-card ${quizAudience === "business" ? "active" : ""}" data-quiz-audience="business">
         <span>For local businesses</span>
         <strong>I want to support community fundraisers.</strong>
-        <small>Tell us your service area, offer type, availability, and capacity so we only send workable requests.</small>
+        <small>Share your goals, causes, service area, capacity, and ideal partnership.</small>
       </button>
     </section>
 
@@ -161,28 +150,46 @@ function renderIntro() {
   root.querySelectorAll("[data-quiz-audience]").forEach((button) => {
     button.addEventListener("click", () => {
       quizAudience = button.dataset.quizAudience;
-      quizStep = 0;
-      quizAnswers = {};
-      quizConfirmation = "";
+        quizStep = 0;
+        quizAnswers = {};
+        quizConfirmation = "";
+        quizResult = null;
       renderIntro();
     });
   });
+  root.querySelector("[data-view-matches]")?.addEventListener("click", () => {
+    quizResult = null;
+    activeView = "matches";
+    render();
+  });
+  root.querySelector("[data-start-over]")?.addEventListener("click", () => {
+    quizStep = 0;
+    quizAnswers = {};
+    quizConfirmation = "";
+    quizResult = null;
+    renderIntro();
+  });
 
   wireGuidedQuiz(questions);
+}
+
+function activeQuizQuestions() {
+  const source = quizAudience === "business" ? BUSINESS_QUESTIONS : NONPROFIT_QUESTIONS;
+  return source.filter((question) => !question.profileStep);
 }
 
 function quizQuestionHtml(question, progress, total) {
   return `
     <form id="guided-quiz-form">
       <div class="progress-rail" aria-label="Quiz progress"><span style="width:${progress}%;"></span></div>
-      <p class="small-label">Question ${quizStep + 1} of ${total}</p>
+      <p class="small-label">${question.contactStep ? "Quick contact step" : progressLabel(progress)} · Question ${quizStep + 1} of ${total}</p>
       <div class="quiz-question">
         <h3>${escapeHtml(question.label)}</h3>
         ${quizInputHtml(question)}
       </div>
       <div class="quiz-actions">
         <button class="secondary-btn" type="button" id="quiz-back" ${quizStep === 0 ? "disabled" : ""}>Back</button>
-        <button class="primary-btn" type="submit">${quizStep === total - 1 ? "Finish Quiz" : "Submit Answer"}</button>
+        <button class="primary-btn" type="submit">${quizStep === total - 1 ? "Show My Match Signal" : "Next"}</button>
       </div>
     </form>
   `;
@@ -190,17 +197,36 @@ function quizQuestionHtml(question, progress, total) {
 
 function quizInputHtml(question) {
   const saved = quizAnswers[question.key];
+  const savedOptions = question.options || [];
+  const savedHasCustomSingle = question.allowOther && saved && !Array.isArray(saved) && !savedOptions.includes(saved);
+  const savedHasCustomMulti = question.allowOther && Array.isArray(saved) && saved.some((item) => !savedOptions.includes(item));
+  const otherValue = quizAnswers[`${question.key}Other`] || (savedHasCustomSingle ? saved : savedHasCustomMulti ? saved.find((item) => !savedOptions.includes(item)) : "");
   if (question.type === "single") {
-    return `<div class="option-grid">${question.options.map((option) => optionButton(question, option, saved === option, "radio")).join("")}</div>`;
+    return `
+      <div class="option-grid">${question.options.map((option) => optionButton(question, option, saved === option || (option === "Other" && savedHasCustomSingle), "radio")).join("")}</div>
+      ${question.allowOther ? otherField(question, saved === "Other" || savedHasCustomSingle, otherValue) : ""}
+    `;
   }
   if (question.type === "multi") {
     const selected = Array.isArray(saved) ? saved : [];
-    return `<div class="option-grid">${question.options.map((option) => optionButton(question, option, selected.includes(option), "checkbox")).join("")}</div>`;
+    return `
+      <div class="option-grid">${question.options.map((option) => optionButton(question, option, selected.includes(option) || (option === "Other" && savedHasCustomMulti), "checkbox")).join("")}</div>
+      ${question.allowOther ? otherField(question, selected.includes("Other") || savedHasCustomMulti, otherValue) : ""}
+    `;
   }
   if (question.type === "textarea") {
     return `<textarea id="quiz-answer" rows="4" placeholder="${escapeHtml(question.placeholder || "")}">${escapeHtml(saved || "")}</textarea>`;
   }
   return `<input id="quiz-answer" type="${escapeHtml(question.type)}" placeholder="${escapeHtml(question.placeholder || "")}" value="${escapeHtml(saved || "")}" />`;
+}
+
+function otherField(question, isVisible, value) {
+  return `
+    <div class="field-row other-answer ${isVisible ? "" : "hidden"}">
+      <label for="quiz-other-answer">Tell us the answer in your words</label>
+      <input id="quiz-other-answer" type="text" value="${escapeHtml(value)}" placeholder="Type your answer" />
+    </div>
+  `;
 }
 
 function optionButton(question, option, checked, inputType) {
@@ -214,6 +240,16 @@ function optionButton(question, option, checked, inputType) {
 
 function wireGuidedQuiz(questions) {
   const form = document.getElementById("guided-quiz-form");
+  root.querySelectorAll('input[name="quiz-answer"]').forEach((input) => {
+    input.addEventListener("change", () => {
+      const question = questions[quizStep];
+      if (!question.allowOther) return;
+      const otherWrap = root.querySelector(".other-answer");
+      if (!otherWrap) return;
+      const answer = readQuizAnswer(question, { preserveOther: true });
+      otherWrap.classList.toggle("hidden", !answerIncludesOther(answer));
+    });
+  });
   document.getElementById("quiz-back").addEventListener("click", () => {
     if (quizStep === 0) return;
     quizStep -= 1;
@@ -235,13 +271,30 @@ function wireGuidedQuiz(questions) {
 }
 
 function readQuizAnswer(question) {
+  const otherInput = document.getElementById("quiz-other-answer");
+  const otherValue = otherInput?.value.trim() || "";
   if (question.type === "single") {
-    return document.querySelector('input[name="quiz-answer"]:checked')?.value || "";
+    const selected = document.querySelector('input[name="quiz-answer"]:checked')?.value || "";
+    if (selected === "Other") quizAnswers[`${question.key}Other`] = otherValue;
+    return selected === "Other" && otherValue ? otherValue : selected;
   }
   if (question.type === "multi") {
-    return [...document.querySelectorAll('input[name="quiz-answer"]:checked')].map((input) => input.value);
+    const selected = [...document.querySelectorAll('input[name="quiz-answer"]:checked')].map((input) => input.value);
+    if (selected.includes("Other")) quizAnswers[`${question.key}Other`] = otherValue;
+    return selected.map((item) => (item === "Other" && otherValue ? otherValue : item));
   }
   return document.getElementById("quiz-answer").value.trim();
+}
+
+function answerIncludesOther(answer) {
+  return Array.isArray(answer) ? answer.includes("Other") : answer === "Other";
+}
+
+function progressLabel(progress) {
+  if (progress < 30) return "Getting started";
+  if (progress < 60) return "Getting warmer";
+  if (progress < 90) return "Almost matched";
+  return "Last details";
 }
 
 function isBlankAnswer(answer) {
@@ -249,91 +302,222 @@ function isBlankAnswer(answer) {
 }
 
 function saveQuizResult() {
+  let record;
   if (quizAudience === "business") {
-    data.businesses = [businessFromQuizAnswers(), ...data.businesses];
-    quizConfirmation = "Business profile saved. Raise Local can now recommend fit-based campaign opportunities.";
+    record = businessFromQuizAnswers();
+    const previewMatches = buildMatches(data.campaignRequests, [record], data.matches);
+    data.businesses = [record, ...data.businesses];
+    quizResult = buildQuizResult("business", record, previewMatches);
+    quizConfirmation = "Business profile saved. Raise Local will only surface opportunities that fit your goals and capacity.";
   } else {
-    data.campaignRequests = [requestFromQuizAnswers(), ...data.campaignRequests];
+    record = requestFromQuizAnswers();
+    const previewMatches = buildMatches([record], data.businesses, data.matches);
+    data.campaignRequests = [record, ...data.campaignRequests];
+    quizResult = buildQuizResult("request", record, previewMatches);
     quizConfirmation = "Campaign request saved. Raise Local can now compare it against business profiles.";
   }
   saveData(data);
   quizStep = 0;
   quizAnswers = {};
-  activeView = "matches";
+  activeView = "intro";
   render();
 }
 
 function requestFromQuizAnswers() {
+  const participation = amountFromRange(quizAnswers.expectedParticipation);
+  const fundingGoal = amountFromRange(quizAnswers.fundingGoal);
+  const preferredCategories = normalizeMulti(quizAnswers.preferredCategories, ["No preference"]);
+  const partnershipTypesNeeded = normalizePartnerships(quizAnswers.partnershipTypesNeeded);
+  const supportNeeds = supportFromPartnerships(partnershipTypesNeeded, preferredCategories);
   return {
     id: `request-${crypto.randomUUID()}`,
-    organizationName: quizAnswers.organizationName,
+    organizationName: quizAnswers.organizationName || "New campaign request",
     organizationType: quizAnswers.organizationType,
     website: quizAnswers.website,
-    socialLinks: quizAnswers.socialLinks,
-    classification: quizAnswers.classification,
+    socialLinks: quizAnswers.website,
+    classification: quizAnswers.organizationType,
     contactName: quizAnswers.contactName,
     email: quizAnswers.email,
-    phone: quizAnswers.phone,
-    communitiesServed: quizAnswers.communitiesServed,
-    mission: quizAnswers.mission,
-    audienceServed: quizAnswers.audienceServed,
-    audienceSize: Number(quizAnswers.audienceSize) || 0,
+    phone: "",
+    communitiesServed: quizAnswers.geography,
+    mission: quizAnswers.causeArea,
+    audienceServed: quizAnswers.organizationType,
+    audienceSize: participation,
     campaignDescription: quizAnswers.campaignDescription,
-    fundingGoal: Number(quizAnswers.fundingGoal) || 0,
-    startDate: quizAnswers.startDate,
-    endDate: quizAnswers.endDate,
+    fundingGoal,
+    startDate: "",
+    endDate: "",
     partnershipDeadline: quizAnswers.partnershipDeadline,
     causeArea: quizAnswers.causeArea,
-    businessPreference: quizAnswers.preferredCategories?.[0] || "No preference",
-    preferredCategories: quizAnswers.preferredCategories || [],
-    eventType: quizAnswers.eventType,
-    partnershipTypesNeeded: quizAnswers.partnershipTypesNeeded || [],
-    supportNeeds: quizAnswers.supportNeeds || [],
-    expectedParticipation: Number(quizAnswers.expectedParticipation) || 0,
-    minimumSize: Number(quizAnswers.minimumSize) || 0,
-    idealSize: Number(quizAnswers.idealSize) || 0,
+    businessPreference: preferredCategories[0] || "No preference",
+    preferredCategories,
+    eventType: quizAnswers.campaignDescription,
+    partnershipTypesNeeded,
+    supportNeeds,
+    expectedParticipation: participation,
+    minimumSize: Math.max(Math.floor(participation * 0.6), 0),
+    idealSize: participation,
     geography: quizAnswers.geography,
     mustHaves: quizAnswers.mustHaves,
-    niceToHaves: quizAnswers.niceToHaves,
-    priorFundraiser: quizAnswers.priorFundraiser,
+    niceToHaves: "",
+    priorFundraiser: "",
     status: "new",
   };
 }
 
 function businessFromQuizAnswers() {
+  const idealSize = amountFromRange(quizAnswers.idealEventSize);
+  const capacityMax = idealSize ? Math.max(idealSize, Math.ceil(idealSize * 1.5)) : 0;
+  const cap = amountFromRange(quizAnswers.campaignCap) || 1;
+  const leadTimeDays = daysFromLeadTime(quizAnswers.leadTimeDays);
+  const offerTypes = normalizeOffers(quizAnswers.offerTypes);
+  const partnershipTypes = normalizePartnerships(quizAnswers.partnershipTypes);
   return {
     id: `business-${crypto.randomUUID()}`,
-    name: quizAnswers.name,
+    name: quizAnswers.name || "New business profile",
     website: quizAnswers.website,
-    socialLinks: quizAnswers.socialLinks,
+    socialLinks: quizAnswers.website,
     category: quizAnswers.category,
     businessGoals: quizAnswers.businessGoals || [],
-    serviceAreas: splitSelections(quizAnswers.serviceAreas),
-    fulfillmentScope: quizAnswers.fulfillmentScope,
+    serviceAreas: normalizeServiceAreas(quizAnswers.serviceAreas),
+    fulfillmentScope: quizAnswers.serviceAreas,
     causeAreas: quizAnswers.causeAreas || [],
-    contributionTypes: quizAnswers.contributionTypes || [],
-    partnershipTypes: quizAnswers.partnershipTypes || [],
-    offerTypes: quizAnswers.offerTypes || [],
-    productsServices: quizAnswers.productsServices,
-    averagePriceRange: quizAnswers.averagePriceRange,
-    minimumOrderRequirement: Number(quizAnswers.minimumOrderRequirement) || 0,
-    minimumCapacity: Number(quizAnswers.minimumCapacity) || 0,
-    maximumCapacity: Number(quizAnswers.maximumCapacity) || 0,
-    idealEventSize: Number(quizAnswers.idealEventSize) || 0,
-    campaignCap: Number(quizAnswers.campaignCap) || 0,
-    activeCampaigns: Number(quizAnswers.activeCampaigns) || 0,
-    estimatedUnitContribution: Number(quizAnswers.estimatedUnitContribution) || 0,
-    availableFrom: quizAnswers.availableFrom,
-    availableTo: quizAnswers.availableTo,
-    leadTimeDays: Number(quizAnswers.leadTimeDays) || 0,
-    fulfillmentOptions: quizAnswers.fulfillmentOptions || [],
-    orgTypesSupported: quizAnswers.orgTypesSupported || [],
-    notes: quizAnswers.notes,
+    contributionTypes: contributionFromPartnerships(partnershipTypes),
+    partnershipTypes,
+    offerTypes,
+    productsServices: normalizeMulti(quizAnswers.offerTypes).join(", "),
+    averagePriceRange: "",
+    minimumOrderRequirement: 0,
+    minimumCapacity: Math.max(Math.floor(idealSize * 0.5), 0),
+    maximumCapacity: capacityMax,
+    idealEventSize: idealSize,
+    campaignCap: cap,
+    activeCampaigns: 0,
+    estimatedUnitContribution: 15,
+    availableFrom: "",
+    availableTo: "",
+    leadTimeDays,
+    fulfillmentOptions: fulfillmentFromServiceArea(quizAnswers.serviceAreas),
+    orgTypesSupported: quizAnswers.orgTypesSupported || ORGANIZATION_TYPES,
+    notes: quizAnswers.mustHaves,
     rating: null,
     reviewNote: "",
     unavailable: false,
     status: "ready",
   };
+}
+
+function normalizeMulti(value, fallback = []) {
+  if (Array.isArray(value)) return value.filter(Boolean);
+  return value ? [value] : fallback;
+}
+
+function amountFromRange(value) {
+  if (typeof value === "number") return value;
+  const text = String(value || "");
+  if (/not sure|flexible|depends/i.test(text)) return 0;
+  if (/under/i.test(text)) return Number(text.replace(/[^\d]/g, "")) || 0;
+  if (/\+/.test(text)) return Number(text.replace(/[^\d]/g, "")) || 0;
+  const numbers = text.match(/\d[\d,]*/g)?.map((item) => Number(item.replaceAll(",", ""))) || [];
+  return numbers.length ? Math.max(...numbers) : 0;
+}
+
+function daysFromLeadTime(value) {
+  const text = String(value || "");
+  if (/less/i.test(text)) return 7;
+  if (/1-2/.test(text)) return 14;
+  if (/3-4/.test(text)) return 28;
+  if (/1-2 months/i.test(text)) return 60;
+  return 0;
+}
+
+function normalizePartnerships(value) {
+  return normalizeMulti(value)
+    .filter((item) => item !== "Not sure")
+    .map((item) => (item === "Percent-of-sales fundraiser" ? "Percentage of sales campaign" : item));
+}
+
+function normalizeOffers(value) {
+  return normalizeMulti(value).map((item) => {
+    if (["Gift cards", "Retail products"].includes(item)) return "Products";
+    if (["Catering", "Food items"].includes(item)) return "Food";
+    if (item === "Sponsorship dollars") return "Sponsorship";
+    return item;
+  });
+}
+
+function supportFromPartnerships(partnerships, categories) {
+  const support = new Set();
+  partnerships.forEach((item) => {
+    if (item.includes("Product")) support.add("Products");
+    if (item.includes("Venue")) support.add("Venue space");
+    if (item.includes("sponsor") || item.includes("Sponsorship")) support.add("Sponsorship");
+    if (item.includes("Food")) support.add("Food");
+    if (item.includes("Event")) support.add("Event activation");
+  });
+  categories.forEach((item) => {
+    if (["Food and beverage", "Restaurant"].includes(item)) support.add("Food");
+    if (item === "Beverage") support.add("Beverage");
+    if (item === "Venue") support.add("Venue space");
+  });
+  return [...support].length ? [...support] : ["Products"];
+}
+
+function contributionFromPartnerships(partnerships) {
+  const contributions = new Set();
+  partnerships.forEach((item) => {
+    if (item.includes("Product")) contributions.add("Product donation");
+    if (item.includes("Percentage")) contributions.add("Percent of sales");
+    if (item.includes("Sponsorship")) contributions.add("Sponsorship dollars");
+    if (item.includes("Hosted")) contributions.add("Event hosting");
+  });
+  return [...contributions];
+}
+
+function normalizeServiceAreas(value) {
+  const area = String(value || "");
+  if (/nyc|borough|neighborhood|tri-state/i.test(area)) return ["Brooklyn", "Queens", "Manhattan", "New York"];
+  if (/national|shipping|online|regional/i.test(area)) return ["Brooklyn", "Queens", "Manhattan", "New York", "Regional", "National"];
+  return area ? [area] : [];
+}
+
+function fulfillmentFromServiceArea(value) {
+  const text = String(value || "");
+  if (/shipping|national|online/i.test(text)) return ["Shipping"];
+  if (/neighborhood|borough|nyc/i.test(text)) return ["Pickup", "Delivery", "In person"];
+  return ["Delivery"];
+}
+
+function buildQuizResult(audience, record, matches) {
+  const topMatch = matches[0];
+  return {
+    audience,
+    title: topMatch ? "You already have a promising match signal." : "Your profile is ready for matching.",
+    summary: topMatch
+      ? `${topMatch.label} with ${audience === "business" ? topMatch.request.organizationName : topMatch.business.name}.`
+      : "No strong demo match yet, but the decision tree has the signals it needs.",
+    signals: topMatch?.reasons?.slice(0, 4) || [
+      audience === "business" ? record.category : record.causeArea,
+      audience === "business" ? (record.businessGoals || []).slice(0, 2).join(", ") : record.geography,
+      "Ready for admin review",
+    ].filter(Boolean),
+    matchCount: matches.length,
+  };
+}
+
+function quizResultHtml(result) {
+  return `
+    <section class="panel match-signal">
+      <p class="eyebrow">Match Signal</p>
+      <h2>${escapeHtml(result.title)}</h2>
+      <p>${escapeHtml(result.summary)}</p>
+      <div class="tag-row">${result.signals.map((signal) => `<span class="tag">${escapeHtml(signal)}</span>`).join("")}</div>
+      <div class="split-actions">
+        <button class="primary-btn" type="button" data-view-matches>Review Matches (${result.matchCount})</button>
+        <button class="secondary-btn" type="button" data-start-over>Start Another Profile</button>
+      </div>
+    </section>
+  `;
 }
 
 function renderDashboard() {

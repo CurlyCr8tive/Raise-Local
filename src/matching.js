@@ -1,3 +1,5 @@
+import { evaluateDecisionTreeMatch } from "./decision-tree-agent.js";
+
 export const ORGANIZATION_TYPES = ["School / PTA", "501(c)(3) nonprofit", "Community organization", "Faith-based nonprofit"];
 
 export const CAUSE_AREAS = [
@@ -106,4 +108,3 @@ export function buildMatches(campaignRequests, businesses, existingMatches = [])
     .sort((a, b) => b.total - a.total)
     .slice(0, 5);
 }
-import { evaluateDecisionTreeMatch } from "./decision-tree-agent.js";

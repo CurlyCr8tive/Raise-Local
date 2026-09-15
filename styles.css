@@ -339,6 +339,11 @@ textarea {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin-top: 16px;
+}
+
+.hidden {
+  display: none;
 }
 
 .status-pill {
@@ -535,6 +540,20 @@ textarea {
   font-weight: 700;
   margin-bottom: 16px;
   padding: 12px 14px;
+}
+
+.other-answer {
+  margin-top: 14px;
+}
+
+.match-signal {
+  border-color: rgba(241, 137, 47, 0.45);
+}
+
+.match-signal h2 {
+  font-size: clamp(1.45rem, 3vw, 2.3rem);
+  line-height: 1.12;
+  margin-bottom: 8px;
 }
 
 .mission-panel h2 {
