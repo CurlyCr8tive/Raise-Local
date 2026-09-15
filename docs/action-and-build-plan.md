@@ -20,9 +20,7 @@ Motto: Raise Funds, Buy Local.
 - V1 prototype now includes campaign requests, business profiles, match review,
   and a build brief.
 - Founding business examples added: YAMAAS! Olive Oil and Sofia & Grace.
-- Matching is currently explainable through the decision-tree agent.
-- Match Finder quiz shortened to 10 core questions per path, plus a quick
-  contact step and Match Signal preview.
+- Matching is currently simple and explainable, based on must-have overlap.
 - Brand direction from the provided style guide has been applied at a first-pass
   UI level.
 
@@ -39,22 +37,23 @@ loop:
 
 Tonight's priority deliverable:
 
-- Send Tenyse screenshots of the Match Finder landing screen and the one-question-at-a-time flow.
+- Send Tenyse screenshots of the intro quiz landing screen and the one-question-at-a-time flow.
 - Show the two quiz paths:
   - Nonprofit side: "I need a business partner for a campaign."
   - Business side: "I want to support community fundraisers."
-- Show that each answer submits before the next question appears, the "Other"
-  field appears only when needed, and the final screen previews Match Signals.
-- Explain that Supabase wiring comes next after Tenyse approves the shortened
-  flow.
+- Show that each answer submits before the next question appears, then the quiz
+  collects must-haves, nice-to-haves, audience/participation, support type,
+  partnership type, location, timing, capacity, and financial minimums before
+  matching.
+- Explain that Supabase and Google Form wiring come next after the fields are
+  approved.
 
 ## Phase One Build Scope
 
 In scope:
 
-- Nonprofit/school Match Finder quiz with 10 core questions plus contact step.
-- Business Match Finder quiz with 10 core questions plus contact step.
-- Optional longer profile fields remain available in the admin-style forms.
+- Nonprofit campaign request quiz.
+- Business match profile quiz.
 - Must-have filters:
   - Cause or category alignment.
   - Location / service area.
@@ -175,15 +174,12 @@ The first version should run as an explainable decision tree agent:
 
 Today:
 
-- Confirm the shortened Match Finder fields with Tenyse.
-- Draft the Raise Local Supabase schema.
-- Keep Google Forms as an interim intake bridge only if Tenyse requests it.
+- Create the Raise Local Supabase project.
+- Create tables for campaign requests, businesses, matches, and ratings.
+- Keep Google Forms as an interim intake bridge if Tenyse sends the form.
 
 This week:
 
-- Create the Raise Local Supabase project if it is not already available.
-- Create tables for campaign requests, businesses, matches, match events,
-  ratings, and later notifications.
 - Connect in-platform quiz submissions directly to Supabase.
 - Add Google Forms -> Google Sheets -> Supabase Apps Script as backup intake.
 - Seed Sofia & Grace and YAMAAS! Olive Oil from Tenyse's reference docs.

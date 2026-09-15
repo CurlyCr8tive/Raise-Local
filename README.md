@@ -13,9 +13,7 @@ Motto: Raise Funds, Buy Local.
 ## Current Build
 
 - Dashboard with the phase-one core loop and top match.
-- One-question-at-a-time Match Finder with 10 core nonprofit/school questions,
-  10 core business questions, quick contact steps, "Other" answer support, and
-  a Match Signal preview.
+- One-question-at-a-time intro quiz with nonprofit and business paths.
 - Raise Local logo and symbol assets applied from the brand package.
 - Nonprofit campaign request intake.
 - Business intake form.

@@ -1,6 +1,6 @@
 import { evaluateDecisionTreeMatch } from "./decision-tree-agent.js";
 
-export const ORGANIZATION_TYPES = ["School / PTA", "501(c)(3) nonprofit", "Community organization", "Faith-based nonprofit"];
+export const ORGANIZATION_TYPES = ["School / PTA", "501(c)(3) nonprofit", "Community organization", "Faith-based nonprofit", "Other"];
 
 export const CAUSE_AREAS = [
   "Education",
@@ -13,13 +13,13 @@ export const CAUSE_AREAS = [
   "Other",
 ];
 
-export const BUSINESS_CATEGORIES = ["Food and beverage", "Restaurant", "Beverage", "Retail", "Wellness", "Services", "Venue", "Local media", "No preference"];
+export const BUSINESS_CATEGORIES = ["Food and beverage", "Restaurant", "Beverage", "Retail", "Wellness", "Services", "Venue", "Local media", "Other", "No preference"];
 
-export const CONTRIBUTION_TYPES = ["Product donation", "Percent of sales", "Sponsorship dollars", "Event hosting"];
+export const CONTRIBUTION_TYPES = ["Product donation", "Percent of sales", "Sponsorship dollars", "Event hosting", "Other"];
 
-export const EVENT_TYPES = ["Food-based fundraiser", "Gala", "Happy hour", "Community event", "Sponsorship campaign", "Product fundraiser"];
+export const EVENT_TYPES = ["Food-based fundraiser", "Gala", "Happy hour", "Community event", "Sponsorship campaign", "Product fundraiser", "Other"];
 
-export const PARTNERSHIP_TYPES = ["Fundraising", "Event sponsorship", "Percentage of sales campaign", "Hosted event", "Food/beverage", "Venue", "Event activation", "Product donation"];
+export const PARTNERSHIP_TYPES = ["Fundraising", "Event sponsorship", "Percentage of sales campaign", "Hosted event", "Food/beverage", "Venue", "Event activation", "Product donation", "Other"];
 
 export const BUSINESS_GOALS = [
   "New customers",
@@ -34,13 +34,18 @@ export const BUSINESS_GOALS = [
   "Long-term nonprofit partnerships",
   "Content opportunities",
   "Local press",
+  "Other",
 ];
 
-export const FULFILLMENT_OPTIONS = ["Shipping", "Delivery", "Pickup", "In person"];
+export const FULFILLMENT_OPTIONS = ["Shipping", "Delivery", "Pickup", "In person", "Other"];
 
 export const FULFILLMENT_SCOPE = ["Local", "Regional", "National"];
 
-export const SUPPORT_NEEDS = ["Food", "Beverage", "Products", "Services", "Venue space", "Sponsorship", "Event activation"];
+export const SUPPORT_NEEDS = ["Food", "Beverage", "Products", "Services", "Venue space", "Sponsorship", "Event activation", "Other"];
+
+export const TIMING_OPTIONS = ["Within a month", "1-3 months out", "3+ months out", "Flexible / not sure yet"];
+
+export const AVAILABILITY_OPTIONS = ["Right away", "Within a month", "1-3 months out", "Flexible / not sure yet"];
 
 export const DECLINE_REASONS = ["Timing", "Location", "Capacity", "Budget or minimum", "Support type", "Not the right fit"];
 
