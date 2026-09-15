@@ -184,6 +184,24 @@ h1 {
   padding: 16px;
 }
 
+.metric-link {
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.metric-link:hover,
+.metric-link:focus-visible {
+  border-color: var(--orange);
+  box-shadow: 0 0 0 3px rgba(241, 137, 47, 0.16), var(--shadow);
+  outline: 0;
+  transform: translateY(-1px);
+}
+
 .metric-card span,
 .small-label {
   color: var(--muted);

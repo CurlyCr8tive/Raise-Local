@@ -614,10 +614,10 @@ function renderDashboard() {
     </section>
 
     <section class="metric-grid">
-      <div class="metric-card"><span>Campaign Requests</span><strong>${data.campaignRequests.length}</strong></div>
-      <div class="metric-card"><span>Business Profiles</span><strong>${data.businesses.length}</strong></div>
-      <div class="metric-card"><span>Top Matches</span><strong>${matches.length}</strong></div>
-      <div class="metric-card"><span>Accepted / Launched</span><strong>${accepted} / ${launched}</strong></div>
+      <button type="button" class="metric-card metric-link" data-dashboard-target="requests"><span>Campaign Requests</span><strong>${data.campaignRequests.length}</strong></button>
+      <button type="button" class="metric-card metric-link" data-dashboard-target="businesses"><span>Business Profiles</span><strong>${data.businesses.length}</strong></button>
+      <button type="button" class="metric-card metric-link" data-dashboard-target="matches"><span>Top Matches</span><strong>${matches.length}</strong></button>
+      <button type="button" class="metric-card metric-link" data-dashboard-target="matches"><span>Accepted / Launched</span><strong>${accepted} / ${launched}</strong></button>
     </section>
 
     <section class="panel">
@@ -635,6 +635,12 @@ function renderDashboard() {
       ${topMatch ? matchCard(topMatch) : `<p class="muted">Add one campaign request and one business profile to see matches.</p>`}
     </section>
   `;
+  root.querySelectorAll("[data-dashboard-target]").forEach((button) => {
+    button.addEventListener("click", () => {
+      activeView = button.dataset.dashboardTarget;
+      render();
+    });
+  });
 }
 
 function renderRequests() {
