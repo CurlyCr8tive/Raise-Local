@@ -1,3 +1,5 @@
+import { normalizeSupportNeeds } from "./matching.js";
+
 const STORAGE_KEY = "raise_local_platform_v2";
 
 export const DEMO_DATA = {
@@ -29,7 +31,7 @@ export const DEMO_DATA = {
       preferredCategories: ["Food and beverage", "Restaurant", "Beverage"],
       eventType: "Food-based fundraiser",
       partnershipTypesNeeded: ["Fundraising", "Percentage of sales campaign", "Product donation"],
-      supportNeeds: ["Food", "Products"],
+      supportNeeds: ["Food & beverage", "Products or corporate gifting"],
       geography: "Brooklyn",
       mustHaves: "Brooklyn service area, food-based support, capacity for at least 80 orders.",
       niceToHaves: "Pickup option and a recognizable local brand.",
@@ -63,7 +65,7 @@ export const DEMO_DATA = {
       preferredCategories: ["Retail", "Local media"],
       eventType: "Product fundraiser",
       partnershipTypesNeeded: ["Fundraising", "Event sponsorship", "Product donation"],
-      supportNeeds: ["Products", "Sponsorship"],
+      supportNeeds: ["Products or corporate gifting", "Corporate sponsorship"],
       geography: "Queens",
       mustHaves: "Queens service area and product or sponsorship support.",
       niceToHaves: "School-friendly business and flexible campaign dates.",
@@ -84,7 +86,7 @@ export const DEMO_DATA = {
       causeAreas: ["Food access", "Community", "Health"],
       contributionTypes: ["Product donation", "Percent of sales", "Event hosting"],
       partnershipTypes: ["Fundraising", "Percentage of sales campaign", "Hosted event", "Product donation"],
-      offerTypes: ["Food", "Products", "Venue space"],
+      offerTypes: ["Food & beverage", "Products or corporate gifting", "Venue space"],
       productsServices: "Olive oil sets, tasting kits, hosted sampling events, and gift bundles.",
       averagePriceRange: "$18-$65",
       minimumOrderRequirement: 500,
@@ -117,7 +119,7 @@ export const DEMO_DATA = {
       causeAreas: ["Youth", "Food access", "Education"],
       contributionTypes: ["Product donation", "Percent of sales"],
       partnershipTypes: ["Fundraising", "Percentage of sales campaign", "Product donation"],
-      offerTypes: ["Food", "Products"],
+      offerTypes: ["Food & beverage", "Products or corporate gifting"],
       productsServices: "Cookie boxes, dessert trays, seasonal fundraiser bundles, and pickup campaigns.",
       averagePriceRange: "$24-$48",
       minimumOrderRequirement: 300,
@@ -150,7 +152,7 @@ export const DEMO_DATA = {
       causeAreas: ["Arts", "Education", "Community"],
       contributionTypes: ["Percent of sales", "Sponsorship dollars"],
       partnershipTypes: ["Fundraising", "Event sponsorship", "Product donation"],
-      offerTypes: ["Products", "Sponsorship"],
+      offerTypes: ["Products or corporate gifting", "Corporate sponsorship"],
       productsServices: "Stationery bundles, classroom supply packs, raffle prizes, and sponsor dollars.",
       averagePriceRange: "$12-$40",
       minimumOrderRequirement: 250,
@@ -180,9 +182,21 @@ export function loadData() {
   if (!raw) return structuredClone(DEMO_DATA);
   try {
     const parsed = JSON.parse(raw);
+    // Partner-type labels were rewritten after the Sept 11 walkthrough (see
+    // matching.js). Matching is a plain string-overlap test, so a saved
+    // answer of "Products" against a new "Products or corporate gifting"
+    // would just stop matching — silently, with no error and no result.
+    // Upgrading on read keeps anyone who already filled the quiz working,
+    // without a destructive rewrite of their stored answers.
     return {
-      campaignRequests: Array.isArray(parsed.campaignRequests) ? parsed.campaignRequests : [],
-      businesses: Array.isArray(parsed.businesses) ? parsed.businesses : [],
+      campaignRequests: (Array.isArray(parsed.campaignRequests) ? parsed.campaignRequests : []).map((r) => ({
+        ...r,
+        supportNeeds: normalizeSupportNeeds(r.supportNeeds),
+      })),
+      businesses: (Array.isArray(parsed.businesses) ? parsed.businesses : []).map((b) => ({
+        ...b,
+        offerTypes: normalizeSupportNeeds(b.offerTypes),
+      })),
       matches: Array.isArray(parsed.matches) ? parsed.matches : [],
     };
   } catch {
