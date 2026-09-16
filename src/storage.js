@@ -182,12 +182,9 @@ export function loadData() {
   if (!raw) return structuredClone(DEMO_DATA);
   try {
     const parsed = JSON.parse(raw);
-    // Partner-type labels were rewritten after the Sept 11 walkthrough (see
-    // matching.js). Matching is a plain string-overlap test, so a saved
-    // answer of "Products" against a new "Products or corporate gifting"
-    // would just stop matching — silently, with no error and no result.
-    // Upgrading on read keeps anyone who already filled the quiz working,
-    // without a destructive rewrite of their stored answers.
+    // Upgrades old partner-type labels (see LEGACY_SUPPORT_NEEDS in
+    // matching.js) on read, non-destructively, so previously saved answers
+    // keep matching instead of silently failing a string-overlap comparison.
     return {
       campaignRequests: (Array.isArray(parsed.campaignRequests) ? parsed.campaignRequests : []).map((r) => ({
         ...r,

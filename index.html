@@ -8,23 +8,23 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <aside class="sidebar">
+  <aside class="sidebar" id="app-sidebar">
     <div class="brand">
       <img src="assets/raise-local-logo-hires.png" alt="Raise Local" />
       <span>Raise Funds. Buy Local.</span>
     </div>
     <nav aria-label="Main navigation">
-      <button class="nav-btn active" data-view="intro">Match Finder</button>
       <button class="nav-btn" data-view="dashboard">Dashboard</button>
       <button class="nav-btn" data-view="requests">Campaign Requests</button>
       <button class="nav-btn" data-view="businesses">Business Profiles</button>
       <button class="nav-btn" data-view="matches">Match Review</button>
       <button class="nav-btn" data-view="brief">Build Brief</button>
     </nav>
+    <button class="nav-btn logout-btn" id="logout-btn" type="button">Log Out</button>
   </aside>
 
   <main class="app-shell">
-    <header class="topbar">
+    <header class="topbar" id="app-topbar">
       <div>
         <p class="eyebrow">Powered by Verified Consulting</p>
         <h1 id="page-title">Raise Local Dashboard</h1>

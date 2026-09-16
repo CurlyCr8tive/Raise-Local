@@ -19,20 +19,31 @@ import {
 } from "./matching.js";
 import { loadData, resetDemoData, saveData } from "./storage.js";
 import { syncBusinessProfile, syncCampaignRequest } from "./remote-sync.js";
+import { supabase } from "./supabase-client.js";
 
 let data = loadData();
-let activeView = "intro";
+let activeView = "dashboard";
 
 let quizAudience = null; // "request" | "business"
-let quizPhase = "choose"; // "choose" | "core" | "results" | "profile"
+let quizPhase = "choose"; // "choose" | "core" | "profile"
 let quizStep = 0;
 let quizAnswers = {};
 let quizConfirmation = "";
 let quizActiveRecordId = null;
 let quizResultsPreview = null;
 
+// Pre-auth flow: landing -> quiz-choose -> quiz -> register -> verify-sent
+// -> (user clicks emailed link) -> set-password -> authenticated app.
+let session = null;
+let authLoading = true;
+let authScreen = "landing";
+let authError = "";
+let pendingEmail = "";
+
 const root = document.getElementById("view-root");
 const title = document.getElementById("page-title");
+const sidebarEl = document.getElementById("app-sidebar");
+const topbarEl = document.getElementById("app-topbar");
 const navButtons = [...document.querySelectorAll("[data-view]")];
 
 document.getElementById("seed-btn").addEventListener("click", () => {
@@ -40,11 +51,89 @@ document.getElementById("seed-btn").addEventListener("click", () => {
   render();
 });
 
+document.getElementById("logout-btn").addEventListener("click", () => {
+  supabase.auth.signOut();
+});
+
 navButtons.forEach((button) => {
   button.addEventListener("click", () => {
     activeView = button.dataset.view;
     render();
   });
+});
+
+function passwordAlreadySet() {
+  return Boolean(session?.user?.user_metadata?.password_set);
+}
+
+// No invite flow yet — an account becomes admin only by someone with
+// Supabase dashboard access setting user_metadata.role to "admin" for that
+// user directly (Authentication -> Users -> edit raw user metadata).
+// Everyone else defaults to the role captured at quiz signup.
+function isAdmin() {
+  return session?.user?.user_metadata?.role === "admin";
+}
+
+function myRole() {
+  return session?.user?.user_metadata?.role === "business" ? "business" : "nonprofit";
+}
+
+function myEmail() {
+  return (session?.user?.email || "").trim().toLowerCase();
+}
+
+// A record is "mine" when its contact email matches the logged-in email —
+// there's no user_id column linking a quiz submission to the account
+// created afterward, so email is the only correlation available.
+function myOwnRequests() {
+  const email = myEmail();
+  return data.campaignRequests.filter((r) => (r.email || "").trim().toLowerCase() === email);
+}
+
+function myOwnBusinesses() {
+  const email = myEmail();
+  return data.businesses.filter((b) => (b.email || "").trim().toLowerCase() === email);
+}
+
+function isOwnRecord(record) {
+  return (record?.email || "").trim().toLowerCase() === myEmail();
+}
+
+// The counterpart profiles (businesses for a nonprofit, nonprofits for a
+// business) that the logged-in account's own record(s) actually matched.
+function myMatches() {
+  if (myRole() === "business") {
+    return myOwnBusinesses().flatMap((business) => buildMatches(data.campaignRequests, [business], data.matches));
+  }
+  return myOwnRequests().flatMap((request) => buildMatches([request], data.businesses, data.matches));
+}
+
+function uniqueById(records) {
+  const seen = new Set();
+  return records.filter((record) => (seen.has(record.id) ? false : seen.add(record.id)));
+}
+
+function determinePostSessionScreen() {
+  if (!session) return;
+  if (passwordAlreadySet()) {
+    authScreen = "app";
+    activeView = "dashboard";
+  } else {
+    authScreen = "set-password";
+  }
+}
+
+supabase.auth.onAuthStateChange((event, newSession) => {
+  session = newSession;
+  if (event === "SIGNED_OUT") {
+    authScreen = "landing";
+    quizAudience = null;
+    quizPhase = "choose";
+  } else if (session) {
+    determinePostSessionScreen();
+  }
+  authLoading = false;
+  render();
 });
 
 function setTitle(text) {
@@ -136,93 +225,269 @@ function activeQuestionList() {
 }
 
 function render() {
+  const showApp = authScreen === "app";
+  sidebarEl.style.display = showApp ? "" : "none";
+  topbarEl.style.display = showApp ? "" : "none";
+  document.body.classList.toggle("no-sidebar", !showApp);
+
+  if (authLoading) {
+    root.innerHTML = `<section class="panel"><p class="muted">Loading…</p></section>`;
+    return;
+  }
+
+  if (!showApp) {
+    renderPreAuth();
+    return;
+  }
+
+  syncNavForRole();
+  if (activeView === "brief" && !isAdmin()) activeView = "dashboard";
+
   const views = {
-    intro: renderIntro,
     dashboard: renderDashboard,
     requests: renderRequests,
     businesses: renderBusinesses,
     matches: renderMatches,
     brief: renderBrief,
+    "complete-profile": renderCompleteProfile,
   };
-  views[activeView]();
+  (views[activeView] || renderDashboard)();
 }
 
-function renderIntro() {
-  setTitle("Match Finder");
+function syncNavForRole() {
+  const isBusinessViewer = !isAdmin() && myRole() === "business";
 
-  const heroAndChoice = `
-    <section class="intro-hero">
-      <p class="eyebrow">Raise Funds, Buy Local</p>
-      <h2>Let's find your match.</h2>
-      <p>Answer a few quick questions so Raise Local can understand what you need, what you offer, and which matches are actually workable. Takes about two minutes.</p>
-    </section>
+  const requestsButton = navButtons.find((button) => button.dataset.view === "requests");
+  if (requestsButton) requestsButton.textContent = isBusinessViewer ? "My Business Profile" : "Campaign Requests";
 
-    ${quizConfirmation ? `<section class="success-banner" role="status">${escapeHtml(quizConfirmation)}</section>` : ""}
+  const businessesButton = navButtons.find((button) => button.dataset.view === "businesses");
+  if (businessesButton) businessesButton.textContent = isBusinessViewer ? "Nonprofit Profiles" : "Business Profiles";
 
-    <section class="quiz-choice-grid" aria-label="Choose your path">
-      <button type="button" class="choice-card ${quizAudience === "request" ? "active" : ""}" data-quiz-audience="request">
-        <span>For nonprofits &amp; schools</span>
-        <strong>I need a business partner for a campaign.</strong>
-        <small>Tell us your goal, cause, and location so we only send workable matches.</small>
-      </button>
-      <button type="button" class="choice-card ${quizAudience === "business" ? "active" : ""}" data-quiz-audience="business">
-        <span>For local businesses</span>
-        <strong>I want to support community fundraisers.</strong>
-        <small>Tell us what you offer and where you serve so we only send workable requests.</small>
-      </button>
-    </section>
-  `;
+  const briefButton = navButtons.find((button) => button.dataset.view === "brief");
+  if (briefButton) briefButton.style.display = isAdmin() ? "" : "none";
+}
 
-  if (!quizAudience) {
-    root.innerHTML = `${heroAndChoice}<section class="panel"><p class="muted">Pick a path above to start the Match Finder.</p></section>`;
-    wireIntroChoices();
-    return;
-  }
+function renderPreAuth() {
+  const screens = {
+    landing: renderLanding,
+    "quiz-choose": renderQuizChoose,
+    quiz: renderQuizStep,
+    register: renderRegisterPrompt,
+    "verify-sent": renderVerifySent,
+    "set-password": renderSetPassword,
+    login: renderLogin,
+  };
+  (screens[authScreen] || renderLanding)();
+}
 
-  if (quizPhase === "results") {
-    root.innerHTML = `${heroAndChoice}${resultsPanelHtml()}`;
-    wireIntroChoices();
-    wireResultsActions();
-    return;
-  }
-
-  const questions = activeQuestionList();
-  const question = questions[quizStep];
-  const total = questions.length;
-  const progress = Math.round(((quizStep + 1) / total) * 100);
-  const heading =
-    quizPhase === "profile"
-      ? quizAudience === "business"
-        ? "Complete Your Business Profile"
-        : "Complete Your Campaign Profile"
-      : quizAudience === "business"
-        ? "Business Match Finder"
-        : "Nonprofit Match Finder";
-
+function renderLanding() {
   root.innerHTML = `
-    ${heroAndChoice}
-    <section class="panel quiz-panel">
-      <h2>${heading}</h2>
-      ${quizQuestionHtml(question, progress, total)}
+    <section class="intro-hero landing-hero">
+      <img class="landing-logo" src="assets/raise-local-logo-hires.png" alt="Raise Local" />
+      <p class="eyebrow">Raise Funds, Buy Local</p>
+      <h2>Welcome to Raise Local.</h2>
+      <p class="landing-copy">Raise Local, powered by Verified Consulting, connects nonprofits, schools, and community organizations with local businesses ready to partner, support, and grow with them. Answer a few quick questions and we'll show you workable matches, explained in plain language.</p>
+      <div class="landing-actions">
+        <button class="primary-btn" type="button" id="landing-start">Find My Match</button>
+        <button class="secondary-btn" type="button" id="landing-login">Log In</button>
+      </div>
     </section>
   `;
-
-  wireIntroChoices();
-  wireGuidedQuiz(questions);
+  document.getElementById("landing-start").addEventListener("click", () => {
+    authScreen = "quiz-choose";
+    authError = "";
+    render();
+  });
+  document.getElementById("landing-login").addEventListener("click", () => {
+    authScreen = "login";
+    authError = "";
+    render();
+  });
 }
 
-function wireIntroChoices() {
+function renderQuizChoose() {
+  root.innerHTML = `
+    <section class="auth-panel">
+      <p class="eyebrow">Find My Match</p>
+      <h2>Which one are you?</h2>
+      <section class="quiz-choice-grid" aria-label="Choose your path" style="margin-top:18px;">
+        <button type="button" class="choice-card" data-quiz-audience="request">
+          <span>For nonprofits &amp; schools</span>
+          <strong>I am a nonprofit / school.</strong>
+          <small>Tell us your goal, cause, and location so we only send workable matches.</small>
+        </button>
+        <button type="button" class="choice-card" data-quiz-audience="business">
+          <span>For local businesses</span>
+          <strong>I am a small business.</strong>
+          <small>Tell us what you offer and where you serve so we only send workable requests.</small>
+        </button>
+      </section>
+    </section>
+  `;
   root.querySelectorAll("[data-quiz-audience]").forEach((button) => {
     button.addEventListener("click", () => {
       quizAudience = button.dataset.quizAudience;
       quizPhase = "core";
       quizStep = 0;
       quizAnswers = {};
-      quizConfirmation = "";
       quizActiveRecordId = null;
       quizResultsPreview = null;
-      renderIntro();
+      authScreen = "quiz";
+      render();
     });
+  });
+}
+
+function renderQuizStep() {
+  const questions = activeQuestionList();
+  const question = questions[quizStep];
+  const total = questions.length;
+  const progress = Math.round(((quizStep + 1) / total) * 100);
+  const heading = quizAudience === "business" ? "Business Match Finder" : "Nonprofit Match Finder";
+
+  root.innerHTML = `
+    <section class="auth-panel quiz-panel">
+      <p class="eyebrow">${heading}</p>
+      ${quizQuestionHtml(question, progress, total)}
+    </section>
+  `;
+  wireGuidedQuiz(questions);
+}
+
+function renderRegisterPrompt() {
+  const preview = quizResultsPreview || { count: 0, top: null };
+  const isBusiness = quizAudience === "business";
+  const noun = isBusiness ? "campaign" : "business";
+  const nounPlural = isBusiness ? "campaigns" : "businesses";
+  const headline =
+    preview.count > 0
+      ? `We've got matches for you! You're a possible fit for ${preview.count} ${preview.count === 1 ? noun : nounPlural} already in Raise Local.`
+      : "We've saved your answers — new matches get added every week.";
+  const topName = isBusiness ? preview.top?.request?.organizationName : preview.top?.business?.name;
+  const topReason = preview.top?.score?.reasons?.[0];
+
+  root.innerHTML = `
+    <section class="auth-panel">
+      <p class="eyebrow">Match Signal</p>
+      <h2>${escapeHtml(headline)}</h2>
+      ${topName ? `<p class="muted">Strongest so far: <strong>${escapeHtml(topName)}</strong>${topReason ? ` — ${escapeHtml(topReason)}` : ""}</p>` : ""}
+      <p class="muted">Register to view your matches and keep them updated as Raise Local adds new businesses and campaigns.</p>
+      ${authError ? `<p class="form-error">${escapeHtml(authError)}</p>` : ""}
+      <form id="register-form">
+        <div class="field-row"><label for="register-email">Email</label><input id="register-email" type="email" required value="${escapeHtml(pendingEmail)}" placeholder="you@example.org" /></div>
+        <button class="primary-btn" type="submit" style="width:100%;">See My Matches</button>
+      </form>
+    </section>
+  `;
+  document.getElementById("register-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const email = document.getElementById("register-email").value.trim();
+    if (!email) return;
+    authError = "";
+    const submitButton = event.target.querySelector("button[type=submit]");
+    submitButton.disabled = true;
+    submitButton.textContent = "Sending…";
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: window.location.origin + window.location.pathname,
+        data: { role: quizAudience === "business" ? "business" : "nonprofit" },
+      },
+    });
+    if (error) {
+      authError = error.message;
+      render();
+      return;
+    }
+    pendingEmail = email;
+    authScreen = "verify-sent";
+    render();
+  });
+}
+
+function renderVerifySent() {
+  root.innerHTML = `
+    <section class="auth-panel">
+      <p class="eyebrow">Check Your Email</p>
+      <h2>We sent a verification link to ${escapeHtml(pendingEmail)}.</h2>
+      <p class="muted">Click the link to confirm it's you. You'll set a password next, then land on your dashboard with your matches.</p>
+      <button class="secondary-btn" type="button" id="verify-back">Use a different email</button>
+    </section>
+  `;
+  document.getElementById("verify-back").addEventListener("click", () => {
+    authScreen = "register";
+    render();
+  });
+}
+
+function renderSetPassword() {
+  root.innerHTML = `
+    <section class="auth-panel">
+      <p class="eyebrow">Almost Done</p>
+      <h2>Create a password for your Raise Local login.</h2>
+      <p class="muted">You're verified as ${escapeHtml(session?.user?.email || "")}. Set a password so you can log back in directly next time.</p>
+      ${authError ? `<p class="form-error">${escapeHtml(authError)}</p>` : ""}
+      <form id="set-password-form">
+        <div class="field-row"><label for="set-password-input">Password</label><input id="set-password-input" type="password" minlength="6" required placeholder="At least 6 characters" /></div>
+        <button class="primary-btn" type="submit" style="width:100%;">Go to My Dashboard</button>
+      </form>
+    </section>
+  `;
+  document.getElementById("set-password-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const password = document.getElementById("set-password-input").value;
+    authError = "";
+    const submitButton = event.target.querySelector("button[type=submit]");
+    submitButton.disabled = true;
+    submitButton.textContent = "Saving…";
+    const { data: updated, error } = await supabase.auth.updateUser({
+      password,
+      data: { password_set: true },
+    });
+    if (error) {
+      authError = error.message;
+      render();
+      return;
+    }
+    if (updated.user) session = { ...session, user: updated.user };
+    authScreen = "app";
+    activeView = "dashboard";
+    render();
+  });
+}
+
+function renderLogin() {
+  root.innerHTML = `
+    <section class="auth-panel">
+      <p class="eyebrow">Welcome Back</p>
+      <h2>Log in to Raise Local.</h2>
+      ${authError ? `<p class="form-error">${escapeHtml(authError)}</p>` : ""}
+      <form id="login-form">
+        <div class="field-row"><label for="login-email">Email</label><input id="login-email" type="email" required placeholder="you@example.org" /></div>
+        <div class="field-row"><label for="login-password">Password</label><input id="login-password" type="password" required placeholder="Your password" /></div>
+        <button class="primary-btn" type="submit" style="width:100%;">Log In</button>
+      </form>
+      <p class="muted" style="margin-top:14px;">New here? <button class="link-btn" type="button" id="login-back">Find your match instead</button></p>
+    </section>
+  `;
+  document.getElementById("login-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const email = document.getElementById("login-email").value.trim();
+    const password = document.getElementById("login-password").value;
+    authError = "";
+    const submitButton = event.target.querySelector("button[type=submit]");
+    submitButton.disabled = true;
+    submitButton.textContent = "Logging in…";
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      authError = error.message;
+      render();
+    }
+  });
+  document.getElementById("login-back").addEventListener("click", () => {
+    authScreen = "landing";
+    authError = "";
+    render();
   });
 }
 
@@ -306,7 +571,7 @@ function wireGuidedQuiz(questions) {
   document.getElementById("quiz-back").addEventListener("click", () => {
     if (quizStep === 0) return;
     quizStep -= 1;
-    renderIntro();
+    render();
   });
 
   const otherField = document.getElementById("quiz-answer-other");
@@ -326,7 +591,7 @@ function wireGuidedQuiz(questions) {
     quizAnswers[question.key] = answer;
     if (quizStep < questions.length - 1) {
       quizStep += 1;
-      renderIntro();
+      render();
       return;
     }
     if (quizPhase === "profile") {
@@ -373,38 +638,34 @@ function finishCoreQuiz() {
     data.businesses = [business, ...data.businesses];
     quizActiveRecordId = business.id;
     quizResultsPreview = computeMatchPreview("business", business);
-    quizConfirmation = "Business profile saved. Raise Local can now recommend fit-based campaign opportunities.";
     syncBusinessProfile(business);
   } else {
     const request = requestFromQuizAnswers();
     data.campaignRequests = [request, ...data.campaignRequests];
     quizActiveRecordId = request.id;
     quizResultsPreview = computeMatchPreview("request", request);
-    quizConfirmation = "Campaign request saved. Raise Local can now compare it against business profiles.";
     syncCampaignRequest(request);
   }
   saveData(data);
-  quizPhase = "results";
+  pendingEmail = quizAnswers.contact?.email || "";
+  authError = "";
+  authScreen = "register";
   render();
 }
 
+// Reached only post-auth, from the "Complete Profile" link on a Campaign
+// Requests / Business Profiles card — not part of the pre-auth quiz funnel.
 function finishProfileQuiz() {
   if (quizAudience === "business") {
     const business = data.businesses.find((item) => item.id === quizActiveRecordId);
-    if (business) {
-      Object.assign(business, businessProfilePatch());
-      quizResultsPreview = computeMatchPreview("business", business);
-    }
+    if (business) Object.assign(business, businessProfilePatch());
   } else {
     const request = data.campaignRequests.find((item) => item.id === quizActiveRecordId);
-    if (request) {
-      Object.assign(request, requestProfilePatch());
-      quizResultsPreview = computeMatchPreview("request", request);
-    }
+    if (request) Object.assign(request, requestProfilePatch());
   }
   saveData(data);
   quizConfirmation = "Profile completed — thanks for the extra detail. It helps Raise Local recommend stronger matches.";
-  quizPhase = "results";
+  activeView = quizAudience === "business" ? "businesses" : "requests";
   render();
 }
 
@@ -423,55 +684,21 @@ function computeMatchPreview(kind, record) {
   return { count: scored.length, top: scored[0] || null };
 }
 
-function resultsPanelHtml() {
-  const preview = quizResultsPreview || { count: 0, top: null };
-  const isBusiness = quizAudience === "business";
-  const noun = isBusiness ? "campaign" : "business";
-  const nounPlural = isBusiness ? "campaigns" : "businesses";
-  const headline =
-    preview.count > 0
-      ? `Nice! You're a possible fit for ${preview.count} ${preview.count === 1 ? noun : nounPlural} already in Raise Local.`
-      : "No workable matches yet — that's okay, more requests and businesses get added every week.";
-  const topName = isBusiness ? preview.top?.request?.organizationName : preview.top?.business?.name;
-  const topReason = preview.top?.score?.reasons?.[0];
-  const topForecast = !isBusiness ? preview.top?.score?.forecast : "";
+function renderCompleteProfile() {
+  setTitle(quizAudience === "business" ? "Complete Business Profile" : "Complete Campaign Profile");
+  const questions = activeQuestionList();
+  const question = questions[quizStep];
+  const total = questions.length;
+  const progress = Math.round(((quizStep + 1) / total) * 100);
+  const heading = quizAudience === "business" ? "Complete Your Business Profile" : "Complete Your Campaign Profile";
 
-  return `
-    <section class="panel results-panel">
-      <p class="eyebrow">Match Signal</p>
-      <h2>${escapeHtml(headline)}</h2>
-      ${topName ? `<p class="muted">Strongest so far: <strong>${escapeHtml(topName)}</strong>${topReason ? ` — ${escapeHtml(topReason)}` : ""}</p>` : ""}
-      ${topForecast ? `<p class="forecast">${escapeHtml(topForecast)}</p>` : ""}
-      <div class="quiz-actions">
-        <button class="secondary-btn" type="button" id="results-later">Maybe later</button>
-        <button class="primary-btn" type="button" id="results-complete-profile">Complete profile for stronger matches</button>
-      </div>
-      <button class="primary-btn" type="button" id="results-see-matches" style="margin-top:10px;width:100%;">See my matches</button>
+  root.innerHTML = `
+    <section class="panel quiz-panel">
+      <h2>${heading}</h2>
+      ${quizQuestionHtml(question, progress, total)}
     </section>
   `;
-}
-
-function wireResultsActions() {
-  document.getElementById("results-see-matches")?.addEventListener("click", () => {
-    activeView = "matches";
-    render();
-  });
-  document.getElementById("results-later")?.addEventListener("click", () => {
-    quizAudience = null;
-    quizPhase = "choose";
-    quizStep = 0;
-    quizAnswers = {};
-    quizActiveRecordId = null;
-    quizResultsPreview = null;
-    quizConfirmation = "";
-    renderIntro();
-  });
-  document.getElementById("results-complete-profile")?.addEventListener("click", () => {
-    quizPhase = "profile";
-    quizStep = 0;
-    quizAnswers = {};
-    renderIntro();
-  });
+  wireGuidedQuiz(questions);
 }
 
 function requestFromQuizAnswers() {
@@ -621,16 +848,6 @@ function renderDashboard() {
     </section>
 
     <section class="panel">
-      <h2>Core Loop</h2>
-      <ol class="loop-list">
-        <li>A nonprofit or community organization submits a campaign request.</li>
-        <li>Raise Local filters local businesses by must-haves: category, cause, geography, support, timing, and capacity.</li>
-        <li>The strongest 3-5 matches explain why they fit; Tenyse can review or override.</li>
-        <li>Once accepted, the campaign launches. Stripe split payments are future scope.</li>
-      </ol>
-    </section>
-
-    <section class="panel">
       <h2>Top Match To Review</h2>
       ${topMatch ? matchCard(topMatch) : `<p class="muted">Add one campaign request and one business profile to see matches.</p>`}
     </section>
@@ -643,28 +860,88 @@ function renderDashboard() {
   });
 }
 
+// This nav slot is admin-global ("Campaign Requests") for admins, but for a
+// logged-in nonprofit it's their own submitted request, and for a logged-in
+// business — which has no campaign request of its own — it becomes their own
+// business profile instead. See renderBusinesses() for the matched-
+// counterpart slot this pairs with.
 function renderRequests() {
-  setTitle("Campaign Requests");
-  root.innerHTML = `
-    <section class="panel">
-      <h2>Nonprofit Intake</h2>
-      ${requestForm()}
-    </section>
-    <section class="entity-list">${data.campaignRequests.map(requestCard).join("")}</section>
-  `;
-  wireRequestForm();
+  if (isAdmin()) {
+    setTitle("Campaign Requests");
+    const banner = quizConfirmation ? `<section class="success-banner" role="status">${escapeHtml(quizConfirmation)}</section>` : "";
+    quizConfirmation = "";
+    root.innerHTML = `
+      ${banner}
+      <section class="panel"><h2>Nonprofit Intake</h2>${requestForm()}</section>
+      <section class="entity-list">${data.campaignRequests.map((r) => requestCard(r, { showCompleteProfile: true })).join("")}</section>
+    `;
+    wireRequestForm();
+    wireCompleteProfileLinks();
+    return;
+  }
+  if (myRole() === "business") {
+    renderMyOwnProfile("business");
+    return;
+  }
+  renderMyOwnProfile("request");
 }
 
-function renderBusinesses() {
-  setTitle("Business Profiles");
+function renderMyOwnProfile(kind) {
+  setTitle(kind === "business" ? "My Business Profile" : "Campaign Requests");
+  const banner = quizConfirmation ? `<section class="success-banner" role="status">${escapeHtml(quizConfirmation)}</section>` : "";
+  quizConfirmation = "";
+  const own = kind === "business" ? myOwnBusinesses() : myOwnRequests();
+  const card = kind === "business" ? businessCard : requestCard;
+  const empty = `<p class="muted">You haven't submitted a ${kind === "business" ? "business profile" : "campaign request"} yet. Start the Match Finder quiz to create one.</p>`;
   root.innerHTML = `
-    <section class="panel">
-      <h2>Business Match Profile</h2>
-      ${businessForm()}
-    </section>
-    <section class="entity-list">${data.businesses.map(businessCard).join("")}</section>
+    ${banner}
+    <section class="panel"><p class="muted">Your submitted ${kind === "business" ? "business profile" : "campaign request"}. Use "Complete profile" for stronger matches.</p></section>
+    <section class="entity-list">${own.length ? own.map((record) => card(record, { showCompleteProfile: true })).join("") : empty}</section>
   `;
-  wireBusinessForm();
+  wireCompleteProfileLinks();
+}
+
+// The matched-counterpart slot: a nonprofit sees the businesses it matched
+// with here, a business sees the nonprofits/campaigns it matched with. Admin
+// keeps the original global "Business Profiles" list + intake form.
+function renderBusinesses() {
+  if (isAdmin()) {
+    setTitle("Business Profiles");
+    const banner = quizConfirmation ? `<section class="success-banner" role="status">${escapeHtml(quizConfirmation)}</section>` : "";
+    quizConfirmation = "";
+    root.innerHTML = `
+      ${banner}
+      <section class="panel"><h2>Business Match Profile</h2>${businessForm()}</section>
+      <section class="entity-list">${data.businesses.map((b) => businessCard(b, { showCompleteProfile: true })).join("")}</section>
+    `;
+    wireBusinessForm();
+    wireCompleteProfileLinks();
+    return;
+  }
+
+  const isBusinessViewer = myRole() === "business";
+  setTitle(isBusinessViewer ? "Nonprofit Profiles" : "Business Profiles");
+  const matched = uniqueById(myMatches().map((match) => (isBusinessViewer ? match.request : match.business)));
+  const card = isBusinessViewer ? requestCard : businessCard;
+  const noun = isBusinessViewer ? "nonprofits or campaigns" : "businesses";
+  root.innerHTML = `
+    <section class="panel"><p class="muted">The ${noun} you've matched with.</p></section>
+    <section class="entity-list">${matched.length ? matched.map((record) => card(record, { showCompleteProfile: false })).join("") : `<p class="muted">No matches yet. Once a compatible ${isBusinessViewer ? "campaign" : "business"} joins, it'll show up here.</p>`}</section>
+  `;
+}
+
+function wireCompleteProfileLinks() {
+  root.querySelectorAll("[data-complete-profile]").forEach((button) => {
+    button.addEventListener("click", () => {
+      quizAudience = button.dataset.completeProfile;
+      quizActiveRecordId = button.dataset.recordId;
+      quizPhase = "profile";
+      quizStep = 0;
+      quizAnswers = {};
+      activeView = "complete-profile";
+      render();
+    });
+  });
 }
 
 function renderMatches() {
@@ -969,7 +1246,7 @@ function upsertMatchFeedback(requestId, businessId, fields) {
   saveData(data);
 }
 
-function requestCard(request) {
+function requestCard(request, { showCompleteProfile = false } = {}) {
   return `
     <article class="entity-card">
       <div class="entity-head">
@@ -987,11 +1264,12 @@ function requestCard(request) {
         <span class="tag">Size ${Number(request.minimumSize || 0).toLocaleString()}-${Number(request.idealSize || 0).toLocaleString()}</span>
         <span class="tag">${escapeHtml(request.startDate || "No start date")} to ${escapeHtml(request.endDate || "No end date")}</span>
       </div>
+      ${showCompleteProfile ? `<button type="button" class="link-btn" data-complete-profile="request" data-record-id="${escapeHtml(request.id)}" style="margin-top:10px;">Complete profile for stronger matches</button>` : ""}
     </article>
   `;
 }
 
-function businessCard(business) {
+function businessCard(business, { showCompleteProfile = false } = {}) {
   return `
     <article class="entity-card">
       <div class="entity-head">
@@ -1007,6 +1285,7 @@ function businessCard(business) {
       <div class="tag-row">
         ${[...(business.causeAreas || []), ...(business.contributionTypes || []), ...(business.offerTypes || []), ...(business.fulfillmentOptions || [])].map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}
       </div>
+      ${showCompleteProfile ? `<button type="button" class="link-btn" data-complete-profile="business" data-record-id="${escapeHtml(business.id)}" style="margin-top:10px;">Complete profile for stronger matches</button>` : ""}
     </article>
   `;
 }

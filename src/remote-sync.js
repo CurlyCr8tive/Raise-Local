@@ -1,12 +1,10 @@
 import { supabase } from "./supabase-client.js";
 
-// Phase one has no auth, so the anon key is what every browser tab uses.
-// RLS on campaign_requests / business_profiles grants anon INSERT only (see
-// supabase/migrations) — nobody can read back or edit someone else's
-// submission through this key. That means these sync functions only cover
-// the finished 10-question quiz + contact step; the optional "Complete
-// Profile" follow-up stays local-only until there's an admin/auth layer that
-// can own updates safely.
+// Runs pre-auth, at quiz completion. RLS grants the anon role INSERT only on
+// these two tables (see supabase/migrations) — no read/update/delete — so
+// these functions cover just the initial submission. The later "Complete
+// Profile" edit is authenticated but local-only: an anon-scoped policy can't
+// tell one user's row from another's, so it isn't synced here either.
 
 function toRequestRow(request) {
   return {

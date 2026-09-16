@@ -41,27 +41,9 @@ export const FULFILLMENT_OPTIONS = ["Shipping", "Delivery", "Pickup", "In person
 
 export const FULFILLMENT_SCOPE = ["Local", "Regional", "National"];
 
-// Question 3 on both intakes — "what kind of partner would best support your
-// campaign?" for nonprofits, "what can you offer campaigns?" for businesses.
-// One shared list on purpose: the decision tree matches a nonprofit's
-// supportNeeds against a business's offerTypes by overlap, so the two sides
-// have to speak the same vocabulary.
-//
-// Revised after the Sept 11 walkthrough with Tenyse. Three changes she asked
-// for, and one gap found while making them:
-//   - "Sponsorship" -> "Corporate sponsorship". She pushed for specificity:
-//     a sponsorship from a corporate partner is a different ask than a
-//     neighbourhood business chipping in.
-//   - "Products" -> "Products or corporate gifting". Corporate gifting is the
-//     gap Raise Local exists to fill — a business with product but no budget
-//     can still give, and that describes most small businesses. Folding it
-//     into a bare "Products" label hid the whole proposition.
-//   - "Services" -> "Professional services", so it doesn't read as catering
-//     or event labour, which are covered by other options.
-//   - "Local media" added. It was missing entirely, and Tenyse selected it
-//     during the walkthrough as a partner type she'd expect to see.
-// "Food" and "Beverage" are merged into "Food & beverage" — they were always
-// selected together, and the split made the list read longer than it was.
+// Shared by both intakes on purpose: the decision tree matches a nonprofit's
+// supportNeeds against a business's offerTypes by string overlap, so both
+// sides need the same vocabulary.
 export const SUPPORT_NEEDS = [
   "Food & beverage",
   "Products or corporate gifting",
@@ -73,11 +55,9 @@ export const SUPPORT_NEEDS = [
   "Other",
 ];
 
-// Answers saved before the rename above. Matching is a string-overlap test
-// (see decision-tree-agent.js), so a nonprofit holding "Products" and a
-// business holding "Products or corporate gifting" would silently stop
-// matching — no error, just no result. storage.js rewrites old values
-// through this on load so existing signups keep working.
+// Maps prior label values forward. Matching is a string-overlap test (see
+// decision-tree-agent.js), so a saved answer under an old label would
+// silently stop matching a current one — no error, just no result.
 export const LEGACY_SUPPORT_NEEDS = {
   Food: "Food & beverage",
   Beverage: "Food & beverage",

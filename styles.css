@@ -38,6 +38,8 @@ textarea {
 .sidebar {
   background: var(--forest);
   color: #fff;
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
   padding: 24px 18px;
 }
@@ -469,6 +471,96 @@ textarea {
 
 .quiz-panel {
   max-width: 980px;
+}
+
+/* Pre-auth flow: landing, quiz choice/steps, register, verify, set password,
+   log in. No sidebar/topbar chrome — see body.no-sidebar below. */
+body.no-sidebar {
+  grid-template-columns: 1fr;
+}
+
+body.no-sidebar .app-shell {
+  align-items: flex-start;
+  display: flex;
+  justify-content: center;
+  padding: 56px 24px;
+}
+
+body.no-sidebar .view-root {
+  width: 100%;
+  max-width: 640px;
+}
+
+.landing-hero {
+  text-align: center;
+}
+
+.landing-logo {
+  background: #fff;
+  border-radius: var(--radius);
+  display: block;
+  margin: 0 auto 18px;
+  max-width: 200px;
+  padding: 10px;
+  width: 100%;
+}
+
+.landing-copy {
+  color: #e7f3ee;
+  font-size: 1.05rem;
+  line-height: 1.6;
+  margin: 0 auto;
+  max-width: 480px;
+}
+
+.landing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 22px;
+}
+
+.landing-actions .primary-btn,
+.landing-actions .secondary-btn {
+  padding: 13px 26px;
+}
+
+.auth-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 28px;
+}
+
+.auth-panel form {
+  margin-top: 18px;
+}
+
+.form-error {
+  background: #ffe6e1;
+  border: 1px solid #f3b3a4;
+  border-radius: 8px;
+  color: #8b2c1c;
+  font-size: 0.86rem;
+  font-weight: 700;
+  margin: 16px 0 0;
+  padding: 10px 12px;
+}
+
+.link-btn {
+  background: none;
+  border: 0;
+  color: var(--orange);
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.logout-btn {
+  margin-top: auto;
 }
 
 .progress-rail {
