@@ -155,8 +155,13 @@ function myMatches() {
 function determinePostSessionScreen() {
   if (!session) return;
   if (passwordAlreadySet()) {
+    // Supabase re-fires onAuthStateChange on token refresh and tab refocus,
+    // not just on first sign-in. Only jump to the dashboard when the app
+    // wasn't already showing — otherwise a background token refresh silently
+    // knocks the user off whatever page they were on.
+    const alreadyInApp = authScreen === "app";
     authScreen = "app";
-    activeView = "dashboard";
+    if (!alreadyInApp) activeView = "dashboard";
   } else {
     authScreen = "set-password";
   }
@@ -1563,7 +1568,8 @@ function renderMatchTriage() {
 
   wireCauseFilter();
   wireMatchTriageCards(fresh);
-  wireActiveMatchControls();
+  wireMatchProgressionButtons();
+  wireRatingWidgets();
   wireBinCards();
 }
 
@@ -2115,6 +2121,30 @@ function matchPreviewCard(match, { viewerIsBusiness = false } = {}) {
   `;
 }
 
+// The two-sided consent flow (approve/deny/hold) only gets a match to
+// "intro_requested" — someone still has to confirm the partnership is
+// actually happening before either side can rate it. Either party can move
+// it forward; there's no separate accept step per side (matches the
+// single-sided-approval design already used for the intro itself).
+function matchProgressionAction(match) {
+  if (match.status === "intro_requested") {
+    return `<button type="button" class="secondary-btn" data-progress-status="accepted" data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">We're working together ${ICONS.check}</button>`;
+  }
+  if (match.status === "accepted") {
+    return `<button type="button" class="secondary-btn" data-progress-status="launched" data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">Mark campaign as launched ${ICONS.arrowRight}</button>`;
+  }
+  return "";
+}
+
+function wireMatchProgressionButtons() {
+  root.querySelectorAll("[data-progress-status]").forEach((button) => {
+    button.addEventListener("click", () => {
+      upsertMatchStatus(button.dataset.requestId, button.dataset.businessId, button.dataset.progressStatus);
+      render();
+    });
+  });
+}
+
 function matchCard(match, { showAdminControls = false, showRating = false } = {}) {
   return `
     <article class="match-card">
@@ -2136,6 +2166,9 @@ function matchCard(match, { showAdminControls = false, showRating = false } = {}
         </ul>
       </details>
       ${match.notifiedAt ? `<p class="notification-note">Email notification queued for ${escapeHtml(match.request.email)} and ${escapeHtml(match.business.name)} on ${formatDateTime(match.notifiedAt)}.</p>` : ""}
+      ${
+        showAdminControls
+          ? `
       <div class="match-actions">
         <label for="status-${escapeHtml(match.id)}">Match status</label>
         <select id="status-${escapeHtml(match.id)}" data-status-update data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">
@@ -2147,14 +2180,11 @@ function matchCard(match, { showAdminControls = false, showRating = false } = {}
           ${DECLINE_REASONS.map((reason) => `<option value="${reason}" ${match.declineReason === reason ? "selected" : ""}>${reason}</option>`).join("")}
         </select>
         <textarea data-decline-note data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}" rows="2" placeholder="Optional note for learning why this was not a fit">${escapeHtml(match.declineNote || "")}</textarea>
-        ${
-          showAdminControls
-            ? `
         <label for="admin-${escapeHtml(match.id)}">Admin override / intro note</label>
-        <textarea id="admin-${escapeHtml(match.id)}" data-admin-note data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}" rows="2" placeholder="Manual recommendation, intro context, or override reason">${escapeHtml(match.adminNote || "")}</textarea>`
-            : ""
-        }
-      </div>
+        <textarea id="admin-${escapeHtml(match.id)}" data-admin-note data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}" rows="2" placeholder="Manual recommendation, intro context, or override reason">${escapeHtml(match.adminNote || "")}</textarea>
+      </div>`
+          : matchProgressionAction(match)
+      }
       ${showRating ? ratingWidget(match) : ""}
     </article>
   `;
