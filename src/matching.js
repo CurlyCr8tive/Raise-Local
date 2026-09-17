@@ -2,6 +2,11 @@ import { evaluateDecisionTreeMatch } from "./decision-tree-agent.js";
 
 export const ORGANIZATION_TYPES = ["School / PTA", "501(c)(3) nonprofit", "Community organization", "Faith-based nonprofit", "Other"];
 
+// Display-only — not a matching filter. A franchise can still be a great
+// partner with real budget, so this never blocks or scores a match; it's
+// just a trust/context signal nonprofits see on the business's card.
+export const BUSINESS_TYPES = ["Small Business", "Franchise", "Other"];
+
 export const CAUSE_AREAS = [
   "Education",
   "Youth",

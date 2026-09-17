@@ -9,7 +9,7 @@ export const DEMO_DATA = {
       organizationName: "Fresh Start Pantry",
       organizationType: "501(c)(3) nonprofit",
       contactName: "Maya Thompson",
-      email: "maya@example.org",
+      email: "demo-nonprofit@raiselocal.example",
       phone: "555-0198",
       website: "https://freshstartpantry.org",
       socialLinks: "Instagram: @freshstartpantry",
@@ -79,6 +79,9 @@ export const DEMO_DATA = {
       name: "YAMAAS! Olive Oil",
       website: "https://yamaasoliveoil.example",
       socialLinks: "Instagram: @yamaasoliveoil",
+      contactName: "Yara Massoud",
+      email: "demo-business@raiselocal.example",
+      phone: "555-0130",
       category: "Food and beverage",
       businessGoals: ["New customers", "Product trial", "Community visibility", "CSR/community impact"],
       serviceAreas: ["Brooklyn", "Queens", "New York"],
@@ -112,6 +115,9 @@ export const DEMO_DATA = {
       name: "Sofia & Grace",
       website: "https://sofiaandgrace.example",
       socialLinks: "Instagram: @sofiaandgrace",
+      contactName: "Sofia Reyes",
+      email: "hello@sofiaandgrace.example",
+      phone: "555-0131",
       category: "Food and beverage",
       businessGoals: ["Foot traffic", "Brand awareness", "Social media exposure", "Long-term nonprofit partnerships"],
       serviceAreas: ["Brooklyn", "Manhattan"],
@@ -145,6 +151,9 @@ export const DEMO_DATA = {
       name: "Paper Porch Goods",
       website: "https://paperporchgoods.example",
       socialLinks: "Instagram: @paperporchgoods",
+      contactName: "Priya Osei",
+      email: "hello@paperporchgoods.example",
+      phone: "555-0132",
       category: "Retail",
       businessGoals: ["Community visibility", "Email/newsletter exposure", "Content opportunities", "Local press"],
       serviceAreas: ["Queens", "Brooklyn"],
@@ -175,6 +184,7 @@ export const DEMO_DATA = {
     },
   ],
   matches: [],
+  notifications: [],
 };
 
 export function loadData() {
@@ -187,6 +197,8 @@ export function loadData() {
     // keep matching instead of silently failing a string-overlap comparison.
     return {
       campaignRequests: (Array.isArray(parsed.campaignRequests) ? parsed.campaignRequests : []).map((r) => ({
+        rating: null,
+        reviewNote: "",
         ...r,
         supportNeeds: normalizeSupportNeeds(r.supportNeeds),
       })),
@@ -195,6 +207,7 @@ export function loadData() {
         offerTypes: normalizeSupportNeeds(b.offerTypes),
       })),
       matches: Array.isArray(parsed.matches) ? parsed.matches : [],
+      notifications: Array.isArray(parsed.notifications) ? parsed.notifications : [],
     };
   } catch {
     return structuredClone(DEMO_DATA);

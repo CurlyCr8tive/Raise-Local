@@ -2,6 +2,7 @@ import {
   AVAILABILITY_OPTIONS,
   BUSINESS_CATEGORIES,
   BUSINESS_GOALS,
+  BUSINESS_TYPES,
   CAUSE_AREAS,
   CONTRIBUTION_TYPES,
   DECLINE_REASONS,
@@ -20,9 +21,14 @@ import {
 import { loadData, resetDemoData, saveData } from "./storage.js";
 import { syncBusinessProfile, syncCampaignRequest } from "./remote-sync.js";
 import { supabase } from "./supabase-client.js";
+import { HERO_PHOTO, businessPhoto, requestPhoto } from "./photos.js";
+import { ICONS } from "./icons.js";
 
 let data = loadData();
 let activeView = "dashboard";
+let dashboardTab = "matches"; // "matches" | "own" | "counterpart"
+let dashboardSort = "best"; // "best" | "name"
+let matchCauseFilter = "all";
 
 let quizAudience = null; // "request" | "business"
 let quizPhase = "choose"; // "choose" | "core" | "profile"
@@ -53,6 +59,36 @@ document.getElementById("seed-btn").addEventListener("click", () => {
 
 document.getElementById("logout-btn").addEventListener("click", () => {
   supabase.auth.signOut();
+});
+
+document.getElementById("topbar-logout-btn").addEventListener("click", () => {
+  supabase.auth.signOut();
+});
+
+document.getElementById("topbar-account-btn").addEventListener("click", () => {
+  const menu = document.getElementById("topbar-account-menu");
+  menu.hidden = !menu.hidden;
+});
+
+document.getElementById("notif-btn").addEventListener("click", () => {
+  const menu = document.getElementById("notif-menu");
+  menu.hidden = !menu.hidden;
+  if (!menu.hidden) {
+    myNotifications().forEach((n) => (n.read = true));
+    saveData(data);
+    syncNotifications();
+  }
+});
+
+document.addEventListener("click", (event) => {
+  document.querySelectorAll(".topbar-account").forEach((wrap) => {
+    const menu = wrap.querySelector(".topbar-account-menu");
+    if (menu && !menu.hidden && !wrap.contains(event.target)) menu.hidden = true;
+  });
+});
+
+document.querySelectorAll("[data-icon]").forEach((el) => {
+  el.innerHTML = ICONS[el.dataset.icon] || "";
 });
 
 navButtons.forEach((button) => {
@@ -106,11 +142,6 @@ function myMatches() {
     return myOwnBusinesses().flatMap((business) => buildMatches(data.campaignRequests, [business], data.matches));
   }
   return myOwnRequests().flatMap((request) => buildMatches([request], data.businesses, data.matches));
-}
-
-function uniqueById(records) {
-  const seen = new Set();
-  return records.filter((record) => (seen.has(record.id) ? false : seen.add(record.id)));
 }
 
 function determinePostSessionScreen() {
@@ -196,6 +227,7 @@ const BUSINESS_CORE_QUESTIONS = [
 const BUSINESS_CONTACT_QUESTION = { key: "contact", label: "Almost done — how can we reach you?", type: "contact" };
 
 const BUSINESS_PROFILE_QUESTIONS = [
+  { key: "businessType", label: "What type of business are you?", type: "single", options: BUSINESS_TYPES },
   { key: "website", label: "What's your website?", type: "url", placeholder: "https://example.com" },
   { key: "socialLinks", label: "Add any social links we should keep on file.", type: "textarea", placeholder: "Instagram, TikTok, LinkedIn, press links, etc." },
   { key: "fulfillmentScope", label: "How far can you fulfill campaigns?", type: "single", options: FULFILLMENT_SCOPE },
@@ -241,6 +273,8 @@ function render() {
   }
 
   syncNavForRole();
+  syncAccountIdentity();
+  syncNotifications();
   if (activeView === "brief" && !isAdmin()) activeView = "dashboard";
 
   const views = {
@@ -254,17 +288,85 @@ function render() {
   (views[activeView] || renderDashboard)();
 }
 
+function navLabel(view) {
+  return navButtons.find((button) => button.dataset.view === view)?.querySelector(".nav-label");
+}
+
+function navBadge(view) {
+  return document.querySelector(`[data-nav-badge="${view}"]`);
+}
+
+function setBadge(el, count) {
+  if (!el) return;
+  el.textContent = count > 0 ? String(count) : "";
+  el.hidden = !count;
+}
+
 function syncNavForRole() {
   const isBusinessViewer = !isAdmin() && myRole() === "business";
 
-  const requestsButton = navButtons.find((button) => button.dataset.view === "requests");
-  if (requestsButton) requestsButton.textContent = isBusinessViewer ? "My Business Profile" : "Campaign Requests";
+  const requestsLabel = navLabel("requests");
+  if (requestsLabel) requestsLabel.textContent = isBusinessViewer ? "Business Profile" : "Campaign Requests";
 
-  const businessesButton = navButtons.find((button) => button.dataset.view === "businesses");
-  if (businessesButton) businessesButton.textContent = isBusinessViewer ? "Nonprofit Profiles" : "Business Profiles";
+  const businessesLabel = navLabel("businesses");
+  if (businessesLabel) businessesLabel.textContent = isBusinessViewer ? "Campaign Requests" : "Business Profiles";
 
   const briefButton = navButtons.find((button) => button.dataset.view === "brief");
   if (briefButton) briefButton.style.display = isAdmin() ? "" : "none";
+
+  if (isAdmin()) {
+    setBadge(navBadge("requests"), data.campaignRequests.length);
+    setBadge(navBadge("businesses"), data.businesses.length);
+    setBadge(navBadge("matches"), currentMatches().length);
+  } else {
+    const own = isBusinessViewer ? myOwnBusinesses() : myOwnRequests();
+    const poolCount = isBusinessViewer ? data.campaignRequests.length : data.businesses.length;
+    setBadge(navBadge("requests"), own.length);
+    setBadge(navBadge("businesses"), poolCount);
+    setBadge(navBadge("matches"), myMatches().length);
+  }
+  setBadge(navBadge("messages"), 0);
+}
+
+function syncNotifications() {
+  const notifs = isAdmin() ? [] : myNotifications();
+  const unread = notifs.filter((n) => !n.read).length;
+  setBadge(document.getElementById("notif-badge"), unread);
+
+  const menu = document.getElementById("notif-menu");
+  menu.innerHTML = notifs.length
+    ? notifs
+        .slice(0, 8)
+        .map(
+          (n) => `
+      <button type="button" class="notif-row ${n.read ? "" : "unread"}" data-notif-id="${escapeHtml(n.id)}">
+        <span>${n.message}</span>
+        <span class="muted small-note">${formatDateTime(n.createdAt)}</span>
+      </button>`
+        )
+        .join("")
+    : `<p class="muted notif-empty">No notifications yet.</p>`;
+
+  menu.querySelectorAll("[data-notif-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      menu.hidden = true;
+      activeView = "matches";
+      render();
+    });
+  });
+}
+
+function syncAccountIdentity() {
+  const email = session?.user?.email || "";
+  const initial = email ? email[0].toUpperCase() : "?";
+  const role = isAdmin() ? "Admin" : myRole() === "business" ? "Small Business" : "Nonprofit / School";
+
+  document.getElementById("account-avatar").textContent = initial;
+  document.getElementById("account-email").textContent = email || "—";
+  document.getElementById("account-role").textContent = email ? role : "";
+
+  document.getElementById("topbar-account-avatar").textContent = initial;
+  document.getElementById("topbar-account-name").textContent = email ? email.split("@")[0] : "Account";
 }
 
 function renderPreAuth() {
@@ -286,7 +388,7 @@ function renderLanding() {
       <img class="landing-logo" src="assets/raise-local-logo-hires.png" alt="Raise Local" />
       <p class="eyebrow">Raise Funds, Buy Local</p>
       <h2>Welcome to Raise Local.</h2>
-      <p class="landing-copy">Raise Local, powered by Verified Consulting, connects nonprofits, schools, and community organizations with local businesses ready to partner, support, and grow with them. Answer a few quick questions and we'll show you workable matches, explained in plain language.</p>
+      <p class="landing-copy">We connect Local Causes with Small Businesses ready to partner and grow together. Answer a few quick questions to see your matches.</p>
       <div class="landing-actions">
         <button class="primary-btn" type="button" id="landing-start">Find My Match</button>
         <button class="secondary-btn" type="button" id="landing-login">Log In</button>
@@ -737,6 +839,8 @@ function requestFromQuizAnswers() {
     niceToHaves: "",
     priorFundraiser: "",
     status: "new",
+    rating: null,
+    reviewNote: "",
   };
 }
 
@@ -767,6 +871,7 @@ function businessFromQuizAnswers() {
   return {
     id: `business-${crypto.randomUUID()}`,
     name: quizAnswers.name,
+    businessType: "",
     website: "",
     socialLinks: "",
     contactName: contact.contactName,
@@ -805,6 +910,7 @@ function businessFromQuizAnswers() {
 
 function businessProfilePatch() {
   return {
+    businessType: quizAnswers.businessType || "",
     website: quizAnswers.website || "",
     socialLinks: quizAnswers.socialLinks || "",
     fulfillmentScope: quizAnswers.fulfillmentScope || "",
@@ -826,6 +932,14 @@ function businessProfilePatch() {
 }
 
 function renderDashboard() {
+  if (isAdmin()) {
+    renderAdminDashboard();
+    return;
+  }
+  renderRoleDashboard();
+}
+
+function renderAdminDashboard() {
   setTitle("Raise Local Dashboard");
   const matches = currentMatches();
   const accepted = matches.filter((match) => match.status === "accepted").length;
@@ -836,7 +950,7 @@ function renderDashboard() {
     <section class="mission-panel">
       <div>
         <p class="eyebrow">Raise Funds, Buy Local</p>
-        <h2>Raise Local, powered by Verified Consulting, connects nonprofits and community organizations with local businesses that are ready to partner, support, and grow with them.</h2>
+        <h2>Raise Local, powered by Verified Consulting, connects local causes with local businesses that are ready to partner, support, and grow with them.</h2>
       </div>
     </section>
 
@@ -857,6 +971,170 @@ function renderDashboard() {
       activeView = button.dataset.dashboardTarget;
       render();
     });
+  });
+}
+
+function isProfileComplete(record, isBusiness) {
+  return isBusiness ? Boolean(record.website || record.notes) : Boolean(record.mission || record.mustHaves);
+}
+
+function sortRecords(records, sortMode, nameKey) {
+  if (sortMode !== "name") return records;
+  return [...records].sort((a, b) => String(a[nameKey] || "").localeCompare(String(b[nameKey] || "")));
+}
+
+function renderDashboardTabContent(tab, { matches, own, counterpart, isBusinessViewer, sortMode }) {
+  if (tab === "own") {
+    const card = isBusinessViewer ? businessCard : requestCard;
+    const nameKey = isBusinessViewer ? "name" : "organizationName";
+    const sorted = sortRecords(own, sortMode, nameKey);
+    return sorted.length
+      ? sorted.map((record) => card(record, { showCompleteProfile: true })).join("")
+      : `<p class="muted">You haven't submitted a ${isBusinessViewer ? "business profile" : "campaign request"} yet. Start the Match Finder quiz to create one.</p>`;
+  }
+  if (tab === "counterpart") {
+    const card = isBusinessViewer ? requestCard : businessCard;
+    const nameKey = isBusinessViewer ? "organizationName" : "name";
+    const sorted = sortRecords(counterpart, sortMode, nameKey);
+    return sorted.length
+      ? sorted.map((record) => card(record, { showCompleteProfile: false })).join("")
+      : `<p class="muted">Nothing in the pool yet. Once a ${isBusinessViewer ? "nonprofit" : "business"} completes the Match Finder quiz, it'll show up here.</p>`;
+  }
+  const sortedMatches = sortMode === "name" ? [...matches].sort((a, b) => a.request.organizationName.localeCompare(b.request.organizationName)) : matches;
+  return sortedMatches.length
+    ? sortedMatches.map((match) => matchPreviewCard(match, { viewerIsBusiness: isBusinessViewer })).join("")
+    : `<p class="muted">No matches yet — check back as new businesses and campaigns join Raise Local.</p>`;
+}
+
+const HERO_STICKERS = ["Local", "Businesses.", "Brighter", "Futures."];
+
+function renderRoleDashboard() {
+  setTitle("Raise Local Dashboard");
+  const isBusinessViewer = myRole() === "business";
+  const own = isBusinessViewer ? myOwnBusinesses() : myOwnRequests();
+  const matches = myMatches();
+  const counterpart = isBusinessViewer ? data.campaignRequests : data.businesses;
+  const accepted = matches.filter((m) => m.status === "accepted").length;
+  const launched = matches.filter((m) => m.status === "launched").length;
+  const name = session?.user?.email?.split("@")[0] || "";
+
+  const impactItems = [
+    { done: own.length > 0, label: `Submit your ${isBusinessViewer ? "business profile" : "campaign request"}` },
+    { done: matches.length > 0, label: "Review your first matches" },
+    { done: accepted + launched > 0, label: "Accept or launch a partnership" },
+    { done: own.some((r) => isProfileComplete(r, isBusinessViewer)), label: "Complete your full profile" },
+  ];
+
+  const stats = [
+    { icon: "users", tint: "tint-peach", label: isBusinessViewer ? "Business Profile" : "Campaign Requests", value: own.length, caption: own.length ? "Submitted" : "Not started yet" },
+    { icon: "briefcase", tint: "tint-blue", label: isBusinessViewer ? "Campaign Requests" : "Business Profiles", value: counterpart.length, caption: "In the matchmaking pool" },
+    { icon: "heart", tint: "tint-pink", label: "Potential Matches", value: matches.length, caption: "Ready for your review" },
+    { icon: "link", tint: "tint-teal", label: "Accepted", value: accepted, caption: accepted ? "Partnerships confirmed" : "None yet" },
+    { icon: "send", tint: "tint-gray", label: "Launched", value: launched, caption: launched ? "Live partnerships" : "Get your first one live!" },
+  ];
+
+  root.innerHTML = `
+    <section class="dashboard-hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Welcome back${name ? `, ${escapeHtml(name)}` : ""}</p>
+        <h2>Build Local Partnerships.<br />Create Real Impact.</h2>
+        <p>Review matches, ${isBusinessViewer ? "support local causes" : "connect with local businesses"}, and bring meaningful collaborations to life.</p>
+        <div class="landing-actions">
+          <button type="button" class="primary-btn hero-cta" data-dashboard-target="matches">View New Matches ${ICONS.arrowRight}</button>
+          <button type="button" class="secondary-btn" data-dashboard-target="requests">${isBusinessViewer ? "Update My Profile" : "Post a Campaign"}</button>
+        </div>
+      </div>
+      <div class="hero-photo-wrap">
+        <img class="hero-photo" src="${HERO_PHOTO}" alt="" loading="lazy" />
+        ${HERO_STICKERS.map((text, i) => `<span class="hero-sticker sticker-${i}">${escapeHtml(text)}</span>`).join("")}
+      </div>
+    </section>
+
+    <section class="dashboard-stats">
+      ${stats
+        .map(
+          (stat) => `
+        <div class="stat-card">
+          <span class="stat-icon ${stat.tint}">${ICONS[stat.icon]}</span>
+          <div>
+            <span class="stat-label">${escapeHtml(stat.label)}</span>
+            <strong class="stat-value">${stat.value}</strong>
+            <span class="stat-caption">${escapeHtml(stat.caption)}</span>
+          </div>
+        </div>`
+        )
+        .join("")}
+    </section>
+
+    <div class="dashboard-layout">
+      <div>
+        <div class="dashboard-tabs-row">
+          <div class="dashboard-tabs" role="tablist">
+            <button type="button" class="dashboard-tab ${dashboardTab === "matches" ? "active" : ""}" data-dashboard-tab="matches">Matches to Review <span class="tab-count">${matches.length}</span></button>
+            <button type="button" class="dashboard-tab ${dashboardTab === "own" ? "active" : ""}" data-dashboard-tab="own">${isBusinessViewer ? "Business Profile" : "Campaign Requests"} <span class="tab-count">${own.length}</span></button>
+            <button type="button" class="dashboard-tab ${dashboardTab === "counterpart" ? "active" : ""}" data-dashboard-tab="counterpart">${isBusinessViewer ? "Campaign Requests" : "Businesses"} <span class="tab-count">${counterpart.length}</span></button>
+          </div>
+          <label class="sort-select-wrap">
+            Sort by
+            <select id="dashboard-sort">
+              <option value="best" ${dashboardSort === "best" ? "selected" : ""}>Best Match</option>
+              <option value="name" ${dashboardSort === "name" ? "selected" : ""}>Name A-Z</option>
+            </select>
+          </label>
+        </div>
+        <section class="dashboard-tab-content">
+          ${renderDashboardTabContent(dashboardTab, { matches, own, counterpart, isBusinessViewer, sortMode: dashboardSort })}
+        </section>
+      </div>
+
+      <aside class="dashboard-sidebar">
+        <section class="panel sidebar-widget">
+          <h3>${ICONS.leaf} Your Impact in Progress</h3>
+          <p class="muted">Local partnerships create stronger communities.</p>
+          <ul class="impact-checklist">
+            ${impactItems.map((item) => `<li class="${item.done ? "done" : ""}"><span class="checklist-dot">${item.done ? ICONS.check : ""}</span>${escapeHtml(item.label)}</li>`).join("")}
+          </ul>
+        </section>
+
+        <section class="panel sidebar-widget">
+          <h3>Recent Activity</h3>
+          <ul class="activity-feed">
+            <li>
+              <span class="activity-icon tint-teal">${ICONS.link}</span>
+              <div><strong>Activity feed</strong><span class="muted small-note">Coming soon — will show real match and profile updates.</span></div>
+            </li>
+          </ul>
+        </section>
+
+        <section class="panel sidebar-quote">
+          <p>"Stronger local communities aren't built alone — they're built together."</p>
+          <span class="muted">— Raise Local</span>
+        </section>
+      </aside>
+    </div>
+  `;
+
+  root.querySelectorAll("[data-dashboard-target]").forEach((button) => {
+    button.addEventListener("click", () => {
+      activeView = button.dataset.dashboardTarget;
+      render();
+    });
+  });
+  root.querySelectorAll("[data-dashboard-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      dashboardTab = button.dataset.dashboardTab;
+      render();
+    });
+  });
+  root.querySelectorAll("[data-view-match]").forEach((button) => {
+    button.addEventListener("click", () => {
+      activeView = "matches";
+      render();
+    });
+  });
+  document.getElementById("dashboard-sort").addEventListener("change", (event) => {
+    dashboardSort = event.target.value;
+    render();
   });
 }
 
@@ -887,18 +1165,56 @@ function renderRequests() {
 }
 
 function renderMyOwnProfile(kind) {
-  setTitle(kind === "business" ? "My Business Profile" : "Campaign Requests");
+  setTitle(kind === "business" ? "Business Profile" : "Campaign Requests");
   const banner = quizConfirmation ? `<section class="success-banner" role="status">${escapeHtml(quizConfirmation)}</section>` : "";
   quizConfirmation = "";
   const own = kind === "business" ? myOwnBusinesses() : myOwnRequests();
   const card = kind === "business" ? businessCard : requestCard;
   const empty = `<p class="muted">You haven't submitted a ${kind === "business" ? "business profile" : "campaign request"} yet. Start the Match Finder quiz to create one.</p>`;
+  const otherSide = kind === "business" ? "local causes" : "local businesses";
+
+  const activityPanel = own.length ? matchActivityPanel(myMatches(), otherSide) : "";
+
   root.innerHTML = `
     ${banner}
+    ${activityPanel}
     <section class="panel"><p class="muted">Your submitted ${kind === "business" ? "business profile" : "campaign request"}. Use "Complete profile" for stronger matches.</p></section>
     <section class="entity-list">${own.length ? own.map((record) => card(record, { showCompleteProfile: true })).join("") : empty}</section>
   `;
   wireCompleteProfileLinks();
+  root.querySelector("[data-goto-matches]")?.addEventListener("click", () => {
+    activeView = "matches";
+    render();
+  });
+}
+
+function matchActivityPanel(matches, otherSide) {
+  const interested = matches.filter((m) => ["intro_requested", "accepted", "launched"].includes(m.status)).length;
+  const accepted = matches.filter((m) => ["accepted", "launched"].includes(m.status)).length;
+  const launched = matches.filter((m) => m.status === "launched").length;
+
+  if (!matches.length) {
+    return `
+      <section class="panel match-activity">
+        <h2>Match Activity</h2>
+        <p class="muted">No matches yet — once a compatible ${otherSide === "nonprofits" ? "nonprofit" : "business"} joins Raise Local, you'll see it here.</p>
+      </section>
+    `;
+  }
+
+  return `
+    <section class="panel match-activity">
+      <h2>Match Activity</h2>
+      <div class="activity-stats">
+        <div><strong>${matches.length}</strong><span>Total matches</span></div>
+        <div><strong>${interested}</strong><span>Interested</span></div>
+        <div><strong>${accepted}</strong><span>Accepted</span></div>
+        <div><strong>${launched}</strong><span>Launched</span></div>
+      </div>
+      <p class="muted">We're actively matching you with ${escapeHtml(otherSide)}. Review and respond from Matches to Review.</p>
+      <button type="button" class="primary-btn" data-goto-matches>View My Matches ${ICONS.arrowRight}</button>
+    </section>
+  `;
 }
 
 // The matched-counterpart slot: a nonprofit sees the businesses it matched
@@ -920,13 +1236,13 @@ function renderBusinesses() {
   }
 
   const isBusinessViewer = myRole() === "business";
-  setTitle(isBusinessViewer ? "Nonprofit Profiles" : "Business Profiles");
-  const matched = uniqueById(myMatches().map((match) => (isBusinessViewer ? match.request : match.business)));
+  setTitle(isBusinessViewer ? "Campaign Requests" : "Business Profiles");
+  const pool = isBusinessViewer ? data.campaignRequests : data.businesses;
   const card = isBusinessViewer ? requestCard : businessCard;
-  const noun = isBusinessViewer ? "nonprofits or campaigns" : "businesses";
+  const noun = isBusinessViewer ? "campaign requests" : "businesses";
   root.innerHTML = `
-    <section class="panel"><p class="muted">The ${noun} you've matched with.</p></section>
-    <section class="entity-list">${matched.length ? matched.map((record) => card(record, { showCompleteProfile: false })).join("") : `<p class="muted">No matches yet. Once a compatible ${isBusinessViewer ? "campaign" : "business"} joins, it'll show up here.</p>`}</section>
+    <section class="panel"><p class="muted">All ${noun} in the matchmaking pool. Your strongest, scored matches are on Match Review.</p></section>
+    <section class="entity-list">${pool.length ? pool.map((record) => card(record, { showCompleteProfile: false })).join("") : `<p class="muted">Nothing in the pool yet. Once a ${isBusinessViewer ? "nonprofit" : "business"} completes the Match Finder quiz, it'll show up here.</p>`}</section>
   `;
 }
 
@@ -945,15 +1261,55 @@ function wireCompleteProfileLinks() {
 }
 
 function renderMatches() {
+  if (isAdmin()) {
+    renderAdminMatchReview();
+    return;
+  }
+  renderMatchTriage();
+}
+
+function causeFilterOptions(matches) {
+  return [...new Set(matches.map((m) => m.request.causeArea).filter(Boolean))];
+}
+
+function renderAdminMatchReview() {
   setTitle("Match Review");
-  const matches = currentMatches();
+  const all = currentMatches();
+  const causes = causeFilterOptions(all);
+  const matches = matchCauseFilter === "all" ? all : all.filter((m) => m.request.causeArea === matchCauseFilter);
   root.innerHTML = `
     <section class="panel">
       <h2>Recommended Matches</h2>
       <p class="muted">A match appears only when the must-haves work. Recommendations explain why they fit, surface the strongest 3-5 options, and record accept, pass, save, introduction, and admin override decisions.</p>
+      ${causeFilterHtml(causes)}
     </section>
-    <section class="match-grid">${matches.length ? matches.map(matchCard).join("") : `<p class="muted">No matches yet.</p>`}</section>
+    <section class="match-grid">${matches.length ? matches.map((match) => matchCard(match, { showAdminControls: true })).join("") : `<p class="muted">No matches yet.</p>`}</section>
   `;
+  wireCauseFilter();
+  wireActiveMatchControls();
+}
+
+function causeFilterHtml(causes) {
+  if (causes.length < 2) return "";
+  return `
+    <label class="sort-select-wrap" style="margin-top:12px;">
+      Filter by cause
+      <select id="match-cause-filter">
+        <option value="all" ${matchCauseFilter === "all" ? "selected" : ""}>All causes</option>
+        ${causes.map((c) => `<option value="${escapeHtml(c)}" ${matchCauseFilter === c ? "selected" : ""}>${escapeHtml(c)}</option>`).join("")}
+      </select>
+    </label>
+  `;
+}
+
+function wireCauseFilter() {
+  document.getElementById("match-cause-filter")?.addEventListener("change", (event) => {
+    matchCauseFilter = event.target.value;
+    render();
+  });
+}
+
+function wireActiveMatchControls() {
   root.querySelectorAll("[data-status-update]").forEach((select) => {
     select.addEventListener("change", () => {
       upsertMatchStatus(select.dataset.requestId, select.dataset.businessId, select.value);
@@ -974,6 +1330,174 @@ function renderMatches() {
   root.querySelectorAll("[data-admin-note]").forEach((textarea) => {
     textarea.addEventListener("change", () => {
       upsertMatchFeedback(textarea.dataset.requestId, textarea.dataset.businessId, { adminNote: textarea.value.trim() });
+    });
+  });
+  wireRatingWidgets();
+}
+
+// The regular-user Match Review: a dating-app-style triage deck for brand
+// new (status "recommended") matches, the usual detailed cards for ones
+// already acted on, and a collapsible bin for denied/held ones so nothing
+// gets lost. Approve/Deny/Hold map onto the existing intro_requested/
+// declined/saved statuses — see respondToMatch().
+function renderMatchTriage() {
+  setTitle("Match Review");
+  const isBusinessViewer = myRole() === "business";
+  const all = myMatches();
+  const causes = causeFilterOptions(all);
+  const filtered = matchCauseFilter === "all" ? all : all.filter((m) => m.request.causeArea === matchCauseFilter);
+
+  const fresh = filtered.filter((m) => m.status === "recommended");
+  const active = filtered.filter((m) => ["intro_requested", "accepted", "launched"].includes(m.status));
+  const bin = filtered.filter((m) => ["declined", "saved"].includes(m.status));
+
+  root.innerHTML = `
+    <section class="panel">
+      <h2>Your Matches</h2>
+      <p class="muted">Approve, deny, or hold on each new match below. Once you approve, they're notified — you can rate a partner once you've worked together.</p>
+      ${causeFilterHtml(causes)}
+    </section>
+
+    ${
+      fresh.length
+        ? `<section class="triage-grid">${fresh.map((match) => triageCard(match, isBusinessViewer)).join("")}</section>`
+        : `<section class="panel"><p class="muted">No new matches to review right now — check back as new businesses and campaigns join Raise Local.</p></section>`
+    }
+
+    ${
+      active.length
+        ? `<section class="panel"><h2>Active Matches</h2></section><section class="match-grid">${active
+            .map((match) => matchCard(match, { showAdminControls: false, showRating: ["accepted", "launched"].includes(match.status) }))
+            .join("")}</section>`
+        : ""
+    }
+
+    <details class="match-bin">
+      <summary>Denied &amp; Held (${bin.length})</summary>
+      <section class="match-grid">${bin.length ? bin.map((match) => binCard(match, isBusinessViewer)).join("") : `<p class="muted">Nothing here.</p>`}</section>
+    </details>
+  `;
+
+  wireCauseFilter();
+  wireMatchTriageCards(fresh);
+  wireActiveMatchControls();
+  wireBinCards();
+}
+
+function triageCard(match, isBusinessViewer) {
+  const photo = isBusinessViewer ? requestPhoto(match.request) : businessPhoto(match.business);
+  const name = isBusinessViewer ? match.request.organizationName : match.business.name;
+  const description = isBusinessViewer ? match.request.campaignDescription : match.business.productsServices || match.business.notes || "";
+  const reason = match.reasons?.[0] || match.forecast || "";
+  return `
+    <div class="flip-card" data-flip-card data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">
+      <div class="flip-card-inner">
+        <div class="flip-card-front">
+          <img src="${photo}" alt="" loading="lazy" />
+          <div class="flip-card-body">
+            <h3>${escapeHtml(name)}</h3>
+            <p>${escapeHtml(description)}</p>
+            <p class="triage-reason">${escapeHtml(reason)}</p>
+          </div>
+          <div class="triage-actions">
+            <button type="button" class="triage-btn deny" data-decision="deny" aria-label="Deny this match">${ICONS.close}</button>
+            <button type="button" class="triage-btn hold" data-decision="hold" aria-label="Hold this match for later">${ICONS.bookmark}</button>
+            <button type="button" class="triage-btn approve" data-decision="approve" aria-label="Approve this match">${ICONS.check}</button>
+          </div>
+        </div>
+        <div class="flip-card-back">
+          <span class="flip-check">${ICONS.check}</span>
+          <h3>You've started a match with ${escapeHtml(name)}!</h3>
+          <p class="muted">They've been notified — follow up from Active Matches.</p>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function wireMatchTriageCards(freshMatches) {
+  root.querySelectorAll("[data-flip-card]").forEach((cardEl) => {
+    const match = freshMatches.find((m) => m.request.id === cardEl.dataset.requestId && m.business.id === cardEl.dataset.businessId);
+    if (!match) return;
+    cardEl.querySelectorAll("[data-decision]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const decision = button.dataset.decision;
+        if (decision !== "approve") {
+          respondToMatch(match, decision);
+          render();
+          return;
+        }
+        cardEl.classList.add("is-flipped");
+        setTimeout(() => {
+          respondToMatch(match, decision);
+          render();
+        }, 650);
+      });
+    });
+  });
+}
+
+function binCard(match, isBusinessViewer) {
+  const name = isBusinessViewer ? match.request.organizationName : match.business.name;
+  const isDenied = match.status === "declined";
+  return `
+    <article class="entity-card bin-card">
+      <div class="entity-head">
+        <h3>${escapeHtml(name)}</h3>
+        <span class="status-pill ${isDenied ? "status-active" : "status-new"}">${isDenied ? "Denied" : "On hold"}</span>
+      </div>
+      <p class="muted">${escapeHtml(match.reasons?.[0] || "")}</p>
+      <button type="button" class="secondary-btn" data-reconsider data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">${ICONS.undo} Reconsider</button>
+    </article>
+  `;
+}
+
+function wireBinCards() {
+  root.querySelectorAll("[data-reconsider]").forEach((button) => {
+    button.addEventListener("click", () => {
+      upsertMatchStatus(button.dataset.requestId, button.dataset.businessId, "recommended");
+      render();
+    });
+  });
+}
+
+function ratingWidget(match) {
+  const isBusinessViewer = myRole() === "business";
+  const record = isBusinessViewer ? data.campaignRequests.find((r) => r.id === match.request.id) : data.businesses.find((b) => b.id === match.business.id);
+  const name = isBusinessViewer ? match.request.organizationName : match.business.name;
+  const existing = record?.rating || 0;
+  return `
+    <div class="rating-widget" data-rating-widget data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}" data-selected="${existing}">
+      <label>Rate ${escapeHtml(name)}</label>
+      <div class="star-row">
+        ${[1, 2, 3, 4, 5].map((n) => `<button type="button" class="star-btn ${n <= existing ? "filled" : ""}" data-star="${n}" aria-label="${n} star${n === 1 ? "" : "s"}">${ICONS.star}</button>`).join("")}
+      </div>
+      <textarea data-rating-note rows="2" placeholder="Optional review note">${escapeHtml(record?.reviewNote || "")}</textarea>
+      <button type="button" class="secondary-btn" data-submit-rating>Save Rating</button>
+    </div>
+  `;
+}
+
+function wireRatingWidgets() {
+  root.querySelectorAll("[data-rating-widget]").forEach((widget) => {
+    widget.querySelectorAll("[data-star]").forEach((star) => {
+      star.addEventListener("click", () => {
+        const value = Number(star.dataset.star);
+        widget.dataset.selected = value;
+        widget.querySelectorAll("[data-star]").forEach((s) => s.classList.toggle("filled", Number(s.dataset.star) <= value));
+      });
+    });
+    widget.querySelector("[data-submit-rating]").addEventListener("click", () => {
+      const value = Number(widget.dataset.selected || 0);
+      if (!value) return;
+      const note = widget.querySelector("[data-rating-note]").value.trim();
+      submitRating(
+        { request: { id: widget.dataset.requestId }, business: { id: widget.dataset.businessId } },
+        value,
+        note
+      );
+      quizConfirmation = "Thanks for the review!";
+      render();
     });
   });
 }
@@ -1246,9 +1770,60 @@ function upsertMatchFeedback(requestId, businessId, fields) {
   saveData(data);
 }
 
+// Notifications live in the same shared local data as everything else, so
+// they only actually reach a "different" account within the same browser
+// (e.g. switching demo logins here) — there's no cross-device push yet.
+// That's consistent with the rest of the app's local-first data model.
+function addNotification({ forEmail, message, requestId, businessId }) {
+  if (!forEmail) return;
+  data.notifications = data.notifications || [];
+  data.notifications.push({
+    id: `notif-${crypto.randomUUID()}`,
+    forEmail: forEmail.trim().toLowerCase(),
+    message,
+    requestId,
+    businessId,
+    read: false,
+    createdAt: new Date().toISOString(),
+  });
+  saveData(data);
+}
+
+function myNotifications() {
+  const email = myEmail();
+  return (data.notifications || []).filter((n) => n.forEmail === email).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}
+
+// Approve/Deny/Hold map onto the existing match statuses — no new status
+// values needed. Approve notifies the other side; deny/hold are silent.
+function respondToMatch(match, decision) {
+  const statusMap = { approve: "intro_requested", deny: "declined", hold: "saved" };
+  upsertMatchStatus(match.request.id, match.business.id, statusMap[decision]);
+  if (decision !== "approve") return;
+  const iAmBusiness = myRole() === "business";
+  addNotification({
+    forEmail: iAmBusiness ? match.request.email : match.business.email,
+    message: `${escapeHtml(iAmBusiness ? match.business.name : match.request.organizationName)} approved a match with you — check them out.`,
+    requestId: match.request.id,
+    businessId: match.business.id,
+  });
+}
+
+// A rating is a trait of the entity being rated, not of the match — it's
+// written onto the counterpart's own record so it shows up everywhere that
+// record appears (its own profile page, the pool directory, etc.), the same
+// way the seeded businesses already carry a rating/reviewNote.
+function submitRating(match, rating, note) {
+  const iAmBusiness = myRole() === "business";
+  const record = iAmBusiness ? data.campaignRequests.find((r) => r.id === match.request.id) : data.businesses.find((b) => b.id === match.business.id);
+  if (record) Object.assign(record, { rating, reviewNote: note });
+  saveData(data);
+}
+
 function requestCard(request, { showCompleteProfile = false } = {}) {
   return `
     <article class="entity-card">
+      <img class="entity-photo" src="${requestPhoto(request)}" alt="" loading="lazy" />
       <div class="entity-head">
         <div>
           <h3>${escapeHtml(request.organizationName)}</h3>
@@ -1257,6 +1832,7 @@ function requestCard(request, { showCompleteProfile = false } = {}) {
         <span class="status-pill status-new">new</span>
       </div>
       <p>${escapeHtml(request.campaignDescription)}</p>
+      <p class="muted">${request.rating ? `${request.rating} star rating - ${escapeHtml(request.reviewNote || "No review note")}` : "No rating yet"}</p>
       <div class="tag-row">
         <span class="tag">${escapeHtml(request.causeArea)}</span>
         <span class="tag">${escapeHtml(request.businessPreference)}</span>
@@ -1272,6 +1848,7 @@ function requestCard(request, { showCompleteProfile = false } = {}) {
 function businessCard(business, { showCompleteProfile = false } = {}) {
   return `
     <article class="entity-card">
+      <img class="entity-photo" src="${businessPhoto(business)}" alt="" loading="lazy" />
       <div class="entity-head">
         <div>
           <h3>${escapeHtml(business.name)}</h3>
@@ -1279,6 +1856,7 @@ function businessCard(business, { showCompleteProfile = false } = {}) {
         </div>
         <span class="status-pill status-ready">ready</span>
       </div>
+      ${business.businessType ? `<span class="tag tag-muted">${escapeHtml(business.businessType)}</span>` : ""}
       <p>${escapeHtml(business.notes || "No notes entered yet.")}</p>
       <p class="muted">Capacity ${Number(business.minimumCapacity || 0).toLocaleString()}-${Number(business.maximumCapacity || 0).toLocaleString()} · ${Number(business.activeCampaigns || 0)} of ${Number(business.campaignCap || 0).toLocaleString()} active campaigns</p>
       <p class="muted">${business.rating ? `${business.rating} star rating - ${escapeHtml(business.reviewNote || "No review note")}` : "No rating yet"}</p>
@@ -1290,7 +1868,58 @@ function businessCard(business, { showCompleteProfile = false } = {}) {
   `;
 }
 
-function matchCard(match) {
+function scoreGauge(total) {
+  const radius = 26;
+  const circumference = 2 * Math.PI * radius;
+  const pct = Math.max(0, Math.min(100, total));
+  const offset = circumference * (1 - pct / 100);
+  const color = pct >= 85 ? "var(--green)" : pct >= 70 ? "var(--success)" : "var(--orange)";
+  return `
+    <svg width="64" height="64" viewBox="0 0 64 64" class="score-gauge" aria-hidden="true">
+      <circle cx="32" cy="32" r="${radius}" fill="none" stroke="#e7f3ee" stroke-width="6" />
+      <circle cx="32" cy="32" r="${radius}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round"
+        stroke-dasharray="${circumference.toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}"
+        transform="rotate(-90 32 32)" />
+      <text x="32" y="30" text-anchor="middle" font-size="16" font-weight="800" fill="var(--ink)">${Math.round(pct)}</text>
+      <text x="32" y="41" text-anchor="middle" font-size="6.5" font-weight="700" fill="var(--muted)">MATCH</text>
+    </svg>
+  `;
+}
+
+// Lightweight preview card for the Dashboard's tabbed match browser — photo,
+// tags, score gauge, and a link into the full Match Review page for the
+// admin controls (status, decline reason, override note).
+function matchPreviewCard(match, { viewerIsBusiness = false } = {}) {
+  const photo = viewerIsBusiness ? requestPhoto(match.request) : businessPhoto(match.business);
+  return `
+    <article class="match-preview-card">
+      <span class="match-preview-menu">${ICONS.dots}</span>
+      <img class="match-preview-photo" src="${photo}" alt="" loading="lazy" />
+      <div class="match-preview-body">
+        <div class="tag-row">
+          <span class="tag tag-nonprofit">Nonprofit</span>
+          <span class="tag">${escapeHtml(match.request.causeArea)}</span>
+          <span class="tag-sep">×</span>
+          <span class="tag tag-business">Business</span>
+          <span class="tag">${escapeHtml(match.business.category)}</span>
+        </div>
+        <h3>${escapeHtml(match.request.organizationName)} × ${escapeHtml(match.business.name)}</h3>
+        <p>${escapeHtml(match.reasons?.[0] || match.forecast || "")}</p>
+        <div class="match-preview-meta">
+          <span>${ICONS.mapPin} ${escapeHtml(match.request.geography)}</span>
+          <span>${ICONS.calendar} ${escapeHtml(match.request.timingPreference || "Timing flexible")}</span>
+        </div>
+      </div>
+      ${scoreGauge(match.total)}
+      <div class="match-preview-actions">
+        <button type="button" class="primary-btn" data-view-match data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">View Match ${ICONS.arrowRight}</button>
+        <button type="button" class="secondary-btn" data-view-match data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">View Details</button>
+      </div>
+    </article>
+  `;
+}
+
+function matchCard(match, { showAdminControls = false, showRating = false } = {}) {
   return `
     <article class="match-card">
       <div class="match-head">
@@ -1322,9 +1951,15 @@ function matchCard(match) {
           ${DECLINE_REASONS.map((reason) => `<option value="${reason}" ${match.declineReason === reason ? "selected" : ""}>${reason}</option>`).join("")}
         </select>
         <textarea data-decline-note data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}" rows="2" placeholder="Optional note for learning why this was not a fit">${escapeHtml(match.declineNote || "")}</textarea>
+        ${
+          showAdminControls
+            ? `
         <label for="admin-${escapeHtml(match.id)}">Admin override / intro note</label>
-        <textarea id="admin-${escapeHtml(match.id)}" data-admin-note data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}" rows="2" placeholder="Manual recommendation, intro context, or override reason">${escapeHtml(match.adminNote || "")}</textarea>
+        <textarea id="admin-${escapeHtml(match.id)}" data-admin-note data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}" rows="2" placeholder="Manual recommendation, intro context, or override reason">${escapeHtml(match.adminNote || "")}</textarea>`
+            : ""
+        }
       </div>
+      ${showRating ? ratingWidget(match) : ""}
     </article>
   `;
 }
