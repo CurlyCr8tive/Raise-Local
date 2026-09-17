@@ -1,4 +1,4 @@
-import { normalizeSupportNeeds } from "./matching.js";
+import { normalizeSupportNeeds } from "./matching.js?v=3607856";
 
 const STORAGE_KEY = "raise_local_platform_v2";
 

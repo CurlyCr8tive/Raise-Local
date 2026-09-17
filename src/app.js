@@ -17,9 +17,9 @@ import {
   buildMatches,
   scoreMatch,
   splitSelections,
-} from "./matching.js";
+} from "./matching.js?v=3607856";
 import { loadData, resetDemoData, saveData } from "./storage.js";
-import { syncBusinessProfile, syncCampaignRequest } from "./remote-sync.js";
+import { syncBusinessProfile, syncBusinessQuality, syncBusinessRating, syncCampaignRequest } from "./remote-sync.js";
 import { supabase } from "./supabase-client.js";
 import { HERO_PHOTO, businessPhoto, requestPhoto } from "./photos.js";
 import { ICONS } from "./icons.js";
@@ -29,6 +29,8 @@ let activeView = "dashboard";
 let dashboardTab = "matches"; // "matches" | "own" | "counterpart"
 let dashboardSort = "best"; // "best" | "name"
 let matchCauseFilter = "all";
+let matchLoaderShown = false;
+const QUALITY_REVIEW_THRESHOLD = 2.5;
 
 let quizAudience = null; // "request" | "business"
 let quizPhase = "choose"; // "choose" | "core" | "profile"
@@ -54,6 +56,12 @@ const navButtons = [...document.querySelectorAll("[data-view]")];
 
 document.getElementById("seed-btn").addEventListener("click", () => {
   data = resetDemoData();
+  render();
+});
+
+document.getElementById("account-profile-btn").addEventListener("click", () => {
+  activeView = "settings";
+  document.getElementById("topbar-account-menu").hidden = true;
   render();
 });
 
@@ -283,6 +291,7 @@ function render() {
     businesses: renderBusinesses,
     matches: renderMatches,
     brief: renderBrief,
+    settings: renderSettings,
     "complete-profile": renderCompleteProfile,
   };
   (views[activeView] || renderDashboard)();
@@ -369,6 +378,70 @@ function syncAccountIdentity() {
   document.getElementById("topbar-account-name").textContent = email ? email.split("@")[0] : "Account";
 }
 
+function renderSettings() {
+  setTitle("Account & Profile");
+  const isBusinessViewer = !isAdmin() && myRole() === "business";
+  const own = isBusinessViewer ? myOwnBusinesses() : myOwnRequests();
+  const record = own[0];
+  const complete = record ? isProfileComplete(record, isBusinessViewer) : false;
+  const roleLabel = isAdmin() ? "Raise Local admin" : isBusinessViewer ? "Local business" : "Nonprofit or school";
+  const profileLabel = isBusinessViewer ? "business profile" : "campaign request";
+
+  root.innerHTML = `
+    <section class="settings-grid">
+      <section class="panel account-panel">
+        <p class="eyebrow">Account</p>
+        <div class="account-summary">
+          <span class="large-account-avatar">${escapeHtml((myEmail()[0] || "?").toUpperCase())}</span>
+          <div>
+            <h2>${escapeHtml(myEmail() || "Signed-in account")}</h2>
+            <p class="muted">${escapeHtml(roleLabel)}</p>
+          </div>
+        </div>
+        <div class="settings-detail-list">
+          <div><span>Email</span><strong>${escapeHtml(myEmail() || "Not available")}</strong></div>
+          <div><span>Access</span><strong>${escapeHtml(roleLabel)}</strong></div>
+          <div><span>Profile status</span><strong>${record ? (complete ? "Complete" : "Needs more detail") : `No ${profileLabel} yet`}</strong></div>
+        </div>
+        <div class="split-actions">
+          ${record && !isAdmin() ? `<button type="button" class="primary-btn" data-settings-edit>${complete ? "Edit my profile" : "Complete my profile"} ${ICONS.arrowRight}</button>` : ""}
+          <button type="button" class="secondary-btn" data-settings-logout>Log out</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <p class="eyebrow">Matching profile</p>
+        <h2>What Raise Local uses</h2>
+        <p class="muted">Your profile details help Raise Local find workable partners. They are used for matching and operations, not presented as an open marketplace listing.</p>
+        <ul class="settings-list">
+          <li><span class="settings-check">${ICONS.check}</span><span>Location and service area</span></li>
+          <li><span class="settings-check">${ICONS.check}</span><span>Cause, support, and partnership preferences</span></li>
+          <li><span class="settings-check">${ICONS.check}</span><span>Timing, capacity, and campaign requirements</span></li>
+          <li><span class="settings-check">${ICONS.check}</span><span>Contact information for approved introductions</span></li>
+        </ul>
+      </section>
+
+      <section class="panel settings-note-panel">
+        <p class="eyebrow">Privacy</p>
+        <h2>Control before contact</h2>
+        <p class="muted">Raise Local keeps both sides in control. A match does not share direct contact details until the parties confirm interest or an introduction is requested.</p>
+        <p class="small-note">Profile visibility controls and Supabase-backed account settings will be added when the remote account connection is enabled.</p>
+      </section>
+    </section>
+  `;
+
+  root.querySelector("[data-settings-edit]")?.addEventListener("click", () => {
+    quizAudience = isBusinessViewer ? "business" : "request";
+    quizActiveRecordId = record.id;
+    quizPhase = "profile";
+    quizStep = 0;
+    quizAnswers = {};
+    activeView = "complete-profile";
+    render();
+  });
+  root.querySelector("[data-settings-logout]")?.addEventListener("click", () => supabase.auth.signOut());
+}
+
 function renderPreAuth() {
   const screens = {
     landing: renderLanding,
@@ -384,16 +457,19 @@ function renderPreAuth() {
 
 function renderLanding() {
   root.innerHTML = `
-    <section class="intro-hero landing-hero">
-      <img class="landing-logo" src="assets/raise-local-logo-hires.png" alt="Raise Local" />
-      <p class="eyebrow">Raise Funds, Buy Local</p>
-      <h2>Welcome to Raise Local.</h2>
-      <p class="landing-copy">We connect Local Causes with Small Businesses ready to partner and grow together. Answer a few quick questions to see your matches.</p>
-      <div class="landing-actions">
-        <button class="primary-btn" type="button" id="landing-start">Find My Match</button>
-        <button class="secondary-btn" type="button" id="landing-login">Log In</button>
-      </div>
-    </section>
+    <div class="landing-scene">
+      ${communityNetworkSvg()}
+      <section class="intro-hero landing-hero">
+        <img class="landing-logo" src="assets/raise-local-logo-hires.png" alt="Raise Local" />
+        <p class="eyebrow">Raise Funds, Buy Local</p>
+        <h2>Welcome to Raise Local.</h2>
+        <p class="landing-copy">We connect Local Causes with Small Businesses ready to partner and grow together. Answer a few quick questions to see your matches.</p>
+        <div class="landing-actions">
+          <button class="primary-btn" type="button" id="landing-start">Find My Match</button>
+          <button class="secondary-btn" type="button" id="landing-login">Log In</button>
+        </div>
+      </section>
+    </div>
   `;
   document.getElementById("landing-start").addEventListener("click", () => {
     authScreen = "quiz-choose";
@@ -405,6 +481,47 @@ function renderLanding() {
     authError = "";
     render();
   });
+}
+
+function communityNetworkSvg() {
+  return `
+    <svg class="community-network" viewBox="0 0 1200 760" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+      <g class="network-lines">
+        <path d="M90 180 C210 110 270 230 390 170" />
+        <path d="M390 170 C490 115 560 215 650 145" />
+        <path d="M650 145 C790 75 850 205 1010 130" />
+        <path d="M150 520 C275 450 340 560 470 495" />
+        <path d="M470 495 C590 420 650 560 760 470" />
+        <path d="M760 470 C875 405 980 525 1110 450" />
+        <path d="M210 300 C315 255 365 340 470 300" />
+        <path d="M730 300 C830 250 890 350 1000 285" />
+      </g>
+      <g class="network-pulses">
+        <circle cx="390" cy="170" r="18" />
+        <circle cx="760" cy="470" r="18" />
+      </g>
+      <g class="network-nodes">
+        <circle class="node node-orange" cx="90" cy="180" r="5" />
+        <circle class="node" cx="210" cy="135" r="4" />
+        <circle class="node" cx="390" cy="170" r="6" />
+        <circle class="node" cx="520" cy="135" r="4" />
+        <circle class="node node-orange" cx="650" cy="145" r="5" />
+        <circle class="node" cx="820" cy="110" r="4" />
+        <circle class="node" cx="1010" cy="130" r="6" />
+        <circle class="node" cx="150" cy="520" r="5" />
+        <circle class="node" cx="300" cy="480" r="4" />
+        <circle class="node node-orange" cx="470" cy="495" r="5" />
+        <circle class="node" cx="620" cy="510" r="4" />
+        <circle class="node" cx="760" cy="470" r="6" />
+        <circle class="node" cx="920" cy="490" r="4" />
+        <circle class="node node-orange" cx="1110" cy="450" r="5" />
+        <circle class="node" cx="210" cy="300" r="4" />
+        <circle class="node" cx="470" cy="300" r="5" />
+        <circle class="node" cx="730" cy="300" r="4" />
+        <circle class="node" cx="1000" cy="285" r="5" />
+      </g>
+    </svg>
+  `;
 }
 
 function renderQuizChoose() {
@@ -1228,10 +1345,12 @@ function renderBusinesses() {
     root.innerHTML = `
       ${banner}
       <section class="panel"><h2>Business Match Profile</h2>${businessForm()}</section>
+      ${qualityReviewPanel()}
       <section class="entity-list">${data.businesses.map((b) => businessCard(b, { showCompleteProfile: true })).join("")}</section>
     `;
     wireBusinessForm();
     wireCompleteProfileLinks();
+    wireQualityControls();
     return;
   }
 
@@ -1255,6 +1374,47 @@ function wireCompleteProfileLinks() {
       quizStep = 0;
       quizAnswers = {};
       activeView = "complete-profile";
+      render();
+    });
+  });
+}
+
+function qualityReviewPanel() {
+  const flagged = data.businesses.filter((business) => business.qualityStatus === "needs_review" || Number(business.rating) <= QUALITY_REVIEW_THRESHOLD);
+  return `
+    <section class="panel quality-panel">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Quality control</p>
+          <h2>Partner review queue <span class="tab-count">${flagged.length}</span></h2>
+          <p class="muted">Businesses at or below ${QUALITY_REVIEW_THRESHOLD} stars stay visible for review until an admin decides whether to pause them.</p>
+        </div>
+      </div>
+      ${flagged.length ? flagged.map((business) => `
+        <div class="quality-row">
+          <div>
+            <strong>${escapeHtml(business.name)}</strong>
+            <span class="muted">${Number(business.rating || 0).toFixed(1)} stars${business.reviewNote ? ` · ${escapeHtml(business.reviewNote)}` : " · Review note required"}</span>
+          </div>
+          <div class="split-actions">
+            <span class="status-pill ${business.unavailable ? "status-active" : "status-new"}">${business.unavailable ? "Paused" : "Needs review"}</span>
+            <button type="button" class="secondary-btn" data-quality-action="${business.unavailable ? "restore" : "pause"}" data-business-id="${escapeHtml(business.id)}">${business.unavailable ? "Restore" : "Pause partner"}</button>
+          </div>
+        </div>
+      `).join("") : `<p class="muted">No businesses currently need quality review.</p>`}
+    </section>
+  `;
+}
+
+function wireQualityControls() {
+  root.querySelectorAll("[data-quality-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const business = data.businesses.find((item) => item.id === button.dataset.businessId);
+      if (!business) return;
+      const paused = button.dataset.qualityAction === "pause";
+      Object.assign(business, { unavailable: paused, status: paused ? "paused" : "ready", qualityStatus: paused ? "paused" : "reviewed" });
+      saveData(data);
+      syncBusinessQuality(business);
       render();
     });
   });
@@ -1342,6 +1502,29 @@ function wireActiveMatchControls() {
 // declined/saved statuses — see respondToMatch().
 function renderMatchTriage() {
   setTitle("Match Review");
+  if (!matchLoaderShown) {
+    matchLoaderShown = true;
+    root.innerHTML = `
+      <section class="match-loading" role="status" aria-live="polite">
+        <div class="match-loading-network" aria-hidden="true">
+          <span></span><span></span><span></span><span></span><i></i><i></i>
+        </div>
+        <p class="eyebrow">Raise Local Match Finder</p>
+        <h2>Finding matches that fit.</h2>
+        <p class="muted">We are comparing cause, location, capacity, partnership type, and timing.</p>
+        <div class="match-loading-steps" aria-hidden="true">
+          <span>Checking cause alignment</span>
+          <span>Comparing service areas</span>
+          <span>Reviewing capacity and timing</span>
+          <span>Preparing your strongest matches</span>
+        </div>
+      </section>
+    `;
+    window.setTimeout(() => {
+      if (activeView === "matches") renderMatchTriage();
+    }, 1100);
+    return;
+  }
   const isBusinessViewer = myRole() === "business";
   const all = myMatches();
   const causes = causeFilterOptions(all);
@@ -1473,6 +1656,7 @@ function ratingWidget(match) {
         ${[1, 2, 3, 4, 5].map((n) => `<button type="button" class="star-btn ${n <= existing ? "filled" : ""}" data-star="${n}" aria-label="${n} star${n === 1 ? "" : "s"}">${ICONS.star}</button>`).join("")}
       </div>
       <textarea data-rating-note rows="2" placeholder="Optional review note">${escapeHtml(record?.reviewNote || "")}</textarea>
+      <p class="form-error rating-error" hidden>A note is required for ratings of 2 stars or below.</p>
       <button type="button" class="secondary-btn" data-submit-rating>Save Rating</button>
     </div>
   `;
@@ -1491,6 +1675,11 @@ function wireRatingWidgets() {
       const value = Number(widget.dataset.selected || 0);
       if (!value) return;
       const note = widget.querySelector("[data-rating-note]").value.trim();
+      if (value <= 2 && !note) {
+        widget.querySelector(".rating-error").hidden = false;
+        widget.querySelector("[data-rating-note]").focus();
+        return;
+      }
       submitRating(
         { request: { id: widget.dataset.requestId }, business: { id: widget.dataset.businessId } },
         value,
@@ -1816,7 +2005,12 @@ function respondToMatch(match, decision) {
 function submitRating(match, rating, note) {
   const iAmBusiness = myRole() === "business";
   const record = iAmBusiness ? data.campaignRequests.find((r) => r.id === match.request.id) : data.businesses.find((b) => b.id === match.business.id);
-  if (record) Object.assign(record, { rating, reviewNote: note });
+  if (record) {
+    const fields = { rating, reviewNote: note };
+    if (!iAmBusiness && rating <= QUALITY_REVIEW_THRESHOLD) fields.qualityStatus = "needs_review";
+    Object.assign(record, fields);
+    if (!iAmBusiness) syncBusinessRating(record, rating, note);
+  }
   saveData(data);
 }
 
@@ -1846,6 +2040,8 @@ function requestCard(request, { showCompleteProfile = false } = {}) {
 }
 
 function businessCard(business, { showCompleteProfile = false } = {}) {
+  const statusClass = business.unavailable ? "status-active" : business.qualityStatus === "needs_review" ? "status-new" : "status-ready";
+  const statusText = business.unavailable ? "paused" : business.qualityStatus === "needs_review" ? "needs review" : "ready";
   return `
     <article class="entity-card">
       <img class="entity-photo" src="${businessPhoto(business)}" alt="" loading="lazy" />
@@ -1854,7 +2050,7 @@ function businessCard(business, { showCompleteProfile = false } = {}) {
           <h3>${escapeHtml(business.name)}</h3>
           <p class="muted">${escapeHtml(business.category)} · ${escapeHtml((business.serviceAreas || []).join(", "))}</p>
         </div>
-        <span class="status-pill status-ready">ready</span>
+        <span class="status-pill ${statusClass}">${statusText}</span>
       </div>
       ${business.businessType ? `<span class="tag tag-muted">${escapeHtml(business.businessType)}</span>` : ""}
       <p>${escapeHtml(business.notes || "No notes entered yet.")}</p>

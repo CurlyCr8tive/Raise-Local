@@ -1,10 +1,7 @@
 import { supabase } from "./supabase-client.js";
 
-// Runs pre-auth, at quiz completion. RLS grants the anon role INSERT only on
-// these two tables (see supabase/migrations) — no read/update/delete — so
-// these functions cover just the initial submission. The later "Complete
-// Profile" edit is authenticated but local-only: an anon-scoped policy can't
-// tell one user's row from another's, so it isn't synced here either.
+// Intake submissions use the anon INSERT policies. Quality-control writes use
+// the authenticated admin policies in the latest Supabase migration.
 
 function toRequestRow(request) {
   return {
@@ -81,6 +78,7 @@ function toBusinessRow(business) {
     review_note: business.reviewNote,
     unavailable: business.unavailable,
     status: business.status,
+    quality_status: business.qualityStatus || "clear",
   };
 }
 
@@ -93,5 +91,33 @@ export async function syncCampaignRequest(request) {
 export async function syncBusinessProfile(business) {
   const { error } = await supabase.from("business_profiles").insert(toBusinessRow(business));
   if (error) console.error("Supabase business_profiles sync failed:", error.message);
+  return !error;
+}
+
+export async function syncBusinessQuality(business) {
+  const { error } = await supabase
+    .from("business_profiles")
+    .update({
+      rating: business.rating ?? null,
+      review_note: business.reviewNote || null,
+      unavailable: Boolean(business.unavailable),
+      status: business.status || "ready",
+      quality_status: business.qualityStatus || "clear",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", business.id);
+  if (error) console.error("Supabase business quality sync failed:", error.message);
+  return !error;
+}
+
+export async function syncBusinessRating(business, rating, note) {
+  const { error } = await supabase.from("ratings").insert({
+    business_id: business.id,
+    rating,
+    review_note: note || null,
+  });
+  if (error) console.error("Supabase rating sync failed:", error.message);
+  // A Supabase trigger aggregates the rating and sets the review flag. This
+  // keeps regular authenticated users from needing direct profile update access.
   return !error;
 }
