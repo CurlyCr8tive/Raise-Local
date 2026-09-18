@@ -19,7 +19,16 @@ import {
   splitSelections,
 } from "./matching.js?v=3607856";
 import { loadData, resetDemoData, saveData } from "./storage.js";
-import { syncBusinessProfile, syncBusinessQuality, syncBusinessRating, syncCampaignRequest } from "./remote-sync.js";
+import {
+  syncBusinessProfile,
+  syncBusinessQuality,
+  syncBusinessRating,
+  syncCampaignRequest,
+  syncMatchDecision,
+  syncMatchFeedback,
+  updateBusinessProfile,
+  updateCampaignRequest,
+} from "./remote-sync.js";
 import { supabase } from "./supabase-client.js";
 import { HERO_PHOTO, businessPhoto, requestPhoto } from "./photos.js";
 import { ICONS } from "./icons.js";
@@ -884,10 +893,16 @@ function finishCoreQuiz() {
 function finishProfileQuiz() {
   if (quizAudience === "business") {
     const business = data.businesses.find((item) => item.id === quizActiveRecordId);
-    if (business) Object.assign(business, businessProfilePatch());
+    if (business) {
+      Object.assign(business, businessProfilePatch());
+      updateBusinessProfile(business);
+    }
   } else {
     const request = data.campaignRequests.find((item) => item.id === quizActiveRecordId);
-    if (request) Object.assign(request, requestProfilePatch());
+    if (request) {
+      Object.assign(request, requestProfilePatch());
+      updateCampaignRequest(request);
+    }
   }
   saveData(data);
   quizConfirmation = "Profile completed — thanks for the extra detail. It helps Raise Local recommend stronger matches.";
@@ -1301,6 +1316,7 @@ function renderMyOwnProfile(kind) {
     icon: { svg: ICONS[kind === "business" ? "briefcase" : "document"], tint: "icon-tint-mint" },
     title: kind === "business" ? "No business profile yet" : "No campaign request yet",
     body: `You haven't submitted a ${kind === "business" ? "business profile" : "campaign request"} yet. Take the Match Finder quiz to create one and start getting matched.`,
+    action: { label: "Start Match Finder", dataAttr: "start-match-finder" },
   });
   const otherSide = kind === "business" ? "local causes" : "local businesses";
 
@@ -1313,6 +1329,16 @@ function renderMyOwnProfile(kind) {
     <section class="entity-list">${own.length ? own.map((record) => card(record, { showCompleteProfile: true })).join("") : empty}</section>
   `;
   wireCompleteProfileLinks();
+  root.querySelector("[data-empty-action=\"start-match-finder\"]")?.addEventListener("click", () => {
+    quizAudience = null;
+    quizPhase = "choose";
+    quizStep = 0;
+    quizAnswers = {};
+    quizActiveRecordId = null;
+    quizResultsPreview = null;
+    authScreen = "quiz-choose";
+    render();
+  });
   root.querySelector("[data-goto-matches]")?.addEventListener("click", () => {
     activeView = "matches";
     render();
@@ -1959,12 +1985,23 @@ function value(id) {
 
 function upsertMatchStatus(requestId, businessId, status) {
   const existing = data.matches.find((match) => match.requestId === requestId && match.businessId === businessId);
+  const fromStatus = existing?.status || "recommended";
   const notificationStatuses = ["intro_requested", "accepted", "launched"];
   const fields = { status };
   if (notificationStatuses.includes(status)) fields.notifiedAt = new Date().toISOString();
   if (existing) Object.assign(existing, fields);
   else data.matches.push({ requestId, businessId, ...fields });
   saveData(data);
+  syncMatchDecision({
+    requestId,
+    businessId,
+    status,
+    fromStatus,
+    declineReason: existing?.declineReason || "",
+    declineNote: existing?.declineNote || "",
+    adminNote: existing?.adminNote || "",
+    notifiedAt: fields.notifiedAt || existing?.notifiedAt || null,
+  });
 }
 
 function upsertMatchFeedback(requestId, businessId, fields) {
@@ -1972,6 +2009,14 @@ function upsertMatchFeedback(requestId, businessId, fields) {
   if (existing) Object.assign(existing, fields);
   else data.matches.push({ requestId, businessId, status: "recommended", ...fields });
   saveData(data);
+  const updated = data.matches.find((match) => match.requestId === requestId && match.businessId === businessId);
+  syncMatchFeedback({
+    requestId,
+    businessId,
+    declineReason: updated?.declineReason || "",
+    declineNote: updated?.declineNote || "",
+    adminNote: updated?.adminNote || "",
+  });
 }
 
 // Notifications live in the same shared local data as everything else, so
