@@ -6,12 +6,31 @@
   --panel: #ffffff;
   --field: #f4f8f6;
   --forest: #004030;
+  --forest-dark: #003d31;
   --green: #1e8459;
   --orange: #f1892f;
   --cream: #fdf7f2;
   --success: #e0a639;
   --shadow: 0 18px 38px rgba(0, 64, 48, 0.1);
   --radius: 8px;
+
+  /* Supporting palette — icons, status badges, small metric accents only.
+     Never used for large surfaces; see design-system guidance in the brief. */
+  --mint: #dcf1e6;
+  --support-blue: #5b8def;
+  --support-blue-tint: #e4ecff;
+  --support-coral: #ef6f6c;
+  --support-coral-tint: #fdeae9;
+  --support-lavender: #8b7cf6;
+  --support-lavender-tint: #ece9fe;
+  --support-yellow: #d99a2b;
+  --support-yellow-tint: #faf0dc;
+  --support-pink: #e0608f;
+  --support-pink-tint: #fbe6ee;
+
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-serif: "Fraunces", Georgia, "Times New Roman", serif;
+  --font-script: "Caveat", cursive;
 }
 
 * {
@@ -25,7 +44,7 @@ body {
   color: var(--ink);
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--font-sans);
 }
 
 button,
@@ -305,9 +324,17 @@ p {
   margin-top: 0;
 }
 
+/* Editorial serif for page titles, section titles, and card/entity names
+   (business and campaign names read as headlines in the reference design).
+   Everything else — body copy, metadata, labels — stays on the sans stack. */
+h1,
+h2,
+h3 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+}
+
 h1 {
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-weight: 800;
   font-size: 1.75rem;
   margin-bottom: 0;
 }
@@ -759,7 +786,7 @@ textarea {
 
 .choice-card strong {
   display: block;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--font-sans);
   font-size: 1.28rem;
   font-weight: 800;
   line-height: 1.2;
@@ -1405,16 +1432,31 @@ body.no-sidebar .view-root {
   width: 100%;
 }
 
+/* The handwritten sticky-note accent style seen throughout the reference
+   designs ("Good Businesses Build Brighter Futures") — Caveat script,
+   underline flourish, no pill background. Markup composition (single-word
+   stickers vs. one cursive phrase) is a Dashboard-phase change; this is
+   just the shared visual treatment. */
 .hero-sticker {
-  background: var(--cream);
-  border-radius: 6px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.25);
   color: var(--ink);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: 0.82rem;
-  font-weight: 800;
-  padding: 6px 11px;
+  font-family: var(--font-script);
+  font-size: 1.3rem;
+  font-weight: 700;
+  line-height: 1.15;
+  padding: 2px 4px;
   position: absolute;
+  text-shadow: 0 2px 6px rgba(255, 255, 255, 0.6);
+}
+
+.hero-sticker::after {
+  background: var(--orange);
+  border-radius: 2px;
+  bottom: -2px;
+  content: "";
+  height: 3px;
+  left: 4px;
+  position: absolute;
+  width: calc(100% - 16px);
 }
 
 .sticker-0 {
@@ -1543,6 +1585,7 @@ body.no-sidebar .view-root {
   grid-template-columns: minmax(0, 1fr) 300px;
 }
 
+.tabs-row,
 .dashboard-tabs-row {
   align-items: center;
   border-bottom: 1px solid var(--line);
@@ -1552,8 +1595,10 @@ body.no-sidebar .view-root {
   margin-bottom: 16px;
 }
 
+.tabs,
 .dashboard-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
 }
 
@@ -1578,6 +1623,7 @@ body.no-sidebar .view-root {
   width: auto;
 }
 
+.tab-btn,
 .dashboard-tab {
   background: transparent;
   border: 0;
@@ -1588,6 +1634,13 @@ body.no-sidebar .view-root {
   padding: 10px 6px 12px;
 }
 
+.tab-btn:focus-visible,
+.dashboard-tab:focus-visible {
+  outline: 2px solid var(--orange);
+  outline-offset: 2px;
+}
+
+.tab-btn.active,
 .dashboard-tab.active {
   border-bottom-color: var(--orange);
   color: var(--ink);
@@ -1602,6 +1655,7 @@ body.no-sidebar .view-root {
   padding: 2px 7px;
 }
 
+.tab-btn.active .tab-count,
 .dashboard-tab.active .tab-count {
   background: #ffe9d3;
   color: var(--orange);
@@ -2354,8 +2408,305 @@ body.no-sidebar .view-root {
   color: var(--success);
 }
 
-h2,
-h3 {
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+/* ==========================================================================
+   Shared components — design-system primitives used across multiple pages.
+   Built during the Raise Local visual redesign (see docs/action-and-build-plan.md
+   history). JS helpers that emit this markup live in src/ui.js.
+   ========================================================================== */
+
+/* --- Icon tints: small colored circles behind stat/metric icons. Icons
+   themselves stay inline SVG (src/icons.js); these classes only set the
+   circle's background + icon color. Used sparingly — accents, not surfaces. */
+.icon-tint {
+  align-items: center;
+  border-radius: 999px;
+  display: flex;
+  flex: 0 0 auto;
+  height: 40px;
+  justify-content: center;
+  width: 40px;
+}
+
+.icon-tint svg {
+  height: 20px;
+  width: 20px;
+}
+
+.icon-tint-mint {
+  background: var(--mint);
+  color: var(--green);
+}
+
+.icon-tint-blue {
+  background: var(--support-blue-tint);
+  color: var(--support-blue);
+}
+
+.icon-tint-coral {
+  background: var(--support-coral-tint);
+  color: var(--support-coral);
+}
+
+.icon-tint-lavender {
+  background: var(--support-lavender-tint);
+  color: var(--support-lavender);
+}
+
+.icon-tint-yellow {
+  background: var(--support-yellow-tint);
+  color: var(--support-yellow);
+}
+
+.icon-tint-pink {
+  background: var(--support-pink-tint);
+  color: var(--support-pink);
+}
+
+/* --- EmptyState: the "nothing here yet" pattern. Explains what's missing,
+   why it matters, and gives one clear next action — never a bare sentence
+   in blank space. */
+.empty-state {
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 48px 32px;
+  text-align: center;
+}
+
+.empty-state .icon-tint {
+  height: 56px;
+  margin-bottom: 4px;
+  width: 56px;
+}
+
+.empty-state .icon-tint svg {
+  height: 28px;
+  width: 28px;
+}
+
+.empty-state h3 {
+  font-size: 1.15rem;
+  margin: 0;
+}
+
+.empty-state p {
+  color: var(--muted);
+  margin: 0;
+  max-width: 420px;
+}
+
+.empty-state .primary-btn,
+.empty-state .secondary-btn {
+  margin-top: 6px;
+}
+
+/* --- PageHero: generalized version of .dashboard-hero, usable on any page
+   (Campaign Requests, My Organization, Business Profile, ...). Two-column
+   photo-collage layout with room for hero-sticker accents on the image. */
+.page-hero {
+  align-items: center;
+  background: var(--forest);
+  border-radius: 16px;
+  color: #fff;
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 340px);
+  overflow: hidden;
+  padding: 28px 32px;
+  position: relative;
+}
+
+.page-hero-eyebrow {
+  color: #ffe9d3;
+  font-size: 0.78rem;
   font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.page-hero h1 {
+  color: #fff;
+  font-size: 2rem;
+  margin: 4px 0 10px;
+}
+
+.page-hero p {
+  color: #e7f3ee;
+  font-size: 0.96rem;
+  margin: 0;
+  max-width: 480px;
+}
+
+.page-hero-photo-wrap {
+  aspect-ratio: 4 / 3;
+  border-radius: 12px;
+  overflow: visible;
+  position: relative;
+}
+
+.page-hero-photo {
+  border-radius: 12px;
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+@media (max-width: 860px) {
+  .page-hero {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- ProfileHeader: shared by Business Profile and My Organization. A
+   cover strip, avatar/logo, identity block, and verification/status pills —
+   the "hub" header pattern from the reference designs. */
+.profile-header {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.profile-header-cover {
+  background: linear-gradient(120deg, var(--forest), var(--green));
+  height: 96px;
+  position: relative;
+}
+
+.profile-header-body {
+  align-items: flex-end;
+  display: flex;
+  gap: 16px;
+  margin-top: -36px;
+  padding: 0 24px 20px;
+}
+
+.profile-header-avatar {
+  align-items: center;
+  background: var(--panel);
+  border: 4px solid var(--panel);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex: 0 0 auto;
+  font-size: 1.6rem;
+  font-weight: 700;
+  height: 72px;
+  justify-content: center;
+  overflow: hidden;
+  width: 72px;
+}
+
+.profile-header-avatar img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.profile-header-identity {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-bottom: 2px;
+}
+
+.profile-header-identity h1 {
+  font-size: 1.4rem;
+  margin-bottom: 2px;
+}
+
+.profile-header-meta {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.84rem;
+  gap: 4px 14px;
+}
+
+.profile-header-meta span {
+  align-items: center;
+  display: inline-flex;
+  gap: 4px;
+}
+
+.profile-header-badge {
+  align-items: center;
+  background: var(--mint);
+  border-radius: 999px;
+  color: var(--green);
+  display: inline-flex;
+  font-size: 0.74rem;
+  font-weight: 800;
+  gap: 4px;
+  padding: 3px 10px;
+}
+
+/* --- FilterPanel: right-rail filters for pool/browse pages (Campaign
+   Requests, Business Profiles). Only rendered with filters the data model
+   actually supports — see src/ui.js filterPanel(). */
+.filter-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px;
+}
+
+.filter-panel-head {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.filter-panel-head h2 {
+  font-size: 1rem;
+}
+
+.filter-panel-reset {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.filter-field {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.filter-field label {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.filter-field select {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.filter-checkbox {
+  align-items: center;
+  color: var(--ink);
+  display: flex;
+  font-size: 0.84rem;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.filter-checkbox input {
+  height: 16px;
+  width: 16px;
 }

@@ -23,6 +23,8 @@ import { syncBusinessProfile, syncBusinessQuality, syncBusinessRating, syncCampa
 import { supabase } from "./supabase-client.js";
 import { HERO_PHOTO, businessPhoto, requestPhoto } from "./photos.js";
 import { ICONS } from "./icons.js";
+import { escapeHtml, formatDateTime, statusLabel } from "./format.js";
+import { emptyState, wireEmptyStates } from "./ui.js";
 
 let data = loadData();
 let activeView = "dashboard";
@@ -1292,7 +1294,14 @@ function renderMyOwnProfile(kind) {
   quizConfirmation = "";
   const own = kind === "business" ? myOwnBusinesses() : myOwnRequests();
   const card = kind === "business" ? businessCard : requestCard;
-  const empty = `<p class="muted">You haven't submitted a ${kind === "business" ? "business profile" : "campaign request"} yet. Start the Match Finder quiz to create one.</p>`;
+  // No "start a fresh quiz while already logged in" flow exists yet — the
+  // quiz is currently pre-auth only (landing → quiz → register). So this
+  // empty state has no action button until that's built; see redesign audit.
+  const empty = emptyState({
+    icon: { svg: ICONS[kind === "business" ? "briefcase" : "document"], tint: "icon-tint-mint" },
+    title: kind === "business" ? "No business profile yet" : "No campaign request yet",
+    body: `You haven't submitted a ${kind === "business" ? "business profile" : "campaign request"} yet. Take the Match Finder quiz to create one and start getting matched.`,
+  });
   const otherSide = kind === "business" ? "local causes" : "local businesses";
 
   const activityPanel = own.length ? matchActivityPanel(myMatches(), otherSide) : "";
@@ -2190,21 +2199,5 @@ function matchCard(match, { showAdminControls = false, showRating = false } = {}
   `;
 }
 
-function formatDateTime(value) {
-  return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value));
-}
-
-function statusLabel(status) {
-  return status.split("_").map((part) => part[0].toUpperCase() + part.slice(1)).join(" ");
-}
-
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
 
 render();
