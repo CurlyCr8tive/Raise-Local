@@ -227,7 +227,7 @@ const NONPROFIT_PROFILE_QUESTIONS = [
 ];
 
 const BUSINESS_CORE_QUESTIONS = [
-  { key: "name", label: "What's your business called?", type: "text", placeholder: "YAMAAS! Olive Oil" },
+  { key: "name", label: "What's your business called?", type: "text", placeholder: "Yamaas Olive Oil & Vinegar" },
   { key: "category", label: "What type of business are you?", type: "single", options: BUSINESS_CATEGORIES.filter((item) => item !== "No preference") },
   { key: "causeAreas", label: "What causes do you want to support?", type: "multi", options: CAUSE_AREAS },
   { key: "offerTypes", label: "What can you offer campaigns?", type: "multi", options: SUPPORT_NEEDS },
@@ -1814,7 +1814,7 @@ function businessForm({ quizMode = false } = {}) {
         <h3>Let's get to know your business and how you want to support your community.</h3>
       </div>
       <div class="form-grid">
-        ${inputField("business-name", "Business name", "YAMAAS! Olive Oil")}
+        ${inputField("business-name", "Business name", "Yamaas Olive Oil & Vinegar")}
         ${selectField("business-category", "Business category", BUSINESS_CATEGORIES.filter((item) => item !== "No preference"))}
       </div>
       ${inputField("business-areas", "Location / service area", "Brooklyn, Queens")}
