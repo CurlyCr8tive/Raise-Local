@@ -826,10 +826,55 @@ function quizInputHtml(question) {
       </div>
     `;
   }
+  const suggestions = quizSuggestions(question);
+  const datalistId = `quiz-suggestions-${question.key}`;
+  const suggestionMarkup = suggestions.length
+    ? `<div class="quiz-suggestions" aria-label="Suggested answers">
+        <span class="quiz-suggestions-label">Examples</span>
+        ${suggestions.map((suggestion) => `<button type="button" class="quiz-suggestion" data-quiz-suggestion="${escapeHtml(suggestion)}">${escapeHtml(suggestion)}</button>`).join("")}
+      </div>`
+    : "";
+  const listMarkup = ["text", "url", "number", "tel"].includes(question.type)
+    ? `<datalist id="${datalistId}">${suggestions.map((suggestion) => `<option value="${escapeHtml(suggestion)}"></option>`).join("")}</datalist>`
+    : "";
   if (question.type === "textarea") {
-    return `<textarea id="quiz-answer" rows="4" placeholder="${escapeHtml(question.placeholder || "")}">${escapeHtml(saved || "")}</textarea>`;
+    return `<textarea id="quiz-answer" rows="4" placeholder="${escapeHtml(question.placeholder || "")}">${escapeHtml(saved || "")}</textarea>${suggestionMarkup}`;
   }
-  return `<input id="quiz-answer" type="${escapeHtml(question.type)}" placeholder="${escapeHtml(question.placeholder || "")}" value="${escapeHtml(saved || "")}" />`;
+  return `<input id="quiz-answer" type="${escapeHtml(question.type)}" list="${datalistId}" placeholder="${escapeHtml(question.placeholder || "")}" value="${escapeHtml(saved || "")}" />${listMarkup}${suggestionMarkup}`;
+}
+
+function quizSuggestions(question) {
+  const suggestions = {
+    organizationName: ["PS 118 PTA", "Fresh Start Pantry", "Young Excellence Society"],
+    campaignDescription: ["Raise money for after-school supplies", "Fund weekend meal bags for local families", "Support a community arts program"],
+    geography: ["Brooklyn", "Queens", "Manhattan", "Bronx", "New York City"],
+    fundingGoal: ["2500", "5000", "10000"],
+    website: ["https://yourorganization.org"],
+    communitiesServed: ["Brooklyn families and school communities", "Queens students and parents", "Harlem youth and families"],
+    mission: ["We support local families through education, food access, and community programs."],
+    audienceServed: ["Students, parents, and neighborhood families", "Youth, families, and community donors"],
+    audienceSize: ["100", "500", "1000"],
+    expectedParticipation: ["50", "100", "250"],
+    minimumSize: ["25", "50", "100"],
+    idealSize: ["50", "100", "250"],
+    mustHaves: ["Local service area, reliable communication, and capacity for the campaign size."],
+    niceToHaves: ["Pickup or delivery, social promotion, and flexible campaign dates."],
+    name: ["Yamaas Olive Oil & Vinegar", "Sofia & Grace", "Paper Porch Goods"],
+    serviceAreas: ["Brooklyn, Queens", "Manhattan", "New York City"],
+    minimumOrderRequirement: ["50", "100", "250"],
+    estimatedUnitContribution: ["10", "15", "20"],
+    socialLinks: ["Instagram: @yourorganization"],
+    productsServices: ["Cookie boxes, gift bundles, catering, or event hosting"],
+    averagePriceRange: ["$15-$40", "$25-$75"],
+    minimumCapacity: ["30", "50", "100"],
+    maximumCapacity: ["100", "250", "500"],
+    idealEventSize: ["50", "100", "200"],
+    campaignCap: ["1", "2", "3"],
+    activeCampaigns: ["0", "1", "2"],
+    leadTimeDays: ["7", "14", "30"],
+    notes: ["We can support local campaigns with advance notice and clear order deadlines."],
+  };
+  return suggestions[question.key] || [];
 }
 
 function optionButton(question, option, checked, inputType) {
@@ -857,6 +902,15 @@ function wireGuidedQuiz(questions) {
     };
     document.querySelectorAll('input[name="quiz-answer"]').forEach((input) => input.addEventListener("change", syncOtherVisibility));
   }
+
+  root.querySelectorAll("[data-quiz-suggestion]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const field = document.getElementById("quiz-answer");
+      if (!field) return;
+      field.value = button.dataset.quizSuggestion || "";
+      field.focus();
+    });
+  });
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
