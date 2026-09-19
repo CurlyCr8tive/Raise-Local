@@ -1033,6 +1033,12 @@ body.no-sidebar .view-root {
   padding: 13px 26px;
 }
 
+.landing-hero #landing-demo {
+  flex-basis: 100%;
+  justify-content: center;
+  text-align: center;
+}
+
 .auth-panel {
   background: var(--panel);
   border: 1px solid var(--line);
