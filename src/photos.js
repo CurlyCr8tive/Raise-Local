@@ -49,15 +49,20 @@ const CAUSE_FALLBACK = ["1628717341663-0007b0ee2597", "1517457373958-b7bdd458720
 // Real business-supplied photos, keyed by id — checked before the stock pool.
 const BUSINESS_PHOTO_OVERRIDES = {
   "biz-yamaas": "assets/yamaas-hero.png",
-  "biz-eyeland-vibes": "assets/eyeland-vibes.png",
-  "biz-first-choice-brew": "assets/first-choice-brew.png",
+  "biz-eyeland-vibes": "assets/eyeland-vibes.webp",
+  "biz-first-choice-brew": "assets/first-choice-brew.webp",
+  "biz-sofia-grace": "assets/sofia-grace.png",
 };
 
 const REQUEST_PHOTO_OVERRIDES = {
   "request-young-excellence": "assets/young-excellence-society.png",
   "request-grove-park": "assets/grove-park-foundation.jpg",
-  "request-unity-now": "assets/unity-now.png",
+  "request-unity-now": "assets/unity-now-supplied.png",
 };
+
+export function isBrandAsset(photo) {
+  return ["assets/eyeland-vibes.webp", "assets/first-choice-brew.webp", "assets/grove-park-foundation.jpg", "assets/sofia-grace.png", "assets/unity-now-supplied.png"].includes(photo);
+}
 
 export function businessPhoto(business) {
   const override = BUSINESS_PHOTO_OVERRIDES[business?.id];

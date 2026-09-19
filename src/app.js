@@ -32,7 +32,7 @@ import {
   updateCampaignRequest,
 } from "./remote-sync.js";
 import { supabase } from "./supabase-client.js";
-import { HERO_PHOTO, businessPhoto, requestPhoto } from "./photos.js";
+import { HERO_PHOTO, businessPhoto, isBrandAsset, requestPhoto } from "./photos.js";
 import { ICONS } from "./icons.js";
 import { escapeHtml, formatDateTime, statusLabel } from "./format.js";
 import { emptyState, wireEmptyStates } from "./ui.js";
@@ -2328,7 +2328,7 @@ function submitRating(match, rating, note) {
 function requestCard(request, { showCompleteProfile = false } = {}) {
   return `
     <article class="entity-card">
-      <img class="entity-photo" src="${requestPhoto(request)}" alt="" loading="lazy" />
+          <img class="entity-photo${isBrandAsset(requestPhoto(request)) ? " brand-photo" : ""}" src="${requestPhoto(request)}" alt="" loading="lazy" />
       <div class="entity-head">
         <div>
           <h3>${escapeHtml(request.organizationName)}</h3>
@@ -2356,7 +2356,7 @@ function businessCard(business, { showCompleteProfile = false } = {}) {
   const statusText = business.unavailable ? "paused" : business.qualityStatus === "needs_review" ? "needs review" : "ready";
   return `
     <article class="entity-card">
-      <img class="entity-photo" src="${businessPhoto(business)}" alt="" loading="lazy" />
+      <img class="entity-photo${isBrandAsset(businessPhoto(business)) ? " brand-photo" : ""}" src="${businessPhoto(business)}" alt="" loading="lazy" />
       <div class="entity-head">
         <div>
           <h3>${escapeHtml(business.name)}</h3>

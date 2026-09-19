@@ -549,6 +549,11 @@ h1 {
   width: calc(100% + 30px);
 }
 
+.entity-photo.brand-photo {
+  object-fit: contain;
+  padding: 18px;
+}
+
 .entity-head,
 .match-head {
   align-items: flex-start;
