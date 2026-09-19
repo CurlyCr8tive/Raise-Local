@@ -26,6 +26,7 @@ import {
   syncCampaignRequest,
   syncMatchDecision,
   syncMatchFeedback,
+  loadRemoteData,
   updateBusinessProfile,
   updateCampaignRequest,
 } from "./remote-sync.js";
@@ -58,6 +59,8 @@ let authLoading = true;
 let authScreen = "landing";
 let authError = "";
 let pendingEmail = "";
+let remoteLoadKey = "";
+let remoteLoading = false;
 
 const root = document.getElementById("view-root");
 const title = document.getElementById("page-title");
@@ -184,12 +187,47 @@ supabase.auth.onAuthStateChange((event, newSession) => {
     authScreen = "landing";
     quizAudience = null;
     quizPhase = "choose";
+    remoteLoadKey = "";
   } else if (session) {
     determinePostSessionScreen();
   }
   authLoading = false;
   render();
 });
+
+function mergeById(localRecords, remoteRecords) {
+  const merged = new Map(localRecords.map((record) => [record.id, record]));
+  remoteRecords.forEach((record) => merged.set(record.id, { ...merged.get(record.id), ...record }));
+  return [...merged.values()];
+}
+
+function mergeMatches(localMatches, remoteMatches) {
+  const merged = new Map(localMatches.map((match) => [`${match.requestId}:${match.businessId}`, match]));
+  remoteMatches.forEach((match) => {
+    const key = `${match.requestId}:${match.businessId}`;
+    merged.set(key, { ...merged.get(key), ...match });
+  });
+  return [...merged.values()];
+}
+
+async function hydrateRemoteData() {
+  if (!session || !passwordAlreadySet() || remoteLoading) return;
+  const key = `${session.user.id}:${isAdmin() ? "admin" : myRole()}`;
+  if (remoteLoadKey === key) return;
+  remoteLoading = true;
+  const remote = await loadRemoteData({ admin: isAdmin(), email: myEmail() });
+  remoteLoading = false;
+  if (!remote) return;
+  data = {
+    ...data,
+    campaignRequests: mergeById(data.campaignRequests, remote.campaignRequests),
+    businesses: mergeById(data.businesses, remote.businesses),
+    matches: mergeMatches(data.matches, remote.matches),
+  };
+  saveData(data);
+  remoteLoadKey = key;
+  render();
+}
 
 function setTitle(text) {
   title.textContent = text;
@@ -299,6 +337,7 @@ function render() {
   syncNavForRole();
   syncAccountIdentity();
   syncNotifications();
+  void hydrateRemoteData();
   if (activeView === "brief" && !isAdmin()) activeView = "dashboard";
 
   const views = {

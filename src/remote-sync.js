@@ -82,6 +82,126 @@ function toBusinessRow(business) {
   };
 }
 
+function fromRequestRow(row) {
+  return {
+    id: row.id,
+    organizationName: row.organization_name,
+    organizationType: row.organization_type,
+    website: row.website || "",
+    socialLinks: row.social_links || "",
+    classification: row.classification || "",
+    contactName: row.contact_name || "",
+    email: row.email || "",
+    phone: row.phone || "",
+    communitiesServed: row.communities_served || "",
+    mission: row.mission || "",
+    audienceServed: row.audience_served || "",
+    audienceSize: row.audience_size || 0,
+    campaignDescription: row.campaign_description || "",
+    fundingGoal: row.funding_goal || 0,
+    startDate: row.start_date || "",
+    endDate: row.end_date || "",
+    partnershipDeadline: row.partnership_deadline || "",
+    timingPreference: row.timing_preference || "",
+    causeArea: row.cause_area || "",
+    businessPreference: row.business_preference || "",
+    preferredCategories: row.preferred_categories || [],
+    eventType: row.event_type || "",
+    partnershipTypesNeeded: row.partnership_types_needed || [],
+    supportNeeds: row.support_needs || [],
+    expectedParticipation: row.expected_participation || 0,
+    minimumSize: row.minimum_size || 0,
+    idealSize: row.ideal_size || 0,
+    geography: row.geography || "",
+    mustHaves: row.must_haves || "",
+    niceToHaves: row.nice_to_haves || "",
+    priorFundraiser: row.prior_fundraiser || "",
+    status: row.status || "new",
+    rating: row.rating ?? null,
+    reviewNote: row.review_note || "",
+  };
+}
+
+function fromBusinessRow(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    website: row.website || "",
+    socialLinks: row.social_links || "",
+    contactName: row.contact_name || "",
+    email: row.email || "",
+    phone: row.phone || "",
+    category: row.category || "",
+    businessGoals: row.business_goals || [],
+    serviceAreas: row.service_areas || [],
+    fulfillmentScope: row.fulfillment_scope || "",
+    causeAreas: row.cause_areas || [],
+    contributionTypes: row.contribution_types || [],
+    partnershipTypes: row.partnership_types || [],
+    offerTypes: row.offer_types || [],
+    productsServices: row.products_services || "",
+    averagePriceRange: row.average_price_range || "",
+    minimumOrderRequirement: row.minimum_order_requirement || 0,
+    minimumCapacity: row.minimum_capacity || 0,
+    maximumCapacity: row.maximum_capacity || 0,
+    idealEventSize: row.ideal_event_size || 0,
+    campaignCap: row.campaign_cap || 0,
+    activeCampaigns: row.active_campaigns || 0,
+    estimatedUnitContribution: row.estimated_unit_contribution || 0,
+    availabilityPreference: row.availability_preference || "",
+    availableFrom: row.available_from || "",
+    availableTo: row.available_to || "",
+    leadTimeDays: row.lead_time_days || 0,
+    fulfillmentOptions: row.fulfillment_options || [],
+    orgTypesSupported: row.org_types_supported || [],
+    notes: row.notes || "",
+    rating: row.rating ?? null,
+    reviewNote: row.review_note || "",
+    qualityStatus: row.quality_status || "clear",
+    unavailable: Boolean(row.unavailable),
+    status: row.status || "ready",
+  };
+}
+
+function fromMatchRow(row) {
+  return {
+    id: row.id,
+    requestId: row.request_id,
+    businessId: row.business_id,
+    status: row.status || "recommended",
+    declineReason: row.decline_reason || "",
+    declineNote: row.decline_note || "",
+    adminNote: row.admin_note || "",
+    notifiedAt: row.notified_at || "",
+  };
+}
+
+export async function loadRemoteData({ admin = false, email = "" } = {}) {
+  let requestQuery = supabase.from("campaign_requests").select("*");
+  let businessQuery = supabase.from("business_profiles").select("*");
+  if (!admin) {
+    requestQuery = requestQuery.eq("email", email);
+    businessQuery = businessQuery.eq("email", email);
+  }
+
+  const [requestsResult, businessesResult, matchesResult] = await Promise.all([
+    requestQuery,
+    businessQuery,
+    supabase.from("matches").select("*")
+  ]);
+  const failed = [requestsResult, businessesResult, matchesResult].find((result) => result.error);
+  if (failed) {
+    console.error("Supabase remote data load failed:", failed.error.message);
+    return null;
+  }
+
+  return {
+    campaignRequests: (requestsResult.data || []).map(fromRequestRow),
+    businesses: (businessesResult.data || []).map(fromBusinessRow),
+    matches: (matchesResult.data || []).map(fromMatchRow),
+  };
+}
+
 export async function syncCampaignRequest(request) {
   const { error } = await supabase.from("campaign_requests").insert(toRequestRow(request));
   if (error) console.error("Supabase campaign_requests sync failed:", error.message);
