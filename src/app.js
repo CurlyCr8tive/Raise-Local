@@ -56,6 +56,8 @@ let quizResultsPreview = null;
 // Pre-auth flow: landing -> quiz-choose -> quiz -> register -> verify-sent
 // -> (user clicks emailed link) -> set-password -> authenticated app.
 let session = null;
+let demoMode = false;
+let demoRole = "admin";
 let authLoading = true;
 let authScreen = "landing";
 let authError = "";
@@ -81,12 +83,26 @@ document.getElementById("account-profile-btn").addEventListener("click", () => {
 });
 
 document.getElementById("logout-btn").addEventListener("click", () => {
-  supabase.auth.signOut();
+  leaveSession();
 });
 
 document.getElementById("topbar-logout-btn").addEventListener("click", () => {
-  supabase.auth.signOut();
+  leaveSession();
 });
+
+function leaveSession() {
+  if (demoMode) {
+    sessionStorage.removeItem("raise_local_demo_mode");
+    demoMode = false;
+    demoRole = "admin";
+    session = null;
+    authScreen = "landing";
+    activeView = "dashboard";
+    render();
+    return;
+  }
+  supabase.auth.signOut();
+}
 
 document.getElementById("topbar-account-btn").addEventListener("click", () => {
   const menu = document.getElementById("topbar-account-menu");
@@ -130,10 +146,11 @@ function passwordAlreadySet() {
 // user directly (Authentication -> Users -> edit raw user metadata).
 // Everyone else defaults to the role captured at quiz signup.
 function isAdmin() {
-  return session?.user?.user_metadata?.role === "admin";
+  return demoMode ? demoRole === "admin" : session?.user?.user_metadata?.role === "admin";
 }
 
 function myRole() {
+  if (demoMode) return demoRole === "business" ? "business" : "nonprofit";
   return session?.user?.user_metadata?.role === "business" ? "business" : "nonprofit";
 }
 
@@ -185,6 +202,9 @@ function determinePostSessionScreen() {
 supabase.auth.onAuthStateChange((event, newSession) => {
   session = newSession;
   if (event === "SIGNED_OUT") {
+    sessionStorage.removeItem("raise_local_demo_mode");
+    demoMode = false;
+    demoRole = "admin";
     authScreen = "landing";
     quizAudience = null;
     quizPhase = "choose";
@@ -212,7 +232,7 @@ function mergeMatches(localMatches, remoteMatches) {
 }
 
 async function hydrateRemoteData() {
-  if (!session || !passwordAlreadySet() || remoteLoading) return;
+  if (demoMode || !session || !passwordAlreadySet() || remoteLoading) return;
   const key = `${session.user.id}:${isAdmin() ? "admin" : myRole()}`;
   if (remoteLoadKey === key) return;
   remoteLoading = true;
@@ -495,7 +515,7 @@ function renderSettings() {
     activeView = "complete-profile";
     render();
   });
-  root.querySelector("[data-settings-logout]")?.addEventListener("click", () => supabase.auth.signOut());
+  root.querySelector("[data-settings-logout]")?.addEventListener("click", leaveSession);
 }
 
 function renderPreAuth() {
@@ -523,6 +543,7 @@ function renderLanding() {
         <div class="landing-actions">
           <button class="primary-btn" type="button" id="landing-start">Find My Match</button>
           <button class="secondary-btn" type="button" id="landing-login">Log In</button>
+          <button class="link-btn" type="button" id="landing-demo">View Demo Workspace</button>
         </div>
       </section>
     </div>
@@ -537,6 +558,18 @@ function renderLanding() {
     authError = "";
     render();
   });
+  document.getElementById("landing-demo").addEventListener("click", enterDemoWorkspace);
+}
+
+function enterDemoWorkspace() {
+  demoMode = true;
+  sessionStorage.setItem("raise_local_demo_mode", "true");
+  demoRole = "admin";
+  session = { user: { email: "demo@raiselocal.local", user_metadata: { role: "admin", password_set: true } } };
+  authError = "";
+  authScreen = "app";
+  activeView = "dashboard";
+  render();
 }
 
 function communityNetworkSvg() {
@@ -736,12 +769,15 @@ function renderLogin() {
     <section class="auth-panel">
       <p class="eyebrow">Welcome Back</p>
       <h2>Log in to Raise Local.</h2>
+      <p class="muted">Your account determines your workspace: small business, nonprofit or school, or Tenyse's admin view.</p>
       ${authError ? `<p class="form-error">${escapeHtml(authError)}</p>` : ""}
       <form id="login-form">
         <div class="field-row"><label for="login-email">Email</label><input id="login-email" type="email" required placeholder="you@example.org" /></div>
         <div class="field-row"><label for="login-password">Password</label><input id="login-password" type="password" required placeholder="Your password" /></div>
         <button class="primary-btn" type="submit" style="width:100%;">Log In</button>
       </form>
+      <div class="auth-divider"><span>or</span></div>
+      <button class="secondary-btn" type="button" id="demo-login" style="width:100%;">Open Demo Workspace</button>
       <p class="muted" style="margin-top:14px;">New here? <button class="link-btn" type="button" id="login-back">Find your match instead</button></p>
     </section>
   `;
@@ -764,6 +800,7 @@ function renderLogin() {
     authError = "";
     render();
   });
+  document.getElementById("demo-login").addEventListener("click", enterDemoWorkspace);
 }
 
 function progressCopy(step, total) {

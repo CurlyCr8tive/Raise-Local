@@ -1,5 +1,9 @@
 import { supabase } from "./supabase-client.js";
 
+function isDemoMode() {
+  return sessionStorage.getItem("raise_local_demo_mode") === "true";
+}
+
 // Intake submissions use the anon INSERT policies. Quality-control writes use
 // the authenticated admin policies in the latest Supabase migration.
 
@@ -182,6 +186,7 @@ function fromMatchRow(row) {
 }
 
 export async function loadRemoteData({ admin = false, email = "" } = {}) {
+  if (isDemoMode()) return null;
   let requestQuery = supabase.from("campaign_requests").select("*");
   let businessQuery = supabase.from("business_profiles").select("*");
   if (!admin) {
@@ -208,18 +213,21 @@ export async function loadRemoteData({ admin = false, email = "" } = {}) {
 }
 
 export async function syncCampaignRequest(request) {
+  if (isDemoMode()) return false;
   const { error } = await supabase.from("campaign_requests").insert(toRequestRow(request));
   if (error) console.error("Supabase campaign_requests sync failed:", error.message);
   return !error;
 }
 
 export async function syncBusinessProfile(business) {
+  if (isDemoMode()) return false;
   const { error } = await supabase.from("business_profiles").insert(toBusinessRow(business));
   if (error) console.error("Supabase business_profiles sync failed:", error.message);
   return !error;
 }
 
 export async function updateCampaignRequest(request) {
+  if (isDemoMode()) return false;
   const { error } = await supabase
     .from("campaign_requests")
     .update({ ...toRequestRow(request), updated_at: new Date().toISOString() })
@@ -229,6 +237,7 @@ export async function updateCampaignRequest(request) {
 }
 
 export async function updateBusinessProfile(business) {
+  if (isDemoMode()) return false;
   const { error } = await supabase
     .from("business_profiles")
     .update({ ...toBusinessRow(business), updated_at: new Date().toISOString() })
@@ -238,6 +247,7 @@ export async function updateBusinessProfile(business) {
 }
 
 export async function syncMatchDecision({ requestId, businessId, status, fromStatus = null, nonprofitDecision = "", businessDecision = "", outreachStatus = "not_started", outreachMessage = "", outreachAt = null, declineReason = "", declineNote = "", adminNote = "", notifiedAt = null }) {
+  if (isDemoMode()) return false;
   const { data: match, error } = await supabase
     .from("matches")
     .upsert(
@@ -278,6 +288,7 @@ export async function syncMatchDecision({ requestId, businessId, status, fromSta
 }
 
 export async function syncMatchFeedback({ requestId, businessId, declineReason = "", declineNote = "", adminNote = "" }) {
+  if (isDemoMode()) return false;
   const fields = {
     decline_reason: declineReason || null,
     decline_note: declineNote || null,
@@ -312,6 +323,7 @@ export async function syncMatchFeedback({ requestId, businessId, declineReason =
 }
 
 export async function syncBusinessQuality(business) {
+  if (isDemoMode()) return false;
   const { error } = await supabase
     .from("business_profiles")
     .update({
@@ -328,6 +340,7 @@ export async function syncBusinessQuality(business) {
 }
 
 export async function syncBusinessRating(business, rating, note) {
+  if (isDemoMode()) return false;
   const { error } = await supabase.from("ratings").insert({
     business_id: business.id,
     rating,
