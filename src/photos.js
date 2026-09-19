@@ -51,6 +51,10 @@ const BUSINESS_PHOTO_OVERRIDES = {
   "biz-yamaas": "assets/yamaas-hero.png",
 };
 
+const REQUEST_PHOTO_OVERRIDES = {
+  "request-young-excellence": "assets/young-excellence-society.png",
+};
+
 export function businessPhoto(business) {
   const override = BUSINESS_PHOTO_OVERRIDES[business?.id];
   if (override) return override;
@@ -59,6 +63,8 @@ export function businessPhoto(business) {
 }
 
 export function requestPhoto(request) {
+  const override = REQUEST_PHOTO_OVERRIDES[request?.id];
+  if (override) return override;
   const pool = CAUSE_PHOTOS[request?.causeArea] || CAUSE_FALLBACK;
   return pick(pool, request?.id || request?.organizationName);
 }
