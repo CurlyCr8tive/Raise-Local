@@ -41,6 +41,8 @@ function toRequestRow(request) {
     must_haves: request.mustHaves,
     nice_to_haves: request.niceToHaves,
     prior_fundraiser: request.priorFundraiser,
+    campaign_stage: request.campaignStage || "submitted",
+    success_details: request.successDetails || "",
     status: request.status,
   };
 }
@@ -120,6 +122,8 @@ function fromRequestRow(row) {
     mustHaves: row.must_haves || "",
     niceToHaves: row.nice_to_haves || "",
     priorFundraiser: row.prior_fundraiser || "",
+    campaignStage: row.campaign_stage || row.status || "submitted",
+    successDetails: row.success_details || "",
     status: row.status || "new",
     rating: row.rating ?? null,
     reviewNote: row.review_note || "",

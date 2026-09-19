@@ -41,6 +41,7 @@ let data = loadData();
 let activeView = "dashboard";
 let dashboardTab = "matches"; // "matches" | "own" | "counterpart"
 let dashboardSort = "best"; // "best" | "name"
+let campaignSort = "newest"; // "newest" | "oldest" | "upcoming" | "completed"
 let matchCauseFilter = "all";
 let matchLoaderShown = false;
 const QUALITY_REVIEW_THRESHOLD = 2.5;
@@ -1108,6 +1109,9 @@ function requestFromQuizAnswers() {
     mustHaves: "",
     niceToHaves: "",
     priorFundraiser: "",
+    campaignStage: "submitted",
+    createdAt: new Date().toISOString(),
+    successDetails: "",
     status: "new",
     rating: null,
     reviewNote: "",
@@ -1438,7 +1442,7 @@ function renderMyOwnProfile(kind) {
   setTitle(kind === "business" ? "Business Profile" : "Campaign Requests");
   const banner = quizConfirmation ? `<section class="success-banner" role="status">${escapeHtml(quizConfirmation)}</section>` : "";
   quizConfirmation = "";
-  const own = kind === "business" ? myOwnBusinesses() : myOwnRequests();
+  const own = kind === "business" ? myOwnBusinesses() : sortCampaignRequests(myOwnRequests());
   const card = kind === "business" ? businessCard : requestCard;
   // No "start a fresh quiz while already logged in" flow exists yet — the
   // quiz is currently pre-auth only (landing → quiz → register). So this
@@ -1456,7 +1460,12 @@ function renderMyOwnProfile(kind) {
   root.innerHTML = `
     ${banner}
     ${activityPanel}
-    <section class="panel"><p class="muted">Your submitted ${kind === "business" ? "business profile" : "campaign request"}. Use "Complete profile" for stronger matches.</p></section>
+    <section class="panel">
+      <div class="section-heading">
+        <div><p class="muted">Your submitted ${kind === "business" ? "business profile" : "campaign requests"}. Use "Complete profile" for stronger matches.</p></div>
+        ${kind === "request" && own.length ? `<label class="sort-select-wrap">Sort by <select id="campaign-sort"><option value="newest" ${campaignSort === "newest" ? "selected" : ""}>Newest</option><option value="oldest" ${campaignSort === "oldest" ? "selected" : ""}>Oldest</option><option value="upcoming" ${campaignSort === "upcoming" ? "selected" : ""}>Campaign date</option><option value="completed" ${campaignSort === "completed" ? "selected" : ""}>Completed first</option></select></label>` : ""}
+      </div>
+    </section>
     <section class="entity-list">${own.length ? own.map((record) => card(record, { showCompleteProfile: true })).join("") : empty}</section>
   `;
   wireCompleteProfileLinks();
@@ -1474,6 +1483,32 @@ function renderMyOwnProfile(kind) {
     activeView = "matches";
     render();
   });
+  root.querySelector("#campaign-sort")?.addEventListener("change", (event) => {
+    campaignSort = event.target.value;
+    render();
+  });
+}
+
+function sortCampaignRequests(requests) {
+  return [...requests].sort((a, b) => {
+    if (campaignSort === "completed") return Number(isCampaignComplete(b)) - Number(isCampaignComplete(a));
+    if (campaignSort === "oldest") return campaignDate(a) - campaignDate(b);
+    if (campaignSort === "upcoming") return campaignDate(a) - campaignDate(b);
+    return campaignDate(b) - campaignDate(a);
+  });
+}
+
+function campaignDate(request) {
+  return new Date(request.startDate || request.createdAt || 0).getTime() || 0;
+}
+
+function isCampaignComplete(request) {
+  return ["completed", "launched", "successful"].includes(request.campaignStage || request.status);
+}
+
+function campaignStage(request) {
+  const stage = request.campaignStage || request.status || "submitted";
+  return stage === "new" ? "Submitted" : statusLabel(stage);
 }
 
 function matchActivityPanel(matches, otherSide) {
@@ -1922,12 +1957,12 @@ function requestForm({ quizMode = false } = {}) {
         <h3>Tell us about your organization and what you need.</h3>
       </div>
       <div class="form-grid">
-        ${inputField("request-org", "Organization name", "PS 118 Art Room")}
+        ${inputField("request-org", "Organization name", "PS 118 Art Room", "text", ["PS 118 Art Room", "Fresh Start Pantry", "Young Excellence Society"])}
         ${selectField("request-type", "Organization type", ORGANIZATION_TYPES)}
         ${inputField("request-contact", "Contact name", "Jordan Lee")}
         ${inputField("request-email", "Email", "contact@example.org", "email")}
         ${inputField("request-phone", "Phone", "555-0100", "tel")}
-        ${inputField("request-goal", "Funding goal", "5000", "number")}
+        ${inputField("request-goal", "Funding goal", "5000", "number", ["2500", "5000", "10000"])}
       </div>
       <div class="quiz-intro">
         <p class="eyebrow">Step 2 of 4</p>
@@ -1947,22 +1982,22 @@ function requestForm({ quizMode = false } = {}) {
         <h3>What support would make the campaign work?</h3>
       </div>
       ${multiSelectField("request-support", "Support needed", SUPPORT_NEEDS)}
-      ${inputField("request-geo", "Local geography", "Neighborhood, borough, or zip code")}
+      ${inputField("request-geo", "Local geography", "Neighborhood, borough, or zip code", "text", ["Brooklyn", "Queens", "Manhattan", "Bronx"])}
       <div class="field-row">
         <label for="request-description">What is the campaign for?</label>
-        <textarea id="request-description" rows="3" required></textarea>
+        ${suggestedTextArea("request-description", ["Raise money for after-school supplies", "Fund weekend meal bags for local families", "Support a community arts program"])}
       </div>
       <div class="quiz-intro">
         <p class="eyebrow">Step 4 of 4</p>
         <h3>Separate must-haves from nice-to-haves.</h3>
       </div>
       <div class="form-grid">
-        ${textAreaField("request-must", "Must-haves", "What would make a match impossible if missing?")}
-        ${textAreaField("request-nice", "Nice-to-haves", "What would make the match even better?")}
+        ${textAreaField("request-must", "Must-haves", "What would make a match impossible if missing?", ["Local service area, reliable communication, and capacity for the campaign size."])}
+        ${textAreaField("request-nice", "Nice-to-haves", "What would make the match even better?", ["Pickup or delivery, social promotion, and flexible campaign dates."])}
       </div>
       <div class="field-row">
         <label for="request-prior">Have you run a fundraiser like this before?</label>
-        <input id="request-prior" placeholder="Yes/no, and platform if yes" />
+        ${suggestedInput("request-prior", "Yes/no, and platform if yes", ["No", "Yes - local restaurant night", "Yes - online platform"])}
       </div>
       <button class="primary-btn" type="submit">${quizMode ? "Finish Nonprofit Quiz" : "Submit Campaign Request"}</button>
     </form>
@@ -2021,8 +2056,8 @@ function businessForm({ quizMode = false } = {}) {
   `;
 }
 
-function inputField(id, label, placeholder = "", type = "text") {
-  return `<div class="field-row"><label for="${id}">${label}</label><input id="${id}" type="${type}" placeholder="${placeholder}" required /></div>`;
+function inputField(id, label, placeholder = "", type = "text", suggestions = []) {
+  return `<div class="field-row"><label for="${id}">${label}</label>${suggestedInput(id, placeholder, suggestions, type, true)}</div>`;
 }
 
 function selectField(id, label, options) {
@@ -2033,8 +2068,31 @@ function multiSelectField(id, label, options) {
   return `<div class="field-row"><label for="${id}">${label}</label><select id="${id}" multiple required>${options.map((item) => `<option>${item}</option>`).join("")}</select></div>`;
 }
 
-function textAreaField(id, label, placeholder = "") {
-  return `<div class="field-row"><label for="${id}">${label}</label><textarea id="${id}" rows="3" placeholder="${placeholder}"></textarea></div>`;
+function textAreaField(id, label, placeholder = "", suggestions = []) {
+  return `<div class="field-row"><label for="${id}">${label}</label>${suggestedTextArea(id, suggestions, placeholder)}</div>`;
+}
+
+function suggestedInput(id, placeholder, suggestions = [], type = "text", required = false) {
+  const listId = `${id}-suggestions`;
+  const list = suggestions.length ? `<datalist id="${listId}">${suggestions.map((item) => `<option value="${escapeHtml(item)}"></option>`).join("")}</datalist>` : "";
+  const chips = suggestions.length ? `<div class="quiz-suggestions" aria-label="Suggested answers"><span class="quiz-suggestions-label">Examples</span>${suggestions.map((item) => `<button type="button" class="quiz-suggestion" data-form-suggestion="${escapeHtml(item)}" data-target="${id}">${escapeHtml(item)}</button>`).join("")}</div>` : "";
+  return `<input id="${id}" type="${type}" placeholder="${escapeHtml(placeholder)}" ${required ? "required" : ""} list="${listId}" />${list}${chips}`;
+}
+
+function suggestedTextArea(id, suggestions = [], placeholder = "") {
+  const chips = suggestions.length ? `<div class="quiz-suggestions" aria-label="Suggested answers"><span class="quiz-suggestions-label">Examples</span>${suggestions.map((item) => `<button type="button" class="quiz-suggestion" data-form-suggestion="${escapeHtml(item)}" data-target="${id}">${escapeHtml(item)}</button>`).join("")}</div>` : "";
+  return `<textarea id="${id}" rows="3" placeholder="${escapeHtml(placeholder)}">${escapeHtml("")}</textarea>${chips}`;
+}
+
+function wireFormSuggestions() {
+  root.querySelectorAll("[data-form-suggestion]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const field = document.getElementById(button.dataset.target);
+      if (!field) return;
+      field.value = button.dataset.formSuggestion || "";
+      field.focus();
+    });
+  });
 }
 
 function selectedOptions(id) {
@@ -2042,6 +2100,7 @@ function selectedOptions(id) {
 }
 
 function wireRequestForm({ fromQuiz = false } = {}) {
+  wireFormSuggestions();
   document.getElementById("request-form").addEventListener("submit", (event) => {
     event.preventDefault();
     data.campaignRequests = [
@@ -2066,6 +2125,9 @@ function wireRequestForm({ fromQuiz = false } = {}) {
         mustHaves: value("request-must"),
         niceToHaves: value("request-nice"),
         priorFundraiser: value("request-prior"),
+        campaignStage: "submitted",
+        createdAt: new Date().toISOString(),
+        successDetails: "",
         status: "new",
       },
       ...data.campaignRequests,
@@ -2271,10 +2333,11 @@ function requestCard(request, { showCompleteProfile = false } = {}) {
           <h3>${escapeHtml(request.organizationName)}</h3>
           <p class="muted">${escapeHtml(request.organizationType)} · ${escapeHtml(request.geography)} · $${Number(request.fundingGoal).toLocaleString()}</p>
         </div>
-        <span class="status-pill status-new">new</span>
+        <span class="status-pill status-new">${escapeHtml(campaignStage(request))}</span>
       </div>
       <p>${escapeHtml(request.campaignDescription)}</p>
       <p class="muted">${request.rating ? `${request.rating} star rating - ${escapeHtml(request.reviewNote || "No review note")}` : "No rating yet"}</p>
+      <p class="small-note">Campaign window: ${escapeHtml(request.startDate || "Not scheduled")} to ${escapeHtml(request.endDate || "Not scheduled")}${request.successDetails ? ` · Outcome: ${escapeHtml(request.successDetails)}` : ""}</p>
       <div class="tag-row">
         <span class="tag">${escapeHtml(request.causeArea)}</span>
         <span class="tag">${escapeHtml(request.businessPreference)}</span>
