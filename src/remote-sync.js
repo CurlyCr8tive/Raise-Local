@@ -168,7 +168,12 @@ function fromMatchRow(row) {
     id: row.id,
     requestId: row.request_id,
     businessId: row.business_id,
-    status: row.status || "recommended",
+    status: row.status || "suggested",
+    nonprofitDecision: row.nonprofit_decision || "",
+    businessDecision: row.business_decision || "",
+    outreachStatus: row.outreach_status || "not_started",
+    outreachMessage: row.outreach_message || "",
+    outreachAt: row.outreach_at || "",
     declineReason: row.decline_reason || "",
     declineNote: row.decline_note || "",
     adminNote: row.admin_note || "",
@@ -232,7 +237,7 @@ export async function updateBusinessProfile(business) {
   return !error;
 }
 
-export async function syncMatchDecision({ requestId, businessId, status, fromStatus = null, declineReason = "", declineNote = "", adminNote = "", notifiedAt = null }) {
+export async function syncMatchDecision({ requestId, businessId, status, fromStatus = null, nonprofitDecision = "", businessDecision = "", outreachStatus = "not_started", outreachMessage = "", outreachAt = null, declineReason = "", declineNote = "", adminNote = "", notifiedAt = null }) {
   const { data: match, error } = await supabase
     .from("matches")
     .upsert(
@@ -240,6 +245,11 @@ export async function syncMatchDecision({ requestId, businessId, status, fromSta
         request_id: requestId,
         business_id: businessId,
         status,
+        nonprofit_decision: nonprofitDecision || null,
+        business_decision: businessDecision || null,
+        outreach_status: outreachStatus || "not_started",
+        outreach_message: outreachMessage || null,
+        outreach_at: outreachAt || null,
         decline_reason: declineReason || null,
         decline_note: declineNote || null,
         admin_note: adminNote || null,

@@ -15,6 +15,7 @@ import {
   SUPPORT_NEEDS,
   TIMING_OPTIONS,
   buildMatches,
+  deriveMatchStatus,
   scoreMatch,
   splitSelections,
 } from "./matching.js?v=3607856";
@@ -1571,6 +1572,12 @@ function wireActiveMatchControls() {
       upsertMatchFeedback(textarea.dataset.requestId, textarea.dataset.businessId, { adminNote: textarea.value.trim() });
     });
   });
+  root.querySelectorAll("[data-outreach-send]").forEach((button) => {
+    button.addEventListener("click", () => {
+      upsertMatchOutreach(button.dataset.requestId, button.dataset.businessId);
+      render();
+    });
+  });
   wireRatingWidgets();
 }
 
@@ -1609,14 +1616,15 @@ function renderMatchTriage() {
   const causes = causeFilterOptions(all);
   const filtered = matchCauseFilter === "all" ? all : all.filter((m) => m.request.causeArea === matchCauseFilter);
 
-  const fresh = filtered.filter((m) => m.status === "recommended");
-  const active = filtered.filter((m) => ["intro_requested", "accepted", "launched"].includes(m.status));
-  const bin = filtered.filter((m) => ["declined", "saved"].includes(m.status));
+  const myDecision = isBusinessViewer ? "businessDecision" : "nonprofitDecision";
+  const fresh = filtered.filter((m) => !m[myDecision] && m.status !== "declined");
+  const active = filtered.filter((m) => ["awaiting_nonprofit", "awaiting_business", "mutually_approved", "outreach_pending", "outreach_sent", "accepted", "launched"].includes(m.status));
+  const bin = filtered.filter((m) => ["declined", "on_hold"].includes(m.status));
 
   root.innerHTML = `
     <section class="panel">
       <h2>Your Matches</h2>
-      <p class="muted">Approve, deny, or hold on each new match below. Once you approve, they're notified — you can rate a partner once you've worked together.</p>
+      <p class="muted">Approve, deny, or hold each suggestion. A match moves to outreach only after both sides approve; Raise Local coordinates the next step.</p>
       ${causeFilterHtml(causes)}
     </section>
 
@@ -1670,8 +1678,8 @@ function triageCard(match, isBusinessViewer) {
         </div>
         <div class="flip-card-back">
           <span class="flip-check">${ICONS.check}</span>
-          <h3>You've started a match with ${escapeHtml(name)}!</h3>
-          <p class="muted">They've been notified — follow up from Active Matches.</p>
+          <h3>Your decision is recorded.</h3>
+          <p class="muted">The other side can now review the opportunity. When both sides approve, Raise Local coordinates outreach.</p>
         </div>
       </div>
     </div>
@@ -1718,7 +1726,7 @@ function binCard(match, isBusinessViewer) {
 function wireBinCards() {
   root.querySelectorAll("[data-reconsider]").forEach((button) => {
     button.addEventListener("click", () => {
-      upsertMatchStatus(button.dataset.requestId, button.dataset.businessId, "recommended");
+      upsertMatchDecision(button.dataset.requestId, button.dataset.businessId, myRole(), "");
       render();
     });
   });
@@ -2024,10 +2032,9 @@ function value(id) {
 
 function upsertMatchStatus(requestId, businessId, status) {
   const existing = data.matches.find((match) => match.requestId === requestId && match.businessId === businessId);
-  const fromStatus = existing?.status || "recommended";
-  const notificationStatuses = ["intro_requested", "accepted", "launched"];
+  const fromStatus = existing?.status || "suggested";
   const fields = { status };
-  if (notificationStatuses.includes(status)) fields.notifiedAt = new Date().toISOString();
+  if (["mutually_approved", "outreach_pending", "outreach_sent", "accepted", "launched"].includes(status)) fields.notifiedAt = new Date().toISOString();
   if (existing) Object.assign(existing, fields);
   else data.matches.push({ requestId, businessId, ...fields });
   saveData(data);
@@ -2035,11 +2042,70 @@ function upsertMatchStatus(requestId, businessId, status) {
     requestId,
     businessId,
     status,
+    nonprofitDecision: existing?.nonprofitDecision || "",
+    businessDecision: existing?.businessDecision || "",
+    outreachStatus: existing?.outreachStatus || "not_started",
+    outreachMessage: existing?.outreachMessage || "",
+    outreachAt: existing?.outreachAt || null,
     fromStatus,
     declineReason: existing?.declineReason || "",
     declineNote: existing?.declineNote || "",
     adminNote: existing?.adminNote || "",
     notifiedAt: fields.notifiedAt || existing?.notifiedAt || null,
+  });
+}
+
+function upsertMatchDecision(requestId, businessId, role, decision) {
+  const existing = data.matches.find((match) => match.requestId === requestId && match.businessId === businessId) || { requestId, businessId };
+  const fromStatus = existing.status || "suggested";
+  const field = role === "business" ? "businessDecision" : "nonprofitDecision";
+  existing[field] = decision;
+  existing.status = deriveMatchStatus(existing);
+  if (existing.status === "mutually_approved") existing.outreachStatus = "pending";
+  if (existing.status === "mutually_approved" || existing.status === "outreach_pending") existing.notifiedAt = new Date().toISOString();
+  const index = data.matches.findIndex((match) => match.requestId === requestId && match.businessId === businessId);
+  if (index === -1) data.matches.push(existing);
+  saveData(data);
+  syncMatchDecision({
+    requestId,
+    businessId,
+    status: existing.status,
+    fromStatus,
+    nonprofitDecision: existing.nonprofitDecision || "",
+    businessDecision: existing.businessDecision || "",
+    outreachStatus: existing.outreachStatus || "not_started",
+    outreachMessage: existing.outreachMessage || "",
+    outreachAt: existing.outreachAt || null,
+    declineReason: existing.declineReason || "",
+    declineNote: existing.declineNote || "",
+    adminNote: existing.adminNote || "",
+    notifiedAt: existing.notifiedAt || null,
+  });
+}
+
+function upsertMatchOutreach(requestId, businessId) {
+  const match = data.matches.find((item) => item.requestId === requestId && item.businessId === businessId) || { requestId, businessId };
+  const fromStatus = match.status || "suggested";
+  match.outreachStatus = "sent";
+  match.outreachAt = new Date().toISOString();
+  match.status = deriveMatchStatus(match);
+  const index = data.matches.findIndex((item) => item.requestId === requestId && item.businessId === businessId);
+  if (index === -1) data.matches.push(match);
+  saveData(data);
+  syncMatchDecision({
+    requestId,
+    businessId,
+    status: match.status,
+    fromStatus,
+    nonprofitDecision: match.nonprofitDecision || "",
+    businessDecision: match.businessDecision || "",
+    outreachStatus: match.outreachStatus,
+    outreachMessage: match.outreachMessage || "",
+    outreachAt: match.outreachAt,
+    declineReason: match.declineReason || "",
+    declineNote: match.declineNote || "",
+    adminNote: match.adminNote || "",
+    notifiedAt: match.notifiedAt || match.outreachAt,
   });
 }
 
@@ -2085,16 +2151,8 @@ function myNotifications() {
 // Approve/Deny/Hold map onto the existing match statuses — no new status
 // values needed. Approve notifies the other side; deny/hold are silent.
 function respondToMatch(match, decision) {
-  const statusMap = { approve: "intro_requested", deny: "declined", hold: "saved" };
-  upsertMatchStatus(match.request.id, match.business.id, statusMap[decision]);
-  if (decision !== "approve") return;
-  const iAmBusiness = myRole() === "business";
-  addNotification({
-    forEmail: iAmBusiness ? match.request.email : match.business.email,
-    message: `${escapeHtml(iAmBusiness ? match.business.name : match.request.organizationName)} approved a match with you — check them out.`,
-    requestId: match.request.id,
-    businessId: match.business.id,
-  });
+  const decisionMap = { approve: "approved", deny: "declined", hold: "held" };
+  upsertMatchDecision(match.request.id, match.business.id, myRole(), decisionMap[decision]);
 }
 
 // A rating is a trait of the entity being rated, not of the match — it's
@@ -2220,7 +2278,11 @@ function matchPreviewCard(match, { viewerIsBusiness = false } = {}) {
 // it forward; there's no separate accept step per side (matches the
 // single-sided-approval design already used for the intro itself).
 function matchProgressionAction(match) {
-  if (match.status === "intro_requested") {
+  if (match.status === "mutually_approved" || match.status === "outreach_pending") {
+    if (isAdmin()) return `<button type="button" class="secondary-btn" data-progress-status="outreach_sent" data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">Send outreach ${ICONS.arrowRight}</button>`;
+    return `<p class="notification-note">Both sides approved. Raise Local is coordinating outreach.</p>`;
+  }
+  if (match.status === "outreach_sent") {
     return `<button type="button" class="secondary-btn" data-progress-status="accepted" data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">We're working together ${ICONS.check}</button>`;
   }
   if (match.status === "accepted") {
@@ -2251,6 +2313,7 @@ function matchCard(match, { showAdminControls = false, showRating = false } = {}
       <p>${escapeHtml(match.request.campaignDescription)}</p>
       <p class="forecast">${escapeHtml(match.forecast)}</p>
       <p class="muted">Business goals: ${escapeHtml((match.business.businessGoals || []).slice(0, 4).join(", ") || "Not captured yet")}</p>
+      <p class="match-consent">Nonprofit: <strong>${escapeHtml(statusLabel(match.nonprofitDecision || "awaiting"))}</strong> · Business: <strong>${escapeHtml(statusLabel(match.businessDecision || "awaiting"))}</strong></p>
       <div class="tag-row">${match.reasons.map((reason) => `<span class="tag">${escapeHtml(reason)}</span>`).join("")}</div>
       <details class="decision-path">
         <summary>Decision tree path</summary>
@@ -2263,7 +2326,7 @@ function matchCard(match, { showAdminControls = false, showRating = false } = {}
         showAdminControls
           ? `
       <div class="match-actions">
-        <label for="status-${escapeHtml(match.id)}">Match status</label>
+        <label for="status-${escapeHtml(match.id)}">Workflow status</label>
         <select id="status-${escapeHtml(match.id)}" data-status-update data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">
           ${MATCH_STATUSES.map((status) => `<option value="${status}" ${match.status === status ? "selected" : ""}>${statusLabel(status)}</option>`).join("")}
         </select>
@@ -2275,6 +2338,8 @@ function matchCard(match, { showAdminControls = false, showRating = false } = {}
         <textarea data-decline-note data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}" rows="2" placeholder="Optional note for learning why this was not a fit">${escapeHtml(match.declineNote || "")}</textarea>
         <label for="admin-${escapeHtml(match.id)}">Admin override / intro note</label>
         <textarea id="admin-${escapeHtml(match.id)}" data-admin-note data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}" rows="2" placeholder="Manual recommendation, intro context, or override reason">${escapeHtml(match.adminNote || "")}</textarea>
+        ${["mutually_approved", "outreach_pending"].includes(match.status) ? `<button type="button" class="primary-btn" data-outreach-send data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">Send outreach ${ICONS.arrowRight}</button>` : ""}
+        ${match.status === "outreach_sent" ? `<p class="notification-note">Outreach sent${match.outreachAt ? ` on ${escapeHtml(formatDateTime(match.outreachAt))}` : ""}.</p>` : ""}
       </div>`
           : matchProgressionAction(match)
       }

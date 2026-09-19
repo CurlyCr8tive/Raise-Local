@@ -84,7 +84,31 @@ export const AVAILABILITY_OPTIONS = ["Right away", "Within a month", "1-3 months
 
 export const DECLINE_REASONS = ["Timing", "Location", "Capacity", "Budget or minimum", "Support type", "Not the right fit"];
 
-export const MATCH_STATUSES = ["recommended", "saved", "intro_requested", "accepted", "declined", "launched"];
+export const MATCH_DECISIONS = ["approved", "held", "declined"];
+export const MATCH_STATUSES = [
+  "suggested",
+  "awaiting_nonprofit",
+  "awaiting_business",
+  "on_hold",
+  "declined",
+  "mutually_approved",
+  "outreach_pending",
+  "outreach_sent",
+  "accepted",
+  "launched",
+];
+
+export function deriveMatchStatus(match = {}) {
+  if (["accepted", "launched"].includes(match.status)) return match.status;
+  if (match.outreachStatus === "sent") return "outreach_sent";
+  if (match.outreachStatus === "pending") return "outreach_pending";
+  if (match.nonprofitDecision === "declined" || match.businessDecision === "declined" || match.status === "declined") return "declined";
+  if (match.nonprofitDecision === "held" || match.businessDecision === "held" || match.status === "saved") return "on_hold";
+  if (match.nonprofitDecision === "approved" && match.businessDecision === "approved") return "mutually_approved";
+  if (match.nonprofitDecision === "approved") return "awaiting_business";
+  if (match.businessDecision === "approved") return "awaiting_nonprofit";
+  return "suggested";
+}
 
 export function splitSelections(value) {
   return String(value || "")
@@ -132,7 +156,12 @@ export function buildMatches(campaignRequests, businesses, existingMatches = [])
           id: `${request.id}-${business.id}`,
           request,
           business,
-          status: saved?.status || "recommended",
+          status: deriveMatchStatus(saved || {}),
+          nonprofitDecision: saved?.nonprofitDecision || "",
+          businessDecision: saved?.businessDecision || "",
+          outreachStatus: saved?.outreachStatus || "not_started",
+          outreachMessage: saved?.outreachMessage || "",
+          outreachAt: saved?.outreachAt || "",
           declineReason: saved?.declineReason || "",
           declineNote: saved?.declineNote || "",
           adminNote: saved?.adminNote || "",

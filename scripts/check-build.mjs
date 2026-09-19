@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
-import { buildMatches, scoreMatch } from "../src/matching.js";
+import { buildMatches, deriveMatchStatus, scoreMatch } from "../src/matching.js";
 
 const root = process.cwd();
 const jsFiles = [];
@@ -66,6 +66,50 @@ function assertMatchingRules() {
   assert.equal(buildMatches([request], [{ ...business, activeCampaigns: 2 }]).length, 0);
 }
 
+function assertWorkflowFixtures() {
+  const nonprofit = {
+    id: "workflow-request",
+    causeArea: "Education",
+    businessPreference: "Food and beverage",
+    geography: "Manhattan",
+    supportNeeds: ["Food & beverage"],
+    partnershipTypesNeeded: ["Fundraising"],
+    expectedParticipation: 60,
+    minimumSize: 40,
+    fundingGoal: 2400,
+    startDate: "2026-10-01",
+    endDate: "2026-10-31",
+  };
+  const business = {
+    id: "workflow-business",
+    category: "Food and beverage",
+    serviceAreas: ["Manhattan"],
+    causeAreas: ["Education"],
+    offerTypes: ["Food & beverage"],
+    partnershipTypes: ["Fundraising"],
+    minimumCapacity: 40,
+    maximumCapacity: 120,
+    minimumOrderRequirement: 200,
+    campaignCap: 2,
+    activeCampaigns: 0,
+    availableFrom: "2026-09-01",
+    availableTo: "2026-11-01",
+    estimatedUnitContribution: 12,
+  };
+  const match = scoreMatch(nonprofit, business);
+  assert.equal(match.rejected, false);
+  assert.ok(match.reasons.includes("Supports Education"));
+  assert.equal(buildMatches([nonprofit], [business])[0].business.id, "workflow-business");
+
+  assert.equal(deriveMatchStatus({}), "suggested");
+  assert.equal(deriveMatchStatus({ nonprofitDecision: "approved" }), "awaiting_business");
+  assert.equal(deriveMatchStatus({ businessDecision: "approved" }), "awaiting_nonprofit");
+  assert.equal(deriveMatchStatus({ nonprofitDecision: "held" }), "on_hold");
+  assert.equal(deriveMatchStatus({ nonprofitDecision: "approved", businessDecision: "approved" }), "mutually_approved");
+  assert.equal(deriveMatchStatus({ nonprofitDecision: "approved", businessDecision: "declined" }), "declined");
+  assert.equal(deriveMatchStatus({ nonprofitDecision: "approved", businessDecision: "approved", outreachStatus: "sent" }), "outreach_sent");
+}
+
 walk(root);
 
 for (const file of jsFiles) {
@@ -85,5 +129,6 @@ for (const file of htmlFiles) {
 }
 
 assertMatchingRules();
+assertWorkflowFixtures();
 
 console.log(`Build check passed: ${jsFiles.length} JavaScript files, ${htmlFiles.length} HTML files, and matching rules verified.`);
