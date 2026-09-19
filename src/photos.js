@@ -49,10 +49,14 @@ const CAUSE_FALLBACK = ["1628717341663-0007b0ee2597", "1517457373958-b7bdd458720
 // Real business-supplied photos, keyed by id — checked before the stock pool.
 const BUSINESS_PHOTO_OVERRIDES = {
   "biz-yamaas": "assets/yamaas-hero.png",
+  "biz-eyeland-vibes": "assets/eyeland-vibes.png",
+  "biz-first-choice-brew": "assets/first-choice-brew.png",
 };
 
 const REQUEST_PHOTO_OVERRIDES = {
   "request-young-excellence": "assets/young-excellence-society.png",
+  "request-grove-park": "assets/grove-park-foundation.jpg",
+  "request-unity-now": "assets/unity-now.png",
 };
 
 export function businessPhoto(business) {

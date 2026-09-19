@@ -1465,6 +1465,7 @@ function renderMyOwnProfile(kind) {
         <div><p class="muted">Your submitted ${kind === "business" ? "business profile" : "campaign requests"}. Use "Complete profile" for stronger matches.</p></div>
         ${kind === "request" && own.length ? `<label class="sort-select-wrap">Sort by <select id="campaign-sort"><option value="newest" ${campaignSort === "newest" ? "selected" : ""}>Newest</option><option value="oldest" ${campaignSort === "oldest" ? "selected" : ""}>Oldest</option><option value="upcoming" ${campaignSort === "upcoming" ? "selected" : ""}>Campaign date</option><option value="completed" ${campaignSort === "completed" ? "selected" : ""}>Completed first</option></select></label>` : ""}
       </div>
+      <button type="button" class="primary-btn" data-goto-matches>Find New Matches ${ICONS.arrowRight}</button>
     </section>
     <section class="entity-list">${own.length ? own.map((record) => card(record, { showCompleteProfile: true })).join("") : empty}</section>
   `;
@@ -1479,10 +1480,10 @@ function renderMyOwnProfile(kind) {
     authScreen = "quiz-choose";
     render();
   });
-  root.querySelector("[data-goto-matches]")?.addEventListener("click", () => {
+  root.querySelectorAll("[data-goto-matches]").forEach((button) => button.addEventListener("click", () => {
     activeView = "matches";
     render();
-  });
+  }));
   root.querySelector("#campaign-sort")?.addEventListener("change", (event) => {
     campaignSort = event.target.value;
     render();
