@@ -41,6 +41,11 @@ let data = loadData();
 let activeView = "dashboard";
 let dashboardTab = "matches"; // "matches" | "own" | "counterpart"
 let dashboardSort = "best"; // "best" | "name"
+let dashboardBorough = "all";
+let dashboardCause = "all";
+let dashboardStatus = "all";
+let dashboardSearch = "";
+let selectedMatchKey = "";
 let campaignSort = "newest"; // "newest" | "oldest" | "upcoming" | "completed"
 let matchCauseFilter = "all";
 let matchLoaderShown = false;
@@ -110,6 +115,10 @@ document.getElementById("topbar-account-btn").addEventListener("click", () => {
   menu.hidden = !menu.hidden;
 });
 
+document.querySelectorAll("[data-demo-role]").forEach((button) => {
+  button.addEventListener("click", () => switchDemoRole(button.dataset.demoRole));
+});
+
 document.getElementById("notif-btn").addEventListener("click", () => {
   const menu = document.getElementById("notif-menu");
   menu.hidden = !menu.hidden;
@@ -136,6 +145,23 @@ navButtons.forEach((button) => {
     activeView = button.dataset.view;
     render();
   });
+});
+
+document.getElementById("global-search")?.addEventListener("change", (event) => {
+  const query = event.target.value.trim().toLowerCase();
+  if (!query) {
+    activeView = "dashboard";
+    render();
+    return;
+  }
+  const match = currentMatches().find((item) => `${item.request.organizationName} ${item.business.name} ${item.request.causeArea} ${item.request.geography}`.toLowerCase().includes(query));
+  if (match) {
+    selectedMatchKey = `${match.request.id}::${match.business.id}`;
+    activeView = "matches";
+  } else {
+    activeView = isAdmin() || myRole() === "business" ? "requests" : "businesses";
+  }
+  render();
 });
 
 function passwordAlreadySet() {
@@ -367,6 +393,9 @@ function render() {
     requests: renderRequests,
     businesses: renderBusinesses,
     matches: renderMatches,
+    messages: renderMessages,
+    projects: renderProjects,
+    reports: renderReports,
     brief: renderBrief,
     settings: renderSettings,
     "complete-profile": renderCompleteProfile,
@@ -453,6 +482,14 @@ function syncAccountIdentity() {
 
   document.getElementById("topbar-account-avatar").textContent = initial;
   document.getElementById("topbar-account-name").textContent = email ? email.split("@")[0] : "Account";
+
+  const roleSwitcher = document.getElementById("demo-role-switcher");
+  if (roleSwitcher) {
+    roleSwitcher.hidden = !demoMode;
+    roleSwitcher.querySelectorAll("[data-demo-role]").forEach((button) => {
+      button.classList.toggle("active", button.dataset.demoRole === demoRole);
+    });
+  }
 }
 
 function renderSettings() {
@@ -489,7 +526,7 @@ function renderSettings() {
       <section class="panel">
         <p class="eyebrow">Matching profile</p>
         <h2>What Raise Local uses</h2>
-        <p class="muted">Your profile details help Raise Local find workable partners. They are used for matching and operations, not presented as an open marketplace listing.</p>
+        <p class="muted">Your profile details help Raise Local find partners that fit. They support matching and coordination rather than an open marketplace listing.</p>
         <ul class="settings-list">
           <li><span class="settings-check">${ICONS.check}</span><span>Location and service area</span></li>
           <li><span class="settings-check">${ICONS.check}</span><span>Cause, support, and partnership preferences</span></li>
@@ -502,7 +539,7 @@ function renderSettings() {
         <p class="eyebrow">Privacy</p>
         <h2>Control before contact</h2>
         <p class="muted">Raise Local keeps both sides in control. A match does not share direct contact details until the parties confirm interest or an introduction is requested.</p>
-        <p class="small-note">Profile visibility controls and Supabase-backed account settings will be added when the remote account connection is enabled.</p>
+        <p class="small-note">You can update your matching details at any time. Raise Local only shares contact information when both sides confirm interest or an introduction is requested.</p>
       </section>
     </section>
   `;
@@ -540,11 +577,11 @@ function renderLanding() {
         <img class="landing-logo" src="assets/raise-local-logo-hires.png" alt="Raise Local" />
         <p class="eyebrow">Raise Funds, Buy Local</p>
         <h2>Welcome to Raise Local.</h2>
-        <p class="landing-copy">We connect Local Causes with Small Businesses ready to partner and grow together. Answer a few quick questions to see your matches.</p>
+        <p class="landing-copy">Raise Local helps nonprofits find local businesses ready to support their campaigns. Answer a few questions to find partners that fit your goals, location, and timing.</p>
         <div class="landing-actions">
-          <button class="primary-btn" type="button" id="landing-start">Find My Match</button>
-          <button class="secondary-btn" type="button" id="landing-login">Log In</button>
-          <button class="link-btn" type="button" id="landing-demo">View Demo Workspace</button>
+          <button class="primary-btn" type="button" id="landing-start">Find a Partner</button>
+          <button class="secondary-btn" type="button" id="landing-login">Log in</button>
+          <button class="link-btn" type="button" id="landing-demo">Explore Demo Workspace</button>
         </div>
       </section>
     </div>
@@ -570,6 +607,23 @@ function enterDemoWorkspace() {
   authError = "";
   authScreen = "app";
   activeView = "dashboard";
+  render();
+}
+
+function switchDemoRole(role) {
+  if (!demoMode || !["admin", "nonprofit", "business"].includes(role)) return;
+  demoRole = role;
+  const demoEmails = {
+    admin: "demo@raiselocal.local",
+    nonprofit: "demo-nonprofit@raiselocal.example",
+    business: "demo-business@raiselocal.example",
+  };
+  session = { user: { email: demoEmails[role], user_metadata: { role, password_set: true } } };
+  sessionStorage.setItem("raise_local_demo_role", role);
+  activeView = "dashboard";
+  selectedMatchKey = "";
+  matchLoaderShown = false;
+  document.getElementById("topbar-account-menu").hidden = true;
   render();
 }
 
@@ -617,18 +671,18 @@ function communityNetworkSvg() {
 function renderQuizChoose() {
   root.innerHTML = `
     <section class="auth-panel">
-      <p class="eyebrow">Find My Match</p>
+      <p class="eyebrow">Find a Partner</p>
       <h2>Which one are you?</h2>
       <section class="quiz-choice-grid" aria-label="Choose your path" style="margin-top:18px;">
         <button type="button" class="choice-card" data-quiz-audience="request">
           <span>For nonprofits &amp; schools</span>
           <strong>I am a nonprofit / school.</strong>
-          <small>Tell us your goal, cause, and location so we only send workable matches.</small>
+          <small>Tell us what you need so we can surface businesses that fit your campaign.</small>
         </button>
         <button type="button" class="choice-card" data-quiz-audience="business">
           <span>For local businesses</span>
           <strong>I am a small business.</strong>
-          <small>Tell us what you offer and where you serve so we only send workable requests.</small>
+          <small>Tell us what you offer and where you serve so we can surface causes that fit.</small>
         </button>
       </section>
     </section>
@@ -769,13 +823,13 @@ function renderLogin() {
   root.innerHTML = `
     <section class="auth-panel">
       <p class="eyebrow">Welcome Back</p>
-      <h2>Log in to Raise Local.</h2>
-      <p class="muted">Your account determines your workspace: small business, nonprofit or school, or Tenyse's admin view.</p>
+      <h2>Log in to your Raise Local workspace.</h2>
+      <p class="muted">Your workspace is tailored to your role: nonprofit, local business, or Raise Local administrator.</p>
       ${authError ? `<p class="form-error">${escapeHtml(authError)}</p>` : ""}
       <form id="login-form">
         <div class="field-row"><label for="login-email">Email</label><input id="login-email" type="email" required placeholder="you@example.org" /></div>
         <div class="field-row"><label for="login-password">Password</label><input id="login-password" type="password" required placeholder="Your password" /></div>
-        <button class="primary-btn" type="submit" style="width:100%;">Log In</button>
+        <button class="primary-btn" type="submit" style="width:100%;">Log in</button>
       </form>
       <div class="auth-divider"><span>or</span></div>
       <button class="secondary-btn" type="button" id="demo-login" style="width:100%;">Open Demo Workspace</button>
@@ -1216,8 +1270,8 @@ function renderDashboard() {
 function renderAdminDashboard() {
   setTitle("Raise Local Dashboard");
   const matches = currentMatches();
-  const accepted = matches.filter((match) => match.status === "accepted").length;
-  const launched = matches.filter((match) => match.status === "launched").length;
+  const approved = matches.filter((match) => ["accepted", "active", "completed", "launched"].includes(match.status)).length;
+  const active = matches.filter((match) => ["active", "launched"].includes(match.status)).length;
   const topMatch = matches[0];
 
   root.innerHTML = `
@@ -1232,7 +1286,7 @@ function renderAdminDashboard() {
       <button type="button" class="metric-card metric-link" data-dashboard-target="requests"><span>Campaign Requests</span><strong>${data.campaignRequests.length}</strong></button>
       <button type="button" class="metric-card metric-link" data-dashboard-target="businesses"><span>Business Profiles</span><strong>${data.businesses.length}</strong></button>
       <button type="button" class="metric-card metric-link" data-dashboard-target="matches"><span>Top Matches</span><strong>${matches.length}</strong></button>
-      <button type="button" class="metric-card metric-link" data-dashboard-target="matches"><span>Accepted / Launched</span><strong>${accepted} / ${launched}</strong></button>
+      <button type="button" class="metric-card metric-link" data-dashboard-target="matches"><span>Approved / Active</span><strong>${approved} / ${active}</strong></button>
     </section>
 
     <section class="panel">
@@ -1277,7 +1331,7 @@ function renderDashboardTabContent(tab, { matches, own, counterpart, isBusinessV
   const sortedMatches = sortMode === "name" ? [...matches].sort((a, b) => a.request.organizationName.localeCompare(b.request.organizationName)) : matches;
   return sortedMatches.length
     ? sortedMatches.map((match) => matchPreviewCard(match, { viewerIsBusiness: isBusinessViewer })).join("")
-    : `<p class="muted">No matches yet — check back as new businesses and campaigns join Raise Local.</p>`;
+    : `<p class="muted">Your next partner may be one profile away. Complete your profile or submit a request to improve your recommendations.</p>`;
 }
 
 const HERO_STICKERS = ["Local", "Businesses.", "Brighter", "Futures."];
@@ -1288,39 +1342,51 @@ function renderRoleDashboard() {
   const own = isBusinessViewer ? myOwnBusinesses() : myOwnRequests();
   const matches = myMatches();
   const counterpart = isBusinessViewer ? data.campaignRequests : data.businesses;
-  const accepted = matches.filter((m) => m.status === "accepted").length;
-  const launched = matches.filter((m) => m.status === "launched").length;
+  const approved = matches.filter((m) => ["accepted", "active", "completed", "launched"].includes(m.status)).length;
+  const active = matches.filter((m) => ["active", "launched"].includes(m.status)).length;
   const name = session?.user?.email?.split("@")[0] || "";
+  const boroughs = [...new Set(matches.map((match) => match.request.geography).filter(Boolean))];
+  const causes = [...new Set(matches.map((match) => match.request.causeArea).filter(Boolean))];
+  const filteredMatches = matches.filter((match) => {
+    const boroughMatch = dashboardBorough === "all" || match.request.geography === dashboardBorough;
+    const causeMatch = dashboardCause === "all" || match.request.causeArea === dashboardCause;
+    const statusMatch = dashboardStatus === "all" || match.status === dashboardStatus;
+    const searchText = `${match.request.organizationName} ${match.request.campaignDescription} ${match.request.causeArea} ${match.business.name} ${match.business.category}`.toLowerCase();
+    const searchMatch = !dashboardSearch || searchText.includes(dashboardSearch.toLowerCase());
+    return boroughMatch && causeMatch && statusMatch && searchMatch;
+  });
 
   const impactItems = [
     { done: own.length > 0, label: `Submit your ${isBusinessViewer ? "business profile" : "campaign request"}` },
     { done: matches.length > 0, label: "Review your first matches" },
-    { done: accepted + launched > 0, label: "Accept or launch a partnership" },
+    { done: approved > 0, label: "Approve or launch a partnership" },
     { done: own.some((r) => isProfileComplete(r, isBusinessViewer)), label: "Complete your full profile" },
   ];
 
   const stats = [
-    { icon: "users", tint: "tint-peach", label: isBusinessViewer ? "Business Profile" : "Campaign Requests", value: own.length, caption: own.length ? "Submitted" : "Not started yet" },
-    { icon: "briefcase", tint: "tint-blue", label: isBusinessViewer ? "Campaign Requests" : "Business Profiles", value: counterpart.length, caption: "In the matchmaking pool" },
-    { icon: "heart", tint: "tint-pink", label: "Potential Matches", value: matches.length, caption: "Ready for your review" },
-    { icon: "link", tint: "tint-teal", label: "Accepted", value: accepted, caption: accepted ? "Partnerships confirmed" : "None yet" },
-    { icon: "send", tint: "tint-gray", label: "Launched", value: launched, caption: launched ? "Live partnerships" : "Get your first one live!" },
+    { icon: "document", tint: "tint-blue", label: isBusinessViewer ? "Campaign Requests" : "Campaign Requests", value: isBusinessViewer ? counterpart.length : own.length, caption: own.length ? "+1 new this week" : "Start your first request" },
+    { icon: "users", tint: "tint-mint", label: "Business Profiles", value: isBusinessViewer ? own.length : data.businesses.length, caption: isBusinessViewer ? "Your profile" : "+2 new this week" },
+    { icon: "handshake", tint: "tint-teal", label: "Top Matches", value: filteredMatches.length, caption: "Ready to review" },
+    { icon: "send", tint: "tint-peach", label: "Approved / Active", value: `${approved} / ${active}`, caption: approved ? "Partnership progress" : "Get your first partnership off the ground!" },
   ];
 
   root.innerHTML = `
-    <section class="dashboard-hero">
+    <section class="dashboard-filter-bar" aria-label="Dashboard filters">
+      <div class="dashboard-search"><span data-icon="search"></span><input id="dashboard-search" type="search" value="${escapeHtml(dashboardSearch)}" placeholder="Search campaigns, businesses, or causes..." aria-label="Search campaigns, businesses, or causes" /></div>
+      <label><span class="sr-only">Borough</span><select id="dashboard-borough"><option value="all">All Boroughs</option>${boroughs.map((value) => `<option value="${escapeHtml(value)}" ${dashboardBorough === value ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}</select></label>
+      <label><span class="sr-only">Cause</span><select id="dashboard-cause"><option value="all">All Causes</option>${causes.map((value) => `<option value="${escapeHtml(value)}" ${dashboardCause === value ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}</select></label>
+      <label><span class="sr-only">Status</span><select id="dashboard-status"><option value="all">All Statuses</option>${MATCH_STATUSES.map((value) => `<option value="${value}" ${dashboardStatus === value ? "selected" : ""}>${escapeHtml(statusLabel(value))}</option>`).join("")}</select></label>
+    </section>
+
+    <section class="dashboard-hero dashboard-hero-reference">
       <div class="hero-copy">
-        <p class="eyebrow">Welcome back${name ? `, ${escapeHtml(name)}` : ""}</p>
-        <h2>Build Local Partnerships.<br />Create Real Impact.</h2>
-        <p>Review matches, ${isBusinessViewer ? "support local causes" : "connect with local businesses"}, and bring meaningful collaborations to life.</p>
-        <div class="landing-actions">
-          <button type="button" class="primary-btn hero-cta" data-dashboard-target="matches">View New Matches ${ICONS.arrowRight}</button>
-          <button type="button" class="secondary-btn" data-dashboard-target="requests">${isBusinessViewer ? "Update My Profile" : "Post a Campaign"}</button>
-        </div>
+        <p class="eyebrow">Raise Funds, Buy Local</p>
+        <h2>Raise Local, powered by Verified Consulting, connects local causes with local businesses that are ready to partner, support, and grow with them.</h2>
+        <p>Stronger communities through meaningful partnerships. Local impact. Lasting change.</p>
       </div>
       <div class="hero-photo-wrap">
         <img class="hero-photo" src="${HERO_PHOTO}" alt="" loading="lazy" />
-        ${HERO_STICKERS.map((text, i) => `<span class="hero-sticker sticker-${i}">${escapeHtml(text)}</span>`).join("")}
+        <span class="hero-sticker sticker-0">Local<br />Partnerships.<br />Real Change.</span>
       </div>
     </section>
 
@@ -1357,27 +1423,25 @@ function renderRoleDashboard() {
           </label>
         </div>
         <section class="dashboard-tab-content">
-          ${renderDashboardTabContent(dashboardTab, { matches, own, counterpart, isBusinessViewer, sortMode: dashboardSort })}
+          ${renderDashboardTabContent(dashboardTab, { matches: filteredMatches, own, counterpart, isBusinessViewer, sortMode: dashboardSort })}
         </section>
       </div>
 
       <aside class="dashboard-sidebar">
         <section class="panel sidebar-widget">
-          <h3>${ICONS.leaf} Your Impact in Progress</h3>
-          <p class="muted">Local partnerships create stronger communities.</p>
-          <ul class="impact-checklist">
-            ${impactItems.map((item) => `<li class="${item.done ? "done" : ""}"><span class="checklist-dot">${item.done ? ICONS.check : ""}</span>${escapeHtml(item.label)}</li>`).join("")}
+          <h3>Recent Activity <a class="text-link" href="#" data-dashboard-target="matches">View all ${ICONS.arrowRight}</a></h3>
+          <ul class="activity-feed">
+            <li><span class="activity-icon tint-blue">${ICONS.document}</span><div><strong>New campaign request</strong><span class="muted small-note">${escapeHtml(data.campaignRequests[0]?.organizationName || "Community partner")}</span></div><span class="muted small-note">Today</span></li>
+            <li><span class="activity-icon tint-teal">${ICONS.users}</span><div><strong>New business profile</strong><span class="muted small-note">${escapeHtml(data.businesses[0]?.name || "Local business")}</span></div><span class="muted small-note">Today</span></li>
+            <li><span class="activity-icon tint-mint">${ICONS.handshake}</span><div><strong>Match suggested</strong><span class="muted small-note">${filteredMatches[0] ? `${escapeHtml(filteredMatches[0].request.organizationName)} + ${escapeHtml(filteredMatches[0].business.name)}` : "New partnership opportunity"}</span></div><span class="muted small-note">This week</span></li>
           </ul>
         </section>
 
-        <section class="panel sidebar-widget">
-          <h3>Recent Activity</h3>
-          <ul class="activity-feed">
-            <li>
-              <span class="activity-icon tint-teal">${ICONS.link}</span>
-              <div><strong>Activity feed</strong><span class="muted small-note">Coming soon — will show real match and profile updates.</span></div>
-            </li>
-          </ul>
+        <section class="panel sidebar-widget quick-actions">
+          <h3>Quick Actions</h3>
+          <button type="button" class="primary-btn" data-dashboard-target="requests">${ICONS.plus} Add Campaign Request</button>
+          <button type="button" class="secondary-btn" data-dashboard-target="businesses">${ICONS.plus} Add Business Profile</button>
+          <button type="button" class="secondary-btn" data-dashboard-target="matches">${ICONS.search} Find Matches</button>
         </section>
 
         <section class="panel sidebar-quote">
@@ -1402,12 +1466,25 @@ function renderRoleDashboard() {
   });
   root.querySelectorAll("[data-view-match]").forEach((button) => {
     button.addEventListener("click", () => {
+      selectedMatchKey = `${button.dataset.requestId}::${button.dataset.businessId}`;
       activeView = "matches";
       render();
     });
   });
   document.getElementById("dashboard-sort").addEventListener("change", (event) => {
     dashboardSort = event.target.value;
+    render();
+  });
+  ["dashboard-borough", "dashboard-cause", "dashboard-status"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("change", (event) => {
+      if (id === "dashboard-borough") dashboardBorough = event.target.value;
+      if (id === "dashboard-cause") dashboardCause = event.target.value;
+      if (id === "dashboard-status") dashboardStatus = event.target.value;
+      render();
+    });
+  });
+  document.getElementById("dashboard-search")?.addEventListener("change", (event) => {
+    dashboardSearch = event.target.value.trim();
     render();
   });
 }
@@ -1424,6 +1501,7 @@ function renderRequests() {
     quizConfirmation = "";
     root.innerHTML = `
       ${banner}
+      <section class="directory-page-header"><p class="eyebrow">Partnership opportunities</p><h2>Campaign Requests</h2><p class="muted">Find community campaigns that align with local business goals, capacity, and timing.</p></section>
       <section class="panel"><h2>Nonprofit Intake</h2>${requestForm()}</section>
       <section class="entity-list">${data.campaignRequests.map((r) => requestCard(r, { showCompleteProfile: true })).join("")}</section>
     `;
@@ -1459,6 +1537,7 @@ function renderMyOwnProfile(kind) {
 
   root.innerHTML = `
     ${banner}
+    <section class="directory-page-header"><p class="eyebrow">Your Raise Local workspace</p><h2>${kind === "business" ? "Your Business Profile" : "Your Campaign Requests"}</h2><p class="muted">${kind === "business" ? "Show local causes what you can offer and where you can make an impact." : "Share what your organization needs so the right local partners can find you."}</p></section>
     ${activityPanel}
     <section class="panel">
       <div class="section-heading">
@@ -1513,15 +1592,15 @@ function campaignStage(request) {
 }
 
 function matchActivityPanel(matches, otherSide) {
-  const interested = matches.filter((m) => ["intro_requested", "accepted", "launched"].includes(m.status)).length;
-  const accepted = matches.filter((m) => ["accepted", "launched"].includes(m.status)).length;
-  const launched = matches.filter((m) => m.status === "launched").length;
+  const interested = matches.filter((m) => ["mutually_approved", "outreach_pending", "outreach_sent", "accepted", "active", "completed", "launched"].includes(m.status)).length;
+  const accepted = matches.filter((m) => ["accepted", "active", "completed", "launched"].includes(m.status)).length;
+  const launched = matches.filter((m) => ["active", "completed", "launched"].includes(m.status)).length;
 
   if (!matches.length) {
     return `
       <section class="panel match-activity">
         <h2>Match Activity</h2>
-        <p class="muted">No matches yet — once a compatible ${otherSide === "nonprofits" ? "nonprofit" : "business"} joins Raise Local, you'll see it here.</p>
+        <p class="muted">No partner matches yet. As compatible ${otherSide === "nonprofits" ? "nonprofits" : "businesses"} join Raise Local, they will appear here.</p>
       </section>
     `;
   }
@@ -1532,7 +1611,7 @@ function matchActivityPanel(matches, otherSide) {
       <div class="activity-stats">
         <div><strong>${matches.length}</strong><span>Total matches</span></div>
         <div><strong>${interested}</strong><span>Interested</span></div>
-        <div><strong>${accepted}</strong><span>Accepted</span></div>
+        <div><strong>${accepted}</strong><span>Approved</span></div>
         <div><strong>${launched}</strong><span>Launched</span></div>
       </div>
       <p class="muted">We're actively matching you with ${escapeHtml(otherSide)}. Review and respond from Matches to Review.</p>
@@ -1567,7 +1646,8 @@ function renderBusinesses() {
   const card = isBusinessViewer ? requestCard : businessCard;
   const noun = isBusinessViewer ? "campaign requests" : "businesses";
   root.innerHTML = `
-    <section class="panel"><p class="muted">All ${noun} in the matchmaking pool. Your strongest, scored matches are on Match Review.</p></section>
+    <section class="directory-page-header"><p class="eyebrow">Partnership opportunities</p><h2>${isBusinessViewer ? "Campaign Requests" : "Business Profiles"}</h2><p class="muted">${isBusinessViewer ? "Find nonprofit campaigns that align with your offer, capacity, and community goals." : "Find local businesses ready to support meaningful nonprofit campaigns."}</p></section>
+    <section class="panel directory-helper"><p class="muted">All ${noun} in the matchmaking pool. Your strongest, scored matches are on Match Review.</p></section>
     <section class="entity-list">${pool.length ? pool.map((record) => card(record, { showCompleteProfile: false })).join("") : `<p class="muted">Nothing in the pool yet. Once a ${isBusinessViewer ? "nonprofit" : "business"} completes the Match Finder quiz, it'll show up here.</p>`}</section>
   `;
 }
@@ -1628,11 +1708,71 @@ function wireQualityControls() {
 }
 
 function renderMatches() {
+  if (selectedMatchKey) {
+    const [requestId, businessId] = selectedMatchKey.split("::");
+    const match = currentMatches().find((item) => item.request.id === requestId && item.business.id === businessId) || myMatches().find((item) => item.request.id === requestId && item.business.id === businessId);
+    if (match) {
+      renderMatchDetail(match);
+      return;
+    }
+    selectedMatchKey = "";
+  }
   if (isAdmin()) {
     renderAdminMatchReview();
     return;
   }
   renderMatchTriage();
+}
+
+function suggestedCampaignApproach(match) {
+  const need = match.request.supportNeeds?.[0] || match.request.eventType || "a community campaign";
+  const offer = match.business.offerTypes?.[0] || match.business.contributionTypes?.[0] || "a partnership offer";
+  const size = Number(match.request.idealSize || match.request.minimumSize || 0).toLocaleString();
+  return `Start with a ${need.toLowerCase()} built around ${offer.toLowerCase()}, sized for approximately ${size || "the campaign audience"} participants. Raise Local can introduce both sides after mutual approval.`;
+}
+
+function renderMatchDetail(match) {
+  setTitle("Match Details");
+  const approach = suggestedCampaignApproach(match);
+  root.innerHTML = `
+    <button type="button" class="back-link" data-match-back>${ICONS.undo} Back to Match Review</button>
+    <section class="match-detail-hero">
+      <div>
+        <p class="eyebrow">Raise Local Match Finder</p>
+        <h2>${escapeHtml(match.request.organizationName)} <span aria-hidden="true">+</span> ${escapeHtml(match.business.name)}</h2>
+        <p class="muted">A transparent recommendation based on cause, location, timing, partnership type, capacity, and fundraising needs.</p>
+      </div>
+      <div class="match-detail-score"><span>${escapeHtml(match.label)}</span><strong>${match.total}</strong><small>fit signal</small></div>
+    </section>
+    <section class="match-detail-grid">
+      <div>
+        ${matchCard(match, { showAdminControls: isAdmin() })}
+      </div>
+      <aside class="match-detail-rail">
+        <section class="panel detail-insight">
+          <p class="eyebrow">Suggested campaign approach</p>
+          <h3>Make the first partnership easy to say yes to.</h3>
+          <p>${escapeHtml(approach)}</p>
+        </section>
+        <section class="panel detail-insight">
+          <p class="eyebrow">Estimated fundraising scenario</p>
+          <h3>${escapeHtml(match.forecast)}</h3>
+          <p class="muted">Illustrative scenario based on the campaign goal and estimated contribution. It is not a guarantee; both parties agree the final offer and terms.</p>
+        </section>
+        <section class="panel detail-insight">
+          <p class="eyebrow">What the assistant checked</p>
+          <div class="detail-check-list">${(match.decisionStages || []).slice(0, 5).map((stage) => `<div class="${stage.passed ? "passed" : "blocked"}">${stage.passed ? ICONS.check : ICONS.close}<span>${escapeHtml(stage.label)}</span></div>`).join("")}</div>
+        </section>
+      </aside>
+    </section>
+  `;
+  root.querySelector("[data-match-back]").addEventListener("click", () => {
+    selectedMatchKey = "";
+    render();
+  });
+  wireActiveMatchControls();
+  wireMatchProgressionButtons();
+  wireRatingWidgets();
 }
 
 function causeFilterOptions(matches) {
@@ -1646,11 +1786,11 @@ function renderAdminMatchReview() {
   const matches = matchCauseFilter === "all" ? all : all.filter((m) => m.request.causeArea === matchCauseFilter);
   root.innerHTML = `
     <section class="panel">
-      <h2>Recommended Matches</h2>
-      <p class="muted">A match appears only when the must-haves work. Recommendations explain why they fit, surface the strongest 3-5 options, and record accept, pass, save, introduction, and admin override decisions.</p>
+      <h2>Recommended Partners</h2>
+      <p class="muted">The matching assistant prioritizes the strongest 3-5 explainable fits. Tenyse can approve for introduction, hold, or decline each recommendation, then coordinate outreach after both sides approve.</p>
       ${causeFilterHtml(causes)}
     </section>
-    <section class="match-grid">${matches.length ? matches.map((match) => matchCard(match, { showAdminControls: true })).join("") : `<p class="muted">No matches yet.</p>`}</section>
+    <section class="match-grid">${matches.length ? matches.map((match) => matchCard(match, { showAdminControls: true })).join("") : `<p class="muted">No recommendations are ready yet. Add more campaign and partner details to improve the next set of suggestions.</p>`}</section>
   `;
   wireCauseFilter();
   wireActiveMatchControls();
@@ -1723,8 +1863,9 @@ function renderMatchTriage() {
           <span></span><span></span><span></span><span></span><i></i><i></i>
         </div>
         <p class="eyebrow">Raise Local Match Finder</p>
-        <h2>Finding matches that fit.</h2>
-        <p class="muted">We are comparing cause, location, capacity, partnership type, and timing.</p>
+        <h2>Finding partners that fit.</h2>
+        <p class="muted">The matching assistant is comparing your request with local businesses and preparing an explainable recommendation.</p>
+        <div class="match-loading-progress"><span></span></div>
         <div class="match-loading-steps" aria-hidden="true">
           <span>Checking cause alignment</span>
           <span>Comparing service areas</span>
@@ -1745,13 +1886,13 @@ function renderMatchTriage() {
 
   const myDecision = isBusinessViewer ? "businessDecision" : "nonprofitDecision";
   const fresh = filtered.filter((m) => !m[myDecision] && m.status !== "declined");
-  const active = filtered.filter((m) => ["awaiting_nonprofit", "awaiting_business", "mutually_approved", "outreach_pending", "outreach_sent", "accepted", "launched"].includes(m.status));
+  const active = filtered.filter((m) => ["under_review", "awaiting_nonprofit", "awaiting_business", "mutually_approved", "outreach_pending", "outreach_sent", "accepted", "active", "completed", "launched"].includes(m.status));
   const bin = filtered.filter((m) => ["declined", "on_hold"].includes(m.status));
 
   root.innerHTML = `
     <section class="panel">
-      <h2>Your Matches</h2>
-      <p class="muted">Approve, deny, or hold each suggestion. A match moves to outreach only after both sides approve; Raise Local coordinates the next step.</p>
+      <h2>Your Partner Matches</h2>
+      <p class="muted">Approve for introduction, hold for later, or decline each suggestion. Outreach begins only after both sides approve.</p>
       ${causeFilterHtml(causes)}
     </section>
 
@@ -1780,6 +1921,81 @@ function renderMatchTriage() {
   wireMatchProgressionButtons();
   wireRatingWidgets();
   wireBinCards();
+}
+
+function renderMessages() {
+  setTitle("Outreach");
+  const approved = currentMatches().filter((match) => ["mutually_approved", "outreach_pending", "outreach_sent", "accepted", "active", "completed", "launched"].includes(match.status));
+  root.innerHTML = `
+    <section class="directory-page-header">
+      <p class="eyebrow">Relationship workspace</p>
+      <h2>Outreach coordination</h2>
+      <p class="muted">Keep the next step visible after a match is approved. Raise Local keeps outreach context connected to the partnership.</p>
+    </section>
+    ${approved.length ? `<section class="message-list">${approved.map((match) => `
+      <article class="panel message-row">
+        <div class="message-row-icon">${ICONS.handshake}</div>
+        <div><p class="eyebrow">${escapeHtml(statusLabel(match.status))}</p><h3>${escapeHtml(match.request.organizationName)} + ${escapeHtml(match.business.name)}</h3><p class="muted">This partnership is ready for coordination. Open the match to review context and next steps.</p></div>
+        <button type="button" class="secondary-btn" data-view-match data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">View match ${ICONS.arrowRight}</button>
+      </article>
+    `).join("")}</section>` : emptyState({ icon: { svg: ICONS.send, tint: "icon-tint-mint" }, title: "No partner conversations yet", body: "Once both sides approve a match, the conversation and outreach context will appear here.", action: { label: "Review matches", gotoView: "matches" } })}
+  `;
+  wireViewMatchButtons();
+  wireEmptyStates(root, (view) => { activeView = view; }, render);
+}
+
+function renderProjects() {
+  setTitle("My Projects");
+  const projects = currentMatches().filter((match) => ["accepted", "active", "completed", "launched"].includes(match.status));
+  root.innerHTML = `
+    <section class="directory-page-header">
+      <p class="eyebrow">Partnership follow-through</p>
+      <h2>My Projects</h2>
+      <p class="muted">Track approved partnerships from the first conversation through a completed campaign.</p>
+    </section>
+    ${projects.length ? `<section class="project-list">${projects.map((match) => `
+      <article class="panel project-row">
+        <div class="project-row-identity"><img src="${escapeHtml(requestPhoto(match.request))}" alt="" /><div><h3>${escapeHtml(match.request.organizationName)} + ${escapeHtml(match.business.name)}</h3><p class="muted">${escapeHtml(match.request.causeArea)} · ${escapeHtml(match.request.geography)}</p></div></div>
+        <span class="status-pill status-ready">${escapeHtml(statusLabel(match.status))}</span>
+        <button type="button" class="secondary-btn" data-view-match data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">Open project ${ICONS.arrowRight}</button>
+      </article>
+    `).join("")}</section>` : emptyState({ icon: { svg: ICONS.handshake, tint: "icon-tint-mint" }, title: "No active projects yet", body: "Mutually approved matches become projects here once outreach is sent and the partnership begins.", action: { label: "Review matches", gotoView: "matches" } })}
+  `;
+  wireViewMatchButtons();
+  wireEmptyStates(root, (view) => { activeView = view; }, render);
+}
+
+function renderReports() {
+  setTitle("Reports");
+  const matches = currentMatches();
+  const approved = matches.filter((match) => ["mutually_approved", "outreach_pending", "outreach_sent", "accepted", "active", "completed", "launched"].includes(match.status)).length;
+  const active = matches.filter((match) => ["active", "launched"].includes(match.status)).length;
+  const completed = matches.filter((match) => ["completed", "launched"].includes(match.status)).length;
+  root.innerHTML = `
+    <section class="directory-page-header">
+      <p class="eyebrow">Partnership outcomes</p>
+      <h2>Reports</h2>
+      <p class="muted">A clear view of the relationships Raise Local is helping move from interest to impact.</p>
+    </section>
+    <section class="metric-grid report-metrics">
+      <article class="metric-card"><span>Suggested matches</span><strong>${matches.length}</strong><small>Explainable recommendations</small></article>
+      <article class="metric-card"><span>Approved partnerships</span><strong>${approved}</strong><small>Both sides can move forward</small></article>
+      <article class="metric-card"><span>Active campaigns</span><strong>${active}</strong><small>Currently in progress</small></article>
+      <article class="metric-card"><span>Completed campaigns</span><strong>${completed}</strong><small>Ready for outcome review</small></article>
+    </section>
+    <section class="panel report-next-step"><div><p class="eyebrow">Next useful step</p><h3>Turn every completed partnership into better recommendations.</h3><p class="muted">Capture what worked, what was delivered, and whether the campaign reached its goal so future matches become more useful.</p></div><button type="button" class="primary-btn" data-report-target="projects">View projects ${ICONS.arrowRight}</button></section>
+  `;
+  root.querySelector("[data-report-target]")?.addEventListener("click", () => { activeView = "projects"; render(); });
+}
+
+function wireViewMatchButtons() {
+  root.querySelectorAll("[data-view-match]").forEach((button) => {
+    button.addEventListener("click", () => {
+      selectedMatchKey = `${button.dataset.requestId}::${button.dataset.businessId}`;
+      activeView = "matches";
+      render();
+    });
+  });
 }
 
 function triageCard(match, isBusinessViewer) {
@@ -1919,7 +2135,7 @@ function renderBrief() {
             <li>Campaign request intake.</li>
             <li>Business match profiles.</li>
             <li>Explainable top 3-5 filtered matches.</li>
-            <li>Accept, decline, and launch statuses.</li>
+            <li>Approve, hold, decline, outreach, active, and completed statuses.</li>
             <li>Decline reason notes and simple business ratings.</li>
             <li>Human review before introductions.</li>
           </ul>
@@ -2325,28 +2541,55 @@ function submitRating(match, rating, note) {
   saveData(data);
 }
 
+function entityInitials(name) {
+  return String(name || "RL")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+}
+
+function entityVisual(name, photo, kind) {
+  if (photo.startsWith("assets/")) {
+    return `<img class="entity-list-photo brand-photo" src="${photo}" alt="${escapeHtml(name)}" loading="lazy" />`;
+  }
+  return `<span class="entity-avatar ${kind === "business" ? "entity-avatar-business" : "entity-avatar-nonprofit"}" aria-label="${escapeHtml(name)}">${escapeHtml(entityInitials(name))}</span>`;
+}
+
 function requestCard(request, { showCompleteProfile = false } = {}) {
+  const photo = requestPhoto(request);
   return `
-    <article class="entity-card">
-          <img class="entity-photo${isBrandAsset(requestPhoto(request)) ? " brand-photo" : ""}" src="${requestPhoto(request)}" alt="" loading="lazy" />
-      <div class="entity-head">
+    <article class="entity-card directory-card">
+      <div class="directory-card-top">
+        <span class="opportunity-kind opportunity-nonprofit">Nonprofit request</span>
+        <span class="directory-location">${ICONS.mapPin} ${escapeHtml(request.geography || "Local")}</span>
+      </div>
+      <div class="directory-identity">
+        ${entityVisual(request.organizationName, photo, "nonprofit")}
         <div>
           <h3>${escapeHtml(request.organizationName)}</h3>
-          <p class="muted">${escapeHtml(request.organizationType)} · ${escapeHtml(request.geography)} · $${Number(request.fundingGoal).toLocaleString()}</p>
+          <p class="muted">${escapeHtml(request.organizationType)} · $${Number(request.fundingGoal || 0).toLocaleString()} goal</p>
         </div>
-        <span class="status-pill status-new">${escapeHtml(campaignStage(request))}</span>
       </div>
-      <p>${escapeHtml(request.campaignDescription)}</p>
-      <p class="muted">${request.rating ? `${request.rating} star rating - ${escapeHtml(request.reviewNote || "No review note")}` : "No rating yet"}</p>
-      <p class="small-note">Campaign window: ${escapeHtml(request.startDate || "Not scheduled")} to ${escapeHtml(request.endDate || "Not scheduled")}${request.successDetails ? ` · Outcome: ${escapeHtml(request.successDetails)}` : ""}</p>
+      <div class="directory-card-copy">
+        <h4>${escapeHtml(request.eventType || "Campaign opportunity")}</h4>
+        <p>${escapeHtml(request.campaignDescription)}</p>
+      </div>
+      <div class="directory-meta">
+        <span>${ICONS.calendar} ${escapeHtml(request.startDate || "Ongoing")}</span>
+        <span>${ICONS.users} ${Number(request.idealSize || request.minimumSize || 0).toLocaleString()} capacity</span>
+      </div>
       <div class="tag-row">
         <span class="tag">${escapeHtml(request.causeArea)}</span>
         <span class="tag">${escapeHtml(request.businessPreference)}</span>
-        <span class="tag">${escapeHtml(request.eventType || "Campaign")}</span>
-        <span class="tag">Size ${Number(request.minimumSize || 0).toLocaleString()}-${Number(request.idealSize || 0).toLocaleString()}</span>
-        <span class="tag">${escapeHtml(request.startDate || "No start date")} to ${escapeHtml(request.endDate || "No end date")}</span>
+        <span class="tag">${escapeHtml(campaignStage(request))}</span>
       </div>
-      ${showCompleteProfile ? `<button type="button" class="link-btn" data-complete-profile="request" data-record-id="${escapeHtml(request.id)}" style="margin-top:10px;">Complete profile for stronger matches</button>` : ""}
+      <div class="directory-card-footer">
+        ${showCompleteProfile ? `<button type="button" class="link-btn" data-complete-profile="request" data-record-id="${escapeHtml(request.id)}">Complete profile ${ICONS.arrowRight}</button>` : `<span class="link-btn">View details ${ICONS.arrowRight}</span>`}
+      </div>
+      ${request.successDetails ? `<p class="small-note directory-outcome">Outcome: ${escapeHtml(request.successDetails)}</p>` : ""}
     </article>
   `;
 }
@@ -2354,24 +2597,34 @@ function requestCard(request, { showCompleteProfile = false } = {}) {
 function businessCard(business, { showCompleteProfile = false } = {}) {
   const statusClass = business.unavailable ? "status-active" : business.qualityStatus === "needs_review" ? "status-new" : "status-ready";
   const statusText = business.unavailable ? "paused" : business.qualityStatus === "needs_review" ? "needs review" : "ready";
+  const photo = businessPhoto(business);
   return `
-    <article class="entity-card">
-      <img class="entity-photo${isBrandAsset(businessPhoto(business)) ? " brand-photo" : ""}" src="${businessPhoto(business)}" alt="" loading="lazy" />
-      <div class="entity-head">
+    <article class="entity-card directory-card">
+      <div class="directory-card-top">
+        <span class="opportunity-kind opportunity-business">Business opportunity</span>
+        <span class="directory-location">${ICONS.mapPin} ${escapeHtml((business.serviceAreas || ["Local"])[0])}</span>
+      </div>
+      <div class="directory-identity">
+        ${entityVisual(business.name, photo, "business")}
         <div>
           <h3>${escapeHtml(business.name)}</h3>
-          <p class="muted">${escapeHtml(business.category)} · ${escapeHtml((business.serviceAreas || []).join(", "))}</p>
+          <p class="muted">${escapeHtml(business.category)} · <span class="status-pill ${statusClass}">${statusText}</span></p>
         </div>
-        <span class="status-pill ${statusClass}">${statusText}</span>
       </div>
-      ${business.businessType ? `<span class="tag tag-muted">${escapeHtml(business.businessType)}</span>` : ""}
-      <p>${escapeHtml(business.notes || "No notes entered yet.")}</p>
-      <p class="muted">Capacity ${Number(business.minimumCapacity || 0).toLocaleString()}-${Number(business.maximumCapacity || 0).toLocaleString()} · ${Number(business.activeCampaigns || 0)} of ${Number(business.campaignCap || 0).toLocaleString()} active campaigns</p>
-      <p class="muted">${business.rating ? `${business.rating} star rating - ${escapeHtml(business.reviewNote || "No review note")}` : "No rating yet"}</p>
+      <div class="directory-card-copy">
+        <h4>${escapeHtml(business.businessType || "Local partner")}</h4>
+        <p>${escapeHtml(business.notes || "Ready to explore a community partnership.")}</p>
+      </div>
+      <div class="directory-meta">
+        <span>${ICONS.calendar} ${escapeHtml(business.availableFrom || "Timing flexible")}</span>
+        <span>${ICONS.users} ${Number(business.maximumCapacity || 0).toLocaleString()} capacity</span>
+      </div>
       <div class="tag-row">
         ${[...(business.causeAreas || []), ...(business.contributionTypes || []), ...(business.offerTypes || []), ...(business.fulfillmentOptions || [])].map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}
       </div>
-      ${showCompleteProfile ? `<button type="button" class="link-btn" data-complete-profile="business" data-record-id="${escapeHtml(business.id)}" style="margin-top:10px;">Complete profile for stronger matches</button>` : ""}
+      <div class="directory-card-footer">
+        ${showCompleteProfile ? `<button type="button" class="link-btn" data-complete-profile="business" data-record-id="${escapeHtml(business.id)}">Complete profile ${ICONS.arrowRight}</button>` : `<span class="link-btn">View details ${ICONS.arrowRight}</span>`}
+      </div>
     </article>
   `;
 }
@@ -2389,7 +2642,7 @@ function scoreGauge(total) {
         stroke-dasharray="${circumference.toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}"
         transform="rotate(-90 32 32)" />
       <text x="32" y="30" text-anchor="middle" font-size="16" font-weight="800" fill="var(--ink)">${Math.round(pct)}</text>
-      <text x="32" y="41" text-anchor="middle" font-size="6.5" font-weight="700" fill="var(--muted)">MATCH</text>
+      <text x="32" y="41" text-anchor="middle" font-size="6.5" font-weight="700" fill="var(--muted)">FIT</text>
     </svg>
   `;
 }
@@ -2399,10 +2652,11 @@ function scoreGauge(total) {
 // admin controls (status, decline reason, override note).
 function matchPreviewCard(match, { viewerIsBusiness = false } = {}) {
   const photo = viewerIsBusiness ? requestPhoto(match.request) : businessPhoto(match.business);
+  const brandClass = isBrandAsset(photo) ? " brand-photo" : "";
   return `
     <article class="match-preview-card">
       <span class="match-preview-menu">${ICONS.dots}</span>
-      <img class="match-preview-photo" src="${photo}" alt="" loading="lazy" />
+      <img class="match-preview-photo${brandClass}" src="${photo}" alt="" loading="lazy" />
       <div class="match-preview-body">
         <div class="tag-row">
           <span class="tag tag-nonprofit">Nonprofit</span>
@@ -2438,10 +2692,13 @@ function matchProgressionAction(match) {
     return `<p class="notification-note">Both sides approved. Raise Local is coordinating outreach.</p>`;
   }
   if (match.status === "outreach_sent") {
-    return `<button type="button" class="secondary-btn" data-progress-status="accepted" data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">We're working together ${ICONS.check}</button>`;
+    return `<button type="button" class="secondary-btn" data-progress-status="accepted" data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">Confirm partnership ${ICONS.check}</button>`;
   }
   if (match.status === "accepted") {
-    return `<button type="button" class="secondary-btn" data-progress-status="launched" data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">Mark campaign as launched ${ICONS.arrowRight}</button>`;
+    return `<button type="button" class="secondary-btn" data-progress-status="active" data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">Mark campaign active ${ICONS.arrowRight}</button>`;
+  }
+  if (match.status === "active") {
+    return `<button type="button" class="secondary-btn" data-progress-status="completed" data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">Mark campaign complete ${ICONS.check}</button>`;
   }
   return "";
 }
@@ -2456,26 +2713,48 @@ function wireMatchProgressionButtons() {
 }
 
 function matchCard(match, { showAdminControls = false, showRating = false } = {}) {
+  const nonprofitImage = requestPhoto(match.request);
+  const businessImage = businessPhoto(match.business);
+  const nonprofitBrand = isBrandAsset(nonprofitImage) ? " brand-photo" : "";
+  const businessBrand = isBrandAsset(businessImage) ? " brand-photo" : "";
   return `
     <article class="match-card">
-      <div class="match-head">
-        <div>
-          <h3>${escapeHtml(match.request.organizationName)} + ${escapeHtml(match.business.name)}</h3>
-          <p class="muted">${escapeHtml(match.request.causeArea)} campaign in ${escapeHtml(match.request.geography)}</p>
+      <div class="match-visual" aria-label="${escapeHtml(match.request.organizationName)} and ${escapeHtml(match.business.name)}">
+        <div class="match-visual-half">
+          <img class="match-visual-photo${nonprofitBrand}" src="${nonprofitImage}" alt="${escapeHtml(match.request.organizationName)}" loading="lazy" />
+          <span class="match-visual-label">Cause</span>
         </div>
-        <div class="score"><span>${escapeHtml(match.label)}</span><strong>${match.total}</strong><small>compatibility</small></div>
+        <div class="match-visual-half">
+          <img class="match-visual-photo${businessBrand}" src="${businessImage}" alt="${escapeHtml(match.business.name)}" loading="lazy" />
+          <span class="match-visual-label">Business</span>
+        </div>
+        <div class="match-score-badge">
+          <span>${escapeHtml(match.label)}</span>
+          <strong>${match.total}</strong>
+          <small>fit</small>
+        </div>
       </div>
-      <p>${escapeHtml(match.request.campaignDescription)}</p>
-      <p class="forecast">${escapeHtml(match.forecast)}</p>
-      <p class="muted">Business goals: ${escapeHtml((match.business.businessGoals || []).slice(0, 4).join(", ") || "Not captured yet")}</p>
-      <p class="match-consent">Nonprofit: <strong>${escapeHtml(statusLabel(match.nonprofitDecision || "awaiting"))}</strong> · Business: <strong>${escapeHtml(statusLabel(match.businessDecision || "awaiting"))}</strong></p>
-      <div class="tag-row">${match.reasons.map((reason) => `<span class="tag">${escapeHtml(reason)}</span>`).join("")}</div>
-      <details class="decision-path">
-        <summary>Decision tree path</summary>
-        <ul>
-          ${(match.decisionStages || []).map((stage) => `<li class="${stage.passed ? "passed" : "blocked"}"><strong>${escapeHtml(stage.label)}:</strong> ${stage.passed ? escapeHtml(stage.reason || "Passed") : escapeHtml(stage.blocker || "Blocked")}</li>`).join("")}
-        </ul>
-      </details>
+      <div class="match-card-body">
+        <div class="match-head">
+          <div>
+            <h3>${escapeHtml(match.request.organizationName)} <span aria-hidden="true">+</span> ${escapeHtml(match.business.name)}</h3>
+            <p class="muted">${escapeHtml(match.request.causeArea)} · ${escapeHtml(match.request.geography)}</p>
+          </div>
+          <span class="status-pill status-ready">${escapeHtml(statusLabel(match.status))}</span>
+        </div>
+        <p class="match-summary">${escapeHtml(match.reasons?.[0] || match.request.campaignDescription)}</p>
+        <p class="forecast">${escapeHtml(match.forecast)}</p>
+        <p class="muted match-goals">Business goals: ${escapeHtml((match.business.businessGoals || []).slice(0, 3).join(", ") || "Not captured yet")}</p>
+        <p class="match-consent">Nonprofit: <strong>${escapeHtml(statusLabel(match.nonprofitDecision || "awaiting"))}</strong> · Business: <strong>${escapeHtml(statusLabel(match.businessDecision || "awaiting"))}</strong></p>
+        <div class="tag-row">${match.reasons.slice(0, 4).map((reason) => `<span class="tag">${escapeHtml(reason)}</span>`).join("")}</div>
+        <details class="decision-path">
+          <summary>See why this match fits</summary>
+          <p class="small-note">The transparent matching assistant checked these criteria before recommending this partnership.</p>
+          <ul>
+            ${(match.decisionStages || []).map((stage) => `<li class="${stage.passed ? "passed" : "blocked"}"><strong>${escapeHtml(stage.label)}:</strong> ${stage.passed ? escapeHtml(stage.reason || "Passed") : escapeHtml(stage.blocker || "Blocked")}</li>`).join("")}
+          </ul>
+        </details>
+      </div>
       ${match.notifiedAt ? `<p class="notification-note">Email notification queued for ${escapeHtml(match.request.email)} and ${escapeHtml(match.business.name)} on ${formatDateTime(match.notifiedAt)}.</p>` : ""}
       ${
         showAdminControls

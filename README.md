@@ -35,8 +35,29 @@ npm start
 Then open:
 
 ```text
-http://localhost:4173
+http://localhost:4102
 ```
+
+## Private AI Provider Setup
+
+The local server supports OpenAI and Anthropic without exposing credentials to
+the browser. Copy `.env.local.example` to `.env.local`, add the provider keys,
+and restart the server:
+
+```sh
+cp .env.local.example .env.local
+npm start
+```
+
+Check configured providers without revealing key values:
+
+```sh
+curl -s http://localhost:4102/api/health
+```
+
+The frontend can call `POST /api/ai` with `{ provider, messages, system }`.
+The matching rules remain the source of truth; the model is intended for
+explanations, intake interpretation, and outreach drafts.
 
 ## Product Boundary
 

@@ -52,12 +52,33 @@ const BUSINESS_PHOTO_OVERRIDES = {
   "biz-eyeland-vibes": "assets/eyeland-vibes.webp",
   "biz-first-choice-brew": "assets/first-choice-brew.webp",
   "biz-sofia-grace": "assets/sofia-grace.png",
+  // Unique, category-specific fallbacks for seeded partners without supplied imagery.
+  "biz-paper-porch": unsplash("1521335629791-ce4aec67dd15"),
+};
+
+// Older browser/demo records may have a different id. Name fallbacks keep
+// approved partner imagery consistent while those records are upgraded.
+const BUSINESS_NAME_PHOTO_OVERRIDES = {
+  "sofia & grace": "assets/sofia-grace.png",
+  "sofia and grace": "assets/sofia-grace.png",
+  "eyeland vibes": "assets/eyeland-vibes.webp",
+  "first choice brew": "assets/first-choice-brew.webp",
 };
 
 const REQUEST_PHOTO_OVERRIDES = {
+  "request-fresh-start": unsplash("1615897570582-285ffe259530"),
+  "request-art-room": unsplash("1589488766611-08aad2021d8b"),
   "request-young-excellence": "assets/young-excellence-society.png",
   "request-grove-park": "assets/grove-park-foundation.jpg",
   "request-unity-now": "assets/unity-now-supplied.png",
+};
+
+const REQUEST_NAME_PHOTO_OVERRIDES = {
+  "fresh start pantry": unsplash("1615897570582-285ffe259530"),
+  "ps 118 art room": unsplash("1589488766611-08aad2021d8b"),
+  "young excellence society": "assets/young-excellence-society.png",
+  "grove park foundation": "assets/grove-park-foundation.jpg",
+  "unitynow": "assets/unity-now-supplied.png",
 };
 
 export function isBrandAsset(photo) {
@@ -65,14 +86,14 @@ export function isBrandAsset(photo) {
 }
 
 export function businessPhoto(business) {
-  const override = BUSINESS_PHOTO_OVERRIDES[business?.id];
+  const override = BUSINESS_PHOTO_OVERRIDES[business?.id] || BUSINESS_NAME_PHOTO_OVERRIDES[String(business?.name || "").trim().toLowerCase()];
   if (override) return override;
   const pool = CATEGORY_PHOTOS[business?.category] || CATEGORY_FALLBACK;
   return pick(pool, business?.id || business?.name);
 }
 
 export function requestPhoto(request) {
-  const override = REQUEST_PHOTO_OVERRIDES[request?.id];
+  const override = REQUEST_PHOTO_OVERRIDES[request?.id] || REQUEST_NAME_PHOTO_OVERRIDES[String(request?.organizationName || "").trim().toLowerCase()];
   if (override) return override;
   const pool = CAUSE_PHOTOS[request?.causeArea] || CAUSE_FALLBACK;
   return pick(pool, request?.id || request?.organizationName);

@@ -26,4 +26,6 @@ export const ICONS = {
   bookmark: icon('<path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/>'),
   star: icon('<path d="M12 3.5l2.6 5.4 5.9.7-4.3 4.1 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.1 5.9-.7z"/>'),
   undo: icon('<path d="M3 10h9a5 5 0 0 1 0 10h-2"/><path d="M8 5 3 10l5 5"/>'),
+  plus: icon('<path d="M12 5v14M5 12h14"/>'),
+  handshake: icon('<path d="m3 12 3-3 4 4 4-4 4 3"/><path d="m6 9 2-2 4 2 4-2 2 2"/><path d="m3 12 3 6h4l2-2 2 2h4l3-6"/>'),
 };

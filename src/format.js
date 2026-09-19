@@ -13,6 +13,18 @@ export function escapeHtml(value) {
 }
 
 export function statusLabel(status) {
+  const labels = {
+    awaiting_nonprofit: "Awaiting nonprofit",
+    awaiting_business: "Awaiting business",
+    mutually_approved: "Mutually approved",
+    outreach_pending: "Outreach pending",
+    outreach_sent: "Outreach sent",
+    under_review: "Under review",
+    on_hold: "On hold",
+    active: "Active",
+    completed: "Completed",
+  };
+  if (labels[status]) return labels[status];
   return status.split("_").map((part) => part[0].toUpperCase() + part.slice(1)).join(" ");
 }
 

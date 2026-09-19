@@ -87,6 +87,7 @@ export const DECLINE_REASONS = ["Timing", "Location", "Capacity", "Budget or min
 export const MATCH_DECISIONS = ["approved", "held", "declined"];
 export const MATCH_STATUSES = [
   "suggested",
+  "under_review",
   "awaiting_nonprofit",
   "awaiting_business",
   "on_hold",
@@ -95,11 +96,13 @@ export const MATCH_STATUSES = [
   "outreach_pending",
   "outreach_sent",
   "accepted",
+  "active",
+  "completed",
   "launched",
 ];
 
 export function deriveMatchStatus(match = {}) {
-  if (["accepted", "launched"].includes(match.status)) return match.status;
+  if (["accepted", "active", "completed", "launched"].includes(match.status)) return match.status;
   if (match.outreachStatus === "sent") return "outreach_sent";
   if (match.outreachStatus === "pending") return "outreach_pending";
   if (match.nonprofitDecision === "declined" || match.businessDecision === "declined" || match.status === "declined") return "declined";
