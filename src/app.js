@@ -46,6 +46,7 @@ let dashboardCause = "all";
 let dashboardStatus = "all";
 let dashboardSearch = "";
 let selectedMatchKey = "";
+let selectedEntityKey = "";
 let campaignSort = "newest"; // "newest" | "oldest" | "upcoming" | "completed"
 let matchCauseFilter = "all";
 let matchLoaderShown = false;
@@ -142,6 +143,8 @@ document.querySelectorAll("[data-icon]").forEach((el) => {
 
 navButtons.forEach((button) => {
   button.addEventListener("click", () => {
+    selectedEntityKey = "";
+    selectedMatchKey = "";
     activeView = button.dataset.view;
     render();
   });
@@ -393,6 +396,7 @@ function render() {
     requests: renderRequests,
     businesses: renderBusinesses,
     matches: renderMatches,
+    "entity-detail": renderEntityDetail,
     messages: renderMessages,
     projects: renderProjects,
     reports: renderReports,
@@ -622,6 +626,7 @@ function switchDemoRole(role) {
   sessionStorage.setItem("raise_local_demo_role", role);
   activeView = "dashboard";
   selectedMatchKey = "";
+  selectedEntityKey = "";
   matchLoaderShown = false;
   document.getElementById("topbar-account-menu").hidden = true;
   render();
@@ -1495,6 +1500,10 @@ function renderRoleDashboard() {
 // business profile instead. See renderBusinesses() for the matched-
 // counterpart slot this pairs with.
 function renderRequests() {
+  if (selectedEntityKey) {
+    renderEntityDetail();
+    return;
+  }
   if (isAdmin()) {
     setTitle("Campaign Requests");
     const banner = quizConfirmation ? `<section class="success-banner" role="status">${escapeHtml(quizConfirmation)}</section>` : "";
@@ -1507,6 +1516,7 @@ function renderRequests() {
     `;
     wireRequestForm();
     wireCompleteProfileLinks();
+    wireEntityDetailLinks();
     return;
   }
   if (myRole() === "business") {
@@ -1549,6 +1559,7 @@ function renderMyOwnProfile(kind) {
     <section class="entity-list">${own.length ? own.map((record) => card(record, { showCompleteProfile: true })).join("") : empty}</section>
   `;
   wireCompleteProfileLinks();
+  wireEntityDetailLinks();
   root.querySelector("[data-empty-action=\"start-match-finder\"]")?.addEventListener("click", () => {
     quizAudience = null;
     quizPhase = "choose";
@@ -1624,6 +1635,10 @@ function matchActivityPanel(matches, otherSide) {
 // with here, a business sees the nonprofits/campaigns it matched with. Admin
 // keeps the original global "Business Profiles" list + intake form.
 function renderBusinesses() {
+  if (selectedEntityKey) {
+    renderEntityDetail();
+    return;
+  }
   if (isAdmin()) {
     setTitle("Business Profiles");
     const banner = quizConfirmation ? `<section class="success-banner" role="status">${escapeHtml(quizConfirmation)}</section>` : "";
@@ -1637,6 +1652,7 @@ function renderBusinesses() {
     wireBusinessForm();
     wireCompleteProfileLinks();
     wireQualityControls();
+    wireEntityDetailLinks();
     return;
   }
 
@@ -1650,6 +1666,63 @@ function renderBusinesses() {
     <section class="panel directory-helper"><p class="muted">All ${noun} in the matchmaking pool. Your strongest, scored matches are on Match Review.</p></section>
     <section class="entity-list">${pool.length ? pool.map((record) => card(record, { showCompleteProfile: false })).join("") : `<p class="muted">Nothing in the pool yet. Once a ${isBusinessViewer ? "nonprofit" : "business"} completes the Match Finder quiz, it'll show up here.</p>`}</section>
   `;
+  wireEntityDetailLinks();
+}
+
+function renderEntityDetail() {
+  const [type, recordId] = selectedEntityKey.split("::");
+  const isBusiness = type === "business";
+  const record = isBusiness ? data.businesses.find((item) => item.id === recordId) : data.campaignRequests.find((item) => item.id === recordId);
+  if (!record) {
+    selectedEntityKey = "";
+    activeView = isBusiness ? "businesses" : "requests";
+    render();
+    return;
+  }
+  const name = isBusiness ? record.name : record.organizationName;
+  const image = isBusiness ? businessPhoto(record) : requestPhoto(record);
+  const relatedMatches = currentMatches().filter((match) => (isBusiness ? match.business.id === record.id : match.request.id === record.id));
+  setTitle(isBusiness ? "Business Details" : "Campaign Details");
+  root.innerHTML = `
+    <button type="button" class="back-link" data-entity-back>${ICONS.undo} Back to ${isBusiness ? "Business Profiles" : "Campaign Requests"}</button>
+    <section class="profile-detail-hero">
+      <div class="profile-detail-image"><img src="${escapeHtml(image)}" alt="${escapeHtml(name)}" /></div>
+      <div><p class="eyebrow">${isBusiness ? "Local business" : "Nonprofit campaign"}</p><h2>${escapeHtml(name)}</h2><p class="muted">${escapeHtml(isBusiness ? record.category : record.causeArea)} · ${escapeHtml(isBusiness ? (record.serviceAreas || ["Local"])[0] : record.geography)}</p></div>
+    </section>
+    <section class="profile-detail-grid">
+      <section class="panel">
+        <p class="eyebrow">${isBusiness ? "What they offer" : "Campaign overview"}</p>
+        <h2>${escapeHtml(isBusiness ? (record.productsServices || record.notes || "Ready to explore a community partnership.") : (record.campaignDescription || "Community campaign opportunity."))}</h2>
+        <div class="tag-row">${[...(isBusiness ? record.causeAreas || [] : [record.causeArea]), ...(isBusiness ? record.offerTypes || [] : record.supportNeeds || [])].filter(Boolean).map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}</div>
+      </section>
+      <aside class="panel">
+        <p class="eyebrow">Next step</p>
+        <h3>${relatedMatches.length ? `${relatedMatches.length} potential match${relatedMatches.length === 1 ? "" : "es"}` : "Ready to be matched"}</h3>
+        <p class="muted">Review the recommendations and decide whether this is a partnership worth exploring.</p>
+        <button type="button" class="primary-btn" data-entity-matches>View matches ${ICONS.arrowRight}</button>
+      </aside>
+    </section>
+  `;
+  root.querySelector("[data-entity-back]").addEventListener("click", () => {
+    selectedEntityKey = "";
+    activeView = isBusiness ? "businesses" : "requests";
+    render();
+  });
+  root.querySelector("[data-entity-matches]").addEventListener("click", () => {
+    selectedEntityKey = "";
+    activeView = "matches";
+    render();
+  });
+}
+
+function wireEntityDetailLinks() {
+  root.querySelectorAll("[data-view-entity]").forEach((button) => {
+    button.addEventListener("click", () => {
+      selectedEntityKey = `${button.dataset.entityType}::${button.dataset.entityId}`;
+      activeView = "entity-detail";
+      render();
+    });
+  });
 }
 
 function wireCompleteProfileLinks() {
@@ -1725,10 +1798,11 @@ function renderMatches() {
 }
 
 function suggestedCampaignApproach(match) {
-  const need = match.request.supportNeeds?.[0] || match.request.eventType || "a community campaign";
-  const offer = match.business.offerTypes?.[0] || match.business.contributionTypes?.[0] || "a partnership offer";
+  const need = match.request.supportNeeds?.[0] || match.request.causeArea || "community needs";
+  const partnership = match.request.partnershipTypesNeeded?.[0] || match.request.eventType || "fundraising campaign";
+  const offer = match.business.productsServices || match.business.offerTypes?.[0] || match.business.contributionTypes?.[0] || "the business's partnership offer";
   const size = Number(match.request.idealSize || match.request.minimumSize || 0).toLocaleString();
-  return `Start with a ${need.toLowerCase()} built around ${offer.toLowerCase()}, sized for approximately ${size || "the campaign audience"} participants. Raise Local can introduce both sides after mutual approval.`;
+  return `Start with a ${partnership.toLowerCase()} featuring ${offer.toLowerCase()}, focused on ${need.toLowerCase()} and sized for approximately ${size || "the campaign audience"} participants. After both sides approve, Raise Local prepares the introduction.`;
 }
 
 function renderMatchDetail(match) {
@@ -2014,9 +2088,9 @@ function triageCard(match, isBusinessViewer) {
             <p class="triage-reason">${escapeHtml(reason)}</p>
           </div>
           <div class="triage-actions">
-            <button type="button" class="triage-btn deny" data-decision="deny" aria-label="Deny this match">${ICONS.close}</button>
-            <button type="button" class="triage-btn hold" data-decision="hold" aria-label="Hold this match for later">${ICONS.bookmark}</button>
-            <button type="button" class="triage-btn approve" data-decision="approve" aria-label="Approve this match">${ICONS.check}</button>
+            <button type="button" class="triage-btn deny" data-decision="deny" aria-label="Decline this match">${ICONS.close}<span>Decline</span></button>
+            <button type="button" class="triage-btn hold" data-decision="hold" aria-label="Hold this match for later">${ICONS.bookmark}<span>Hold</span></button>
+            <button type="button" class="triage-btn approve" data-decision="approve" aria-label="Approve this match">${ICONS.check}<span>Approve</span></button>
           </div>
         </div>
         <div class="flip-card-back">
@@ -2587,7 +2661,7 @@ function requestCard(request, { showCompleteProfile = false } = {}) {
         <span class="tag">${escapeHtml(campaignStage(request))}</span>
       </div>
       <div class="directory-card-footer">
-        ${showCompleteProfile ? `<button type="button" class="link-btn" data-complete-profile="request" data-record-id="${escapeHtml(request.id)}">Complete profile ${ICONS.arrowRight}</button>` : `<span class="link-btn">View details ${ICONS.arrowRight}</span>`}
+        ${showCompleteProfile ? `<button type="button" class="link-btn" data-complete-profile="request" data-record-id="${escapeHtml(request.id)}">Complete profile ${ICONS.arrowRight}</button>` : `<button type="button" class="link-btn" data-view-entity data-entity-type="request" data-entity-id="${escapeHtml(request.id)}">View details ${ICONS.arrowRight}</button>`}
       </div>
       ${request.successDetails ? `<p class="small-note directory-outcome">Outcome: ${escapeHtml(request.successDetails)}</p>` : ""}
     </article>
@@ -2623,7 +2697,7 @@ function businessCard(business, { showCompleteProfile = false } = {}) {
         ${[...(business.causeAreas || []), ...(business.contributionTypes || []), ...(business.offerTypes || []), ...(business.fulfillmentOptions || [])].map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}
       </div>
       <div class="directory-card-footer">
-        ${showCompleteProfile ? `<button type="button" class="link-btn" data-complete-profile="business" data-record-id="${escapeHtml(business.id)}">Complete profile ${ICONS.arrowRight}</button>` : `<span class="link-btn">View details ${ICONS.arrowRight}</span>`}
+        ${showCompleteProfile ? `<button type="button" class="link-btn" data-complete-profile="business" data-record-id="${escapeHtml(business.id)}">Complete profile ${ICONS.arrowRight}</button>` : `<button type="button" class="link-btn" data-view-entity data-entity-type="business" data-entity-id="${escapeHtml(business.id)}">View details ${ICONS.arrowRight}</button>`}
       </div>
     </article>
   `;
