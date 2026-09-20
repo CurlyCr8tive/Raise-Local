@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { extname, join, normalize, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const rootDir = fileURLToPath(new URL(".", import.meta.url));
+const rootDir = fileURLToPath(new URL(".", import.meta.url)).replace(/[\\/]+$/, "");
 const port = Number(process.env.PORT || 4102);
 
 loadEnvFile(join(rootDir, ".env.local"));

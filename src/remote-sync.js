@@ -44,6 +44,11 @@ function toRequestRow(request) {
     campaign_stage: request.campaignStage || "submitted",
     success_details: request.successDetails || "",
     status: request.status,
+    field_sources: request.fieldSources || {},
+    pending_changes: request.pendingChanges || [],
+    revision: request.revision || 1,
+    last_edited_at: request.lastEditedAt || null,
+    last_edited_by: request.lastEditedBy || null,
   };
 }
 
@@ -85,6 +90,11 @@ function toBusinessRow(business) {
     unavailable: business.unavailable,
     status: business.status,
     quality_status: business.qualityStatus || "clear",
+    field_sources: business.fieldSources || {},
+    pending_changes: business.pendingChanges || [],
+    revision: business.revision || 1,
+    last_edited_at: business.lastEditedAt || null,
+    last_edited_by: business.lastEditedBy || null,
   };
 }
 
@@ -127,6 +137,11 @@ function fromRequestRow(row) {
     status: row.status || "new",
     rating: row.rating ?? null,
     reviewNote: row.review_note || "",
+    fieldSources: row.field_sources || {},
+    pendingChanges: row.pending_changes || [],
+    revision: row.revision || 1,
+    lastEditedAt: row.last_edited_at || row.updated_at || "",
+    lastEditedBy: row.last_edited_by || "",
   };
 }
 
@@ -168,6 +183,11 @@ function fromBusinessRow(row) {
     qualityStatus: row.quality_status || "clear",
     unavailable: Boolean(row.unavailable),
     status: row.status || "ready",
+    fieldSources: row.field_sources || {},
+    pendingChanges: row.pending_changes || [],
+    revision: row.revision || 1,
+    lastEditedAt: row.last_edited_at || row.updated_at || "",
+    lastEditedBy: row.last_edited_by || "",
   };
 }
 
@@ -232,22 +252,32 @@ export async function syncBusinessProfile(business) {
 
 export async function updateCampaignRequest(request) {
   if (isDemoMode()) return false;
-  const { error } = await supabase
+  const expectedRevision = Math.max(1, Number(request.revision || 1) - 1);
+  const { data, error } = await supabase
     .from("campaign_requests")
     .update({ ...toRequestRow(request), updated_at: new Date().toISOString() })
-    .eq("id", request.id);
+    .eq("id", request.id)
+    .eq("revision", expectedRevision)
+    .select("id")
+    .maybeSingle();
   if (error) console.error("Supabase campaign_requests update failed:", error.message);
-  return !error;
+  if (!error && !data) console.error("Supabase campaign_requests update skipped: record revision changed remotely");
+  return !error && Boolean(data);
 }
 
 export async function updateBusinessProfile(business) {
   if (isDemoMode()) return false;
-  const { error } = await supabase
+  const expectedRevision = Math.max(1, Number(business.revision || 1) - 1);
+  const { data, error } = await supabase
     .from("business_profiles")
     .update({ ...toBusinessRow(business), updated_at: new Date().toISOString() })
-    .eq("id", business.id);
+    .eq("id", business.id)
+    .eq("revision", expectedRevision)
+    .select("id")
+    .maybeSingle();
   if (error) console.error("Supabase business_profiles update failed:", error.message);
-  return !error;
+  if (!error && !data) console.error("Supabase business_profiles update skipped: record revision changed remotely");
+  return !error && Boolean(data);
 }
 
 export async function syncMatchDecision({ requestId, businessId, status, fromStatus = null, nonprofitDecision = "", businessDecision = "", outreachStatus = "not_started", outreachMessage = "", outreachAt = null, declineReason = "", declineNote = "", adminNote = "", notifiedAt = null }) {

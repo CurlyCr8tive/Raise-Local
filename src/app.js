@@ -47,6 +47,7 @@ let dashboardStatus = "all";
 let dashboardSearch = "";
 let selectedMatchKey = "";
 let selectedEntityKey = "";
+let adminComposer = ""; // "request" | "business" while an admin is adding a record
 let campaignSort = "newest"; // "newest" | "oldest" | "upcoming" | "completed"
 let matchCauseFilter = "all";
 let matchLoaderShown = false;
@@ -57,8 +58,10 @@ let quizPhase = "choose"; // "choose" | "core" | "profile"
 let quizStep = 0;
 let quizAnswers = {};
 let quizConfirmation = "";
+let quizConfirmationAction = null;
 let quizActiveRecordId = null;
 let quizResultsPreview = null;
+let inAppProfileCreate = false;
 
 // Pre-auth flow: landing -> quiz-choose -> quiz -> register -> verify-sent
 // -> (user clicks emailed link) -> set-password -> authenticated app.
@@ -145,6 +148,7 @@ navButtons.forEach((button) => {
   button.addEventListener("click", () => {
     selectedEntityKey = "";
     selectedMatchKey = "";
+    adminComposer = "";
     activeView = button.dataset.view;
     render();
   });
@@ -186,6 +190,82 @@ function myRole() {
 
 function myEmail() {
   return (session?.user?.email || "").trim().toLowerCase();
+}
+
+const REQUEST_CLIENT_FIELDS = new Set([
+  "website", "socialLinks", "classification", "communitiesServed", "mission", "audienceServed", "audienceSize",
+  "eventType", "startDate", "endDate", "partnershipDeadline", "expectedParticipation", "minimumSize", "idealSize",
+  "mustHaves", "niceToHaves", "priorFundraiser",
+]);
+
+const BUSINESS_CLIENT_FIELDS = new Set([
+  "businessType", "website", "socialLinks", "fulfillmentScope", "contributionTypes", "productsServices", "averagePriceRange",
+  "minimumCapacity", "maximumCapacity", "idealEventSize", "campaignCap", "activeCampaigns", "availableFrom", "availableTo",
+  "leadTimeDays", "fulfillmentOptions", "orgTypesSupported", "notes",
+]);
+
+function recordActor() {
+  return { type: isAdmin() ? "admin" : "client", email: myEmail() || (demoMode ? `${demoRole}@demo` : "unknown") };
+}
+
+function ensureRecordMeta(record, source = "system") {
+  record.fieldSources ||= {};
+  record.pendingChanges ||= [];
+  record.revision ||= 1;
+  record.lastEditedAt ||= record.updatedAt || record.createdAt || new Date().toISOString();
+  record.lastEditedBy ||= source;
+  return record;
+}
+
+function initializeRecordMeta(record, source) {
+  ensureRecordMeta(record, source);
+  const fields = source === "client" ? (record.organizationName ? REQUEST_CLIENT_FIELDS : BUSINESS_CLIENT_FIELDS) : new Set();
+  fields.forEach((field) => {
+    if (record[field] !== undefined && record[field] !== "" && record[field] !== null) record.fieldSources[field] = source;
+  });
+  record.lastEditedAt = new Date().toISOString();
+  record.lastEditedBy = source;
+  return record;
+}
+
+function sameRecordValue(left, right) {
+  return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
+}
+
+function humanizeField(field) {
+  return String(field || "field").replace(/([A-Z])/g, " $1").replace(/^./, (letter) => letter.toUpperCase());
+}
+
+function hasRecordValue(value) {
+  return Array.isArray(value) ? value.length > 0 : value !== undefined && value !== null && String(value).trim() !== "" && value !== 0;
+}
+
+function applyProfilePatch(record, patch, kind) {
+  ensureRecordMeta(record);
+  const actor = recordActor();
+  const clientFields = kind === "business" ? BUSINESS_CLIENT_FIELDS : REQUEST_CLIENT_FIELDS;
+  const conflicts = [];
+
+  Object.entries(patch).forEach(([field, nextValue]) => {
+    if (nextValue === undefined) return;
+    const previousValue = record[field];
+    const previousSource = record.fieldSources[field];
+    const adminProtectsClientValue = actor.type === "admin" && clientFields.has(field) && previousSource === "client" && hasRecordValue(previousValue) && !sameRecordValue(previousValue, nextValue);
+    if (adminProtectsClientValue) {
+      conflicts.push({ field, proposedValue: nextValue, currentValue: previousValue, proposedBy: actor.email, proposedAt: new Date().toISOString() });
+      return;
+    }
+    record[field] = nextValue;
+    record.fieldSources[field] = actor.type;
+  });
+
+  const now = new Date().toISOString();
+  record.pendingChanges = [...(record.pendingChanges || []), ...conflicts].slice(-25);
+  record.revision = Number(record.revision || 0) + 1;
+  record.lastEditedAt = now;
+  record.lastEditedBy = actor.email;
+  record.updatedAt = now;
+  return conflicts;
 }
 
 // A record is "mine" when its contact email matches the logged-in email —
@@ -283,6 +363,13 @@ async function hydrateRemoteData() {
 function setTitle(text) {
   title.textContent = text;
   navButtons.forEach((button) => button.classList.toggle("active", button.dataset.view === activeView));
+}
+
+function confirmationMarkup() {
+  if (!quizConfirmation) return "";
+  const action = quizConfirmationAction;
+  quizConfirmationAction = null;
+  return `<section class="success-banner" role="status"><span>${escapeHtml(quizConfirmation)}</span>${action ? `<button type="button" class="secondary-btn" data-confirmation-detail data-entity-type="${escapeHtml(action.type)}" data-entity-id="${escapeHtml(action.id)}">View details ${ICONS.arrowRight}</button>` : ""}</section>`;
 }
 
 function currentMatches() {
@@ -488,6 +575,8 @@ function syncAccountIdentity() {
   document.getElementById("topbar-account-name").textContent = email ? email.split("@")[0] : "Account";
 
   const roleSwitcher = document.getElementById("demo-role-switcher");
+  const seedButton = document.getElementById("seed-btn");
+  if (seedButton) seedButton.hidden = !demoMode;
   if (roleSwitcher) {
     roleSwitcher.hidden = !demoMode;
     roleSwitcher.querySelectorAll("[data-demo-role]").forEach((button) => {
@@ -627,6 +716,8 @@ function switchDemoRole(role) {
   activeView = "dashboard";
   selectedMatchKey = "";
   selectedEntityKey = "";
+  adminComposer = "";
+  inAppProfileCreate = false;
   matchLoaderShown = false;
   document.getElementById("topbar-account-menu").hidden = true;
   render();
@@ -1059,20 +1150,34 @@ function isBlankAnswer(question, answer) {
 }
 
 function finishCoreQuiz() {
+  let createdRecord;
   if (quizAudience === "business") {
     const business = businessFromQuizAnswers();
+    initializeRecordMeta(business, inAppProfileCreate ? recordActor().type : "client");
+    createdRecord = business;
     data.businesses = [business, ...data.businesses];
     quizActiveRecordId = business.id;
     quizResultsPreview = computeMatchPreview("business", business);
     syncBusinessProfile(business);
   } else {
     const request = requestFromQuizAnswers();
+    initializeRecordMeta(request, inAppProfileCreate ? recordActor().type : "client");
+    createdRecord = request;
     data.campaignRequests = [request, ...data.campaignRequests];
     quizActiveRecordId = request.id;
     quizResultsPreview = computeMatchPreview("request", request);
     syncCampaignRequest(request);
   }
   saveData(data);
+  if (inAppProfileCreate) {
+    quizConfirmation = quizAudience === "business" ? `${createdRecord.name} was added to the partner network.` : `${createdRecord.organizationName} campaign request was submitted.`;
+    quizConfirmationAction = { type: quizAudience === "business" ? "business" : "request", id: createdRecord.id };
+    activeView = quizAudience === "business" ? "businesses" : "requests";
+    inAppProfileCreate = false;
+    authScreen = "app";
+    render();
+    return;
+  }
   pendingEmail = quizAnswers.contact?.email || "";
   authError = "";
   authScreen = "register";
@@ -1082,21 +1187,24 @@ function finishCoreQuiz() {
 // Reached only post-auth, from the "Complete Profile" link on a Campaign
 // Requests / Business Profiles card — not part of the pre-auth quiz funnel.
 function finishProfileQuiz() {
+  let conflicts = [];
   if (quizAudience === "business") {
     const business = data.businesses.find((item) => item.id === quizActiveRecordId);
     if (business) {
-      Object.assign(business, businessProfilePatch());
+      conflicts = applyProfilePatch(business, businessProfilePatch(), "business");
       updateBusinessProfile(business);
     }
   } else {
     const request = data.campaignRequests.find((item) => item.id === quizActiveRecordId);
     if (request) {
-      Object.assign(request, requestProfilePatch());
+      conflicts = applyProfilePatch(request, requestProfilePatch(), "request");
       updateCampaignRequest(request);
     }
   }
   saveData(data);
-  quizConfirmation = "Profile completed — thanks for the extra detail. It helps Raise Local recommend stronger matches.";
+  quizConfirmation = conflicts.length
+    ? `Profile saved. ${conflicts.length} client-owned field${conflicts.length === 1 ? "" : "s"} was preserved for review.`
+    : "Profile completed — thanks for the extra detail. It helps Raise Local recommend stronger matches.";
   activeView = quizAudience === "business" ? "businesses" : "requests";
   render();
 }
@@ -1300,7 +1408,11 @@ function renderAdminDashboard() {
     </section>
   `;
   root.querySelectorAll("[data-dashboard-target]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      if (isAdmin() && ["requests", "businesses"].includes(button.dataset.dashboardTarget)) {
+        adminComposer = button.dataset.dashboardTarget === "requests" ? "request" : "business";
+      }
       activeView = button.dataset.dashboardTarget;
       render();
     });
@@ -1506,17 +1618,27 @@ function renderRequests() {
   }
   if (isAdmin()) {
     setTitle("Campaign Requests");
-    const banner = quizConfirmation ? `<section class="success-banner" role="status">${escapeHtml(quizConfirmation)}</section>` : "";
+    const banner = confirmationMarkup();
     quizConfirmation = "";
+    const composing = adminComposer === "request";
     root.innerHTML = `
       ${banner}
-      <section class="directory-page-header"><p class="eyebrow">Partnership opportunities</p><h2>Campaign Requests</h2><p class="muted">Find community campaigns that align with local business goals, capacity, and timing.</p></section>
-      <section class="panel"><h2>Nonprofit Intake</h2>${requestForm()}</section>
-      <section class="entity-list">${data.campaignRequests.map((r) => requestCard(r, { showCompleteProfile: true })).join("")}</section>
+      <section class="directory-page-header"><p class="eyebrow">Partnership opportunities</p><h2>Campaign Requests</h2><p class="muted">Review nonprofit requests, campaign stages, and partnership opportunities in one place.</p></section>
+      ${composing ? `<section class="panel composer-panel"><div class="section-heading"><div><p class="eyebrow">Add on behalf of a nonprofit</p><h2>New Campaign Request</h2></div><button type="button" class="secondary-btn" data-cancel-composer>Back to requests</button></div>${requestForm()}</section>` : `<section class="panel directory-helper"><div class="section-heading"><div><h2>Submitted Campaign Requests</h2><p class="muted">Each request stays visible here as it moves from submitted to matched, active, and completed.</p></div><button type="button" class="primary-btn" data-open-composer="request">${ICONS.plus} Add Campaign Request</button></div></section>`}
+      <section class="entity-list">${data.campaignRequests.map((r) => requestCard(r, { adminDirectory: true })).join("")}</section>
     `;
-    wireRequestForm();
+    if (composing) wireRequestForm();
+    root.querySelector("[data-open-composer]")?.addEventListener("click", () => {
+      adminComposer = "request";
+      render();
+    });
+    root.querySelector("[data-cancel-composer]")?.addEventListener("click", () => {
+      adminComposer = "";
+      render();
+    });
     wireCompleteProfileLinks();
     wireEntityDetailLinks();
+    wireConfirmationLink();
     return;
   }
   if (myRole() === "business") {
@@ -1528,13 +1650,10 @@ function renderRequests() {
 
 function renderMyOwnProfile(kind) {
   setTitle(kind === "business" ? "Business Profile" : "Campaign Requests");
-  const banner = quizConfirmation ? `<section class="success-banner" role="status">${escapeHtml(quizConfirmation)}</section>` : "";
+  const banner = confirmationMarkup();
   quizConfirmation = "";
   const own = kind === "business" ? myOwnBusinesses() : sortCampaignRequests(myOwnRequests());
   const card = kind === "business" ? businessCard : requestCard;
-  // No "start a fresh quiz while already logged in" flow exists yet — the
-  // quiz is currently pre-auth only (landing → quiz → register). So this
-  // empty state has no action button until that's built; see redesign audit.
   const empty = emptyState({
     icon: { svg: ICONS[kind === "business" ? "briefcase" : "document"], tint: "icon-tint-mint" },
     title: kind === "business" ? "No business profile yet" : "No campaign request yet",
@@ -1551,9 +1670,10 @@ function renderMyOwnProfile(kind) {
     ${activityPanel}
     <section class="panel">
       <div class="section-heading">
-        <div><p class="muted">Your submitted ${kind === "business" ? "business profile" : "campaign requests"}. Use "Complete profile" for stronger matches.</p></div>
+        <div><h2>${kind === "business" ? "Your Business Profile" : "Your Submitted Requests"}</h2><p class="muted">${kind === "business" ? "Keep your partner information current and add another profile when needed." : "Review your previous requests, campaign stages, and outcomes."}</p></div>
         ${kind === "request" && own.length ? `<label class="sort-select-wrap">Sort by <select id="campaign-sort"><option value="newest" ${campaignSort === "newest" ? "selected" : ""}>Newest</option><option value="oldest" ${campaignSort === "oldest" ? "selected" : ""}>Oldest</option><option value="upcoming" ${campaignSort === "upcoming" ? "selected" : ""}>Campaign date</option><option value="completed" ${campaignSort === "completed" ? "selected" : ""}>Completed first</option></select></label>` : ""}
       </div>
+      <button type="button" class="primary-btn" data-start-new-profile>${ICONS.plus} ${kind === "business" ? "Add Business Profile" : "Submit New Campaign Request"}</button>
       <button type="button" class="primary-btn" data-goto-matches>Find New Matches ${ICONS.arrowRight}</button>
     </section>
     <section class="entity-list">${own.length ? own.map((record) => card(record, { showCompleteProfile: true })).join("") : empty}</section>
@@ -1561,15 +1681,10 @@ function renderMyOwnProfile(kind) {
   wireCompleteProfileLinks();
   wireEntityDetailLinks();
   root.querySelector("[data-empty-action=\"start-match-finder\"]")?.addEventListener("click", () => {
-    quizAudience = null;
-    quizPhase = "choose";
-    quizStep = 0;
-    quizAnswers = {};
-    quizActiveRecordId = null;
-    quizResultsPreview = null;
-    authScreen = "quiz-choose";
-    render();
+    startNewProfileQuiz();
   });
+  wireConfirmationLink();
+  root.querySelector("[data-start-new-profile]")?.addEventListener("click", () => startNewProfileQuiz(kind));
   root.querySelectorAll("[data-goto-matches]").forEach((button) => button.addEventListener("click", () => {
     activeView = "matches";
     render();
@@ -1578,6 +1693,19 @@ function renderMyOwnProfile(kind) {
     campaignSort = event.target.value;
     render();
   });
+}
+
+function startNewProfileQuiz(kind = "request") {
+  quizAudience = kind === "business" ? "business" : "request";
+  quizPhase = "core";
+  quizStep = 0;
+  quizAnswers = {};
+  quizActiveRecordId = null;
+  quizResultsPreview = null;
+  inAppProfileCreate = true;
+  authScreen = "app";
+  activeView = "complete-profile";
+  render();
 }
 
 function sortCampaignRequests(requests) {
@@ -1641,18 +1769,28 @@ function renderBusinesses() {
   }
   if (isAdmin()) {
     setTitle("Business Profiles");
-    const banner = quizConfirmation ? `<section class="success-banner" role="status">${escapeHtml(quizConfirmation)}</section>` : "";
+    const banner = confirmationMarkup();
     quizConfirmation = "";
+    const composing = adminComposer === "business";
     root.innerHTML = `
       ${banner}
-      <section class="panel"><h2>Business Match Profile</h2>${businessForm()}</section>
+      ${composing ? `<section class="panel composer-panel"><div class="section-heading"><div><p class="eyebrow">Add on behalf of a business</p><h2>New Business Profile</h2></div><button type="button" class="secondary-btn" data-cancel-composer>Back to profiles</button></div>${businessForm()}</section>` : `<section class="panel directory-helper"><div class="section-heading"><div><h2>Submitted Business Profiles</h2><p class="muted">Review the businesses in the partner network, their capacity, and their current availability.</p></div><button type="button" class="primary-btn" data-open-composer="business">${ICONS.plus} Add Business Profile</button></div></section>`}
       ${qualityReviewPanel()}
-      <section class="entity-list">${data.businesses.map((b) => businessCard(b, { showCompleteProfile: true })).join("")}</section>
+      <section class="entity-list">${data.businesses.map((b) => businessCard(b, { adminDirectory: true })).join("")}</section>
     `;
-    wireBusinessForm();
+    if (composing) wireBusinessForm();
+    root.querySelector("[data-open-composer]")?.addEventListener("click", () => {
+      adminComposer = "business";
+      render();
+    });
+    root.querySelector("[data-cancel-composer]")?.addEventListener("click", () => {
+      adminComposer = "";
+      render();
+    });
     wireCompleteProfileLinks();
     wireQualityControls();
     wireEntityDetailLinks();
+    wireConfirmationLink();
     return;
   }
 
@@ -1681,12 +1819,13 @@ function renderEntityDetail() {
   }
   const name = isBusiness ? record.name : record.organizationName;
   const image = isBusiness ? businessPhoto(record) : requestPhoto(record);
+  const imageClass = isBrandAsset(image) ? " brand-photo" : "";
   const relatedMatches = currentMatches().filter((match) => (isBusiness ? match.business.id === record.id : match.request.id === record.id));
   setTitle(isBusiness ? "Business Details" : "Campaign Details");
   root.innerHTML = `
     <button type="button" class="back-link" data-entity-back>${ICONS.undo} Back to ${isBusiness ? "Business Profiles" : "Campaign Requests"}</button>
     <section class="profile-detail-hero">
-      <div class="profile-detail-image"><img src="${escapeHtml(image)}" alt="${escapeHtml(name)}" /></div>
+      <div class="profile-detail-image"><img class="${imageClass.trim()}" src="${escapeHtml(image)}" alt="${escapeHtml(name)}" /></div>
       <div><p class="eyebrow">${isBusiness ? "Local business" : "Nonprofit campaign"}</p><h2>${escapeHtml(name)}</h2><p class="muted">${escapeHtml(isBusiness ? record.category : record.causeArea)} · ${escapeHtml(isBusiness ? (record.serviceAreas || ["Local"])[0] : record.geography)}</p></div>
     </section>
     <section class="profile-detail-grid">
@@ -1702,6 +1841,7 @@ function renderEntityDetail() {
         <button type="button" class="primary-btn" data-entity-matches>View matches ${ICONS.arrowRight}</button>
       </aside>
     </section>
+    ${isAdmin() && record.pendingChanges?.length ? `<section class="panel change-review"><p class="eyebrow">Review updates</p><h3>Client-owned details were preserved</h3><p class="muted">These fields already had client-provided values, so the proposed admin changes were held for review.</p><div class="change-review-list">${record.pendingChanges.slice(-6).map((change) => `<div><strong>${escapeHtml(humanizeField(change.field))}</strong><span class="muted">Proposed by ${escapeHtml(change.proposedBy || "admin")}</span></div>`).join("")}</div></section>` : ""}
   `;
   root.querySelector("[data-entity-back]").addEventListener("click", () => {
     selectedEntityKey = "";
@@ -1722,6 +1862,15 @@ function wireEntityDetailLinks() {
       activeView = "entity-detail";
       render();
     });
+  });
+}
+
+function wireConfirmationLink() {
+  root.querySelector("[data-confirmation-detail]")?.addEventListener("click", () => {
+    const button = root.querySelector("[data-confirmation-detail]");
+    selectedEntityKey = `${button.dataset.entityType}::${button.dataset.entityId}`;
+    activeView = "entity-detail";
+    render();
   });
 }
 
@@ -2394,8 +2543,7 @@ function wireRequestForm({ fromQuiz = false } = {}) {
   wireFormSuggestions();
   document.getElementById("request-form").addEventListener("submit", (event) => {
     event.preventDefault();
-    data.campaignRequests = [
-      {
+    const request = {
         id: `request-${crypto.randomUUID()}`,
         organizationName: value("request-org"),
         organizationType: value("request-type"),
@@ -2420,13 +2568,16 @@ function wireRequestForm({ fromQuiz = false } = {}) {
         createdAt: new Date().toISOString(),
         successDetails: "",
         status: "new",
-      },
-      ...data.campaignRequests,
-    ];
+      };
+    initializeRecordMeta(request, isAdmin() ? "admin" : "client");
+    data.campaignRequests = [request, ...data.campaignRequests];
     saveData(data);
     if (fromQuiz) {
       quizConfirmation = "Campaign request saved. Raise Local can now compare it against business profiles.";
       activeView = "matches";
+    } else {
+      quizConfirmation = `${request.organizationName} campaign request was added.`;
+      quizConfirmationAction = { type: "request", id: request.id };
     }
     render();
   });
@@ -2435,8 +2586,7 @@ function wireRequestForm({ fromQuiz = false } = {}) {
 function wireBusinessForm({ fromQuiz = false } = {}) {
   document.getElementById("business-form").addEventListener("submit", (event) => {
     event.preventDefault();
-    data.businesses = [
-      {
+    const business = {
         id: `business-${crypto.randomUUID()}`,
         name: value("business-name"),
         category: value("business-category"),
@@ -2458,13 +2608,16 @@ function wireBusinessForm({ fromQuiz = false } = {}) {
         reviewNote: "",
         unavailable: false,
         status: "ready",
-      },
-      ...data.businesses,
-    ];
+      };
+    initializeRecordMeta(business, isAdmin() ? "admin" : "client");
+    data.businesses = [business, ...data.businesses];
     saveData(data);
     if (fromQuiz) {
       quizConfirmation = "Business profile saved. Raise Local can now recommend fit-based campaign opportunities.";
       activeView = "matches";
+    } else {
+      quizConfirmation = `${business.name} was added to the partner network.`;
+      quizConfirmationAction = { type: "business", id: business.id };
     }
     render();
   });
@@ -2626,13 +2779,11 @@ function entityInitials(name) {
 }
 
 function entityVisual(name, photo, kind) {
-  if (photo.startsWith("assets/")) {
-    return `<img class="entity-list-photo brand-photo" src="${photo}" alt="${escapeHtml(name)}" loading="lazy" />`;
-  }
-  return `<span class="entity-avatar ${kind === "business" ? "entity-avatar-business" : "entity-avatar-nonprofit"}" aria-label="${escapeHtml(name)}">${escapeHtml(entityInitials(name))}</span>`;
+  const brandClass = isBrandAsset(photo) ? " brand-photo" : "";
+  return `<div class="directory-card-media${brandClass}"><img src="${escapeHtml(photo)}" alt="${escapeHtml(name)}" loading="lazy" /></div>`;
 }
 
-function requestCard(request, { showCompleteProfile = false } = {}) {
+function requestCard(request, { showCompleteProfile = false, adminDirectory = false } = {}) {
   const photo = requestPhoto(request);
   return `
     <article class="entity-card directory-card">
@@ -2640,8 +2791,8 @@ function requestCard(request, { showCompleteProfile = false } = {}) {
         <span class="opportunity-kind opportunity-nonprofit">Nonprofit request</span>
         <span class="directory-location">${ICONS.mapPin} ${escapeHtml(request.geography || "Local")}</span>
       </div>
+      ${entityVisual(request.organizationName, photo, "nonprofit")}
       <div class="directory-identity">
-        ${entityVisual(request.organizationName, photo, "nonprofit")}
         <div>
           <h3>${escapeHtml(request.organizationName)}</h3>
           <p class="muted">${escapeHtml(request.organizationType)} · $${Number(request.fundingGoal || 0).toLocaleString()} goal</p>
@@ -2661,14 +2812,14 @@ function requestCard(request, { showCompleteProfile = false } = {}) {
         <span class="tag">${escapeHtml(campaignStage(request))}</span>
       </div>
       <div class="directory-card-footer">
-        ${showCompleteProfile ? `<button type="button" class="link-btn" data-complete-profile="request" data-record-id="${escapeHtml(request.id)}">Complete profile ${ICONS.arrowRight}</button>` : `<button type="button" class="link-btn" data-view-entity data-entity-type="request" data-entity-id="${escapeHtml(request.id)}">View details ${ICONS.arrowRight}</button>`}
+        ${adminDirectory ? `<div class="directory-card-actions"><button type="button" class="link-btn" data-view-entity data-entity-type="request" data-entity-id="${escapeHtml(request.id)}">View details ${ICONS.arrowRight}</button><button type="button" class="secondary-btn" data-complete-profile="request" data-record-id="${escapeHtml(request.id)}">Complete profile</button></div>` : showCompleteProfile ? `<button type="button" class="link-btn" data-complete-profile="request" data-record-id="${escapeHtml(request.id)}">Complete profile ${ICONS.arrowRight}</button>` : `<button type="button" class="link-btn" data-view-entity data-entity-type="request" data-entity-id="${escapeHtml(request.id)}">View details ${ICONS.arrowRight}</button>`}
       </div>
       ${request.successDetails ? `<p class="small-note directory-outcome">Outcome: ${escapeHtml(request.successDetails)}</p>` : ""}
     </article>
   `;
 }
 
-function businessCard(business, { showCompleteProfile = false } = {}) {
+function businessCard(business, { showCompleteProfile = false, adminDirectory = false } = {}) {
   const statusClass = business.unavailable ? "status-active" : business.qualityStatus === "needs_review" ? "status-new" : "status-ready";
   const statusText = business.unavailable ? "paused" : business.qualityStatus === "needs_review" ? "needs review" : "ready";
   const photo = businessPhoto(business);
@@ -2678,8 +2829,8 @@ function businessCard(business, { showCompleteProfile = false } = {}) {
         <span class="opportunity-kind opportunity-business">Business opportunity</span>
         <span class="directory-location">${ICONS.mapPin} ${escapeHtml((business.serviceAreas || ["Local"])[0])}</span>
       </div>
+      ${entityVisual(business.name, photo, "business")}
       <div class="directory-identity">
-        ${entityVisual(business.name, photo, "business")}
         <div>
           <h3>${escapeHtml(business.name)}</h3>
           <p class="muted">${escapeHtml(business.category)} · <span class="status-pill ${statusClass}">${statusText}</span></p>
@@ -2697,7 +2848,7 @@ function businessCard(business, { showCompleteProfile = false } = {}) {
         ${[...(business.causeAreas || []), ...(business.contributionTypes || []), ...(business.offerTypes || []), ...(business.fulfillmentOptions || [])].map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}
       </div>
       <div class="directory-card-footer">
-        ${showCompleteProfile ? `<button type="button" class="link-btn" data-complete-profile="business" data-record-id="${escapeHtml(business.id)}">Complete profile ${ICONS.arrowRight}</button>` : `<button type="button" class="link-btn" data-view-entity data-entity-type="business" data-entity-id="${escapeHtml(business.id)}">View details ${ICONS.arrowRight}</button>`}
+        ${adminDirectory ? `<div class="directory-card-actions"><button type="button" class="link-btn" data-view-entity data-entity-type="business" data-entity-id="${escapeHtml(business.id)}">View details ${ICONS.arrowRight}</button><button type="button" class="secondary-btn" data-complete-profile="business" data-record-id="${escapeHtml(business.id)}">Complete profile</button></div>` : showCompleteProfile ? `<button type="button" class="link-btn" data-complete-profile="business" data-record-id="${escapeHtml(business.id)}">Complete profile ${ICONS.arrowRight}</button>` : `<button type="button" class="link-btn" data-view-entity data-entity-type="business" data-entity-id="${escapeHtml(business.id)}">View details ${ICONS.arrowRight}</button>`}
       </div>
     </article>
   `;
