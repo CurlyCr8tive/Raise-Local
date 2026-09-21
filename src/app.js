@@ -194,14 +194,14 @@ function myEmail() {
 
 const REQUEST_CLIENT_FIELDS = new Set([
   "website", "socialLinks", "classification", "communitiesServed", "mission", "audienceServed", "audienceSize",
-  "eventType", "startDate", "endDate", "partnershipDeadline", "expectedParticipation", "minimumSize", "idealSize",
+  "eventType", "campaignType", "startDate", "endDate", "partnershipDeadline", "expectedParticipation", "minimumSize", "idealSize",
   "mustHaves", "niceToHaves", "priorFundraiser",
 ]);
 
 const BUSINESS_CLIENT_FIELDS = new Set([
   "businessType", "website", "socialLinks", "fulfillmentScope", "contributionTypes", "productsServices", "averagePriceRange",
   "minimumCapacity", "maximumCapacity", "idealEventSize", "campaignCap", "activeCampaigns", "availableFrom", "availableTo",
-  "leadTimeDays", "fulfillmentOptions", "orgTypesSupported", "notes",
+  "leadTimeDays", "fulfillmentOptions", "orgTypesSupported", "pricingPoint", "notes",
 ]);
 
 function recordActor() {
@@ -381,6 +381,7 @@ const NONPROFIT_CORE_QUESTIONS = [
   { key: "organizationType", label: "What type of organization are you?", type: "single", options: ORGANIZATION_TYPES },
   { key: "causeArea", label: "What cause are you raising funds for?", type: "single", options: CAUSE_AREAS },
   { key: "campaignDescription", label: "In one line, what's the campaign for?", type: "text", placeholder: "New playground equipment, weekend meal bags, art supplies..." },
+  { key: "campaignType", label: "What kind of campaign or fundraiser are you planning?", type: "single", options: EVENT_TYPES },
   { key: "preferredCategories", label: "What kind of business would be the best partner?", type: "multi", options: BUSINESS_CATEGORIES },
   { key: "supportNeeds", label: "What kind of support do you need from them?", type: "multi", options: SUPPORT_NEEDS },
   { key: "partnershipTypesNeeded", label: "What kind of partnership are you hoping for?", type: "multi", options: PARTNERSHIP_TYPES },
@@ -416,6 +417,7 @@ const BUSINESS_CORE_QUESTIONS = [
   { key: "category", label: "What type of business are you?", type: "single", options: BUSINESS_CATEGORIES.filter((item) => item !== "No preference") },
   { key: "causeAreas", label: "What causes do you want to support?", type: "multi", options: CAUSE_AREAS },
   { key: "offerTypes", label: "What can you offer campaigns?", type: "multi", options: SUPPORT_NEEDS },
+  { key: "pricingPoint", label: "What is the typical price point for the product or service?", type: "text", placeholder: "$15-$40" },
   { key: "partnershipTypes", label: "Which kinds of partnerships are you open to?", type: "multi", options: PARTNERSHIP_TYPES },
   { key: "serviceAreas", label: "Where can you serve campaigns?", type: "text", placeholder: "Brooklyn, Washington DC, Maryland" },
   { key: "minimumOrderRequirement", label: "What's the smallest campaign size worth your time?", type: "number", placeholder: "250" },
@@ -447,11 +449,50 @@ const BUSINESS_PROFILE_QUESTIONS = [
   { key: "notes", label: "Anything else Raise Local should know?", type: "textarea", placeholder: "Limits, ideal partners, venue details, accessibility, minimums, or timing notes." },
 ];
 
+const PRICING_RELEVANT_OPTIONS = new Set([
+  "Product donation",
+  "Percent of sales",
+  "Sponsorship dollars",
+  "Products or corporate gifting",
+  "Food & beverage",
+  "Percentage of sales campaign",
+]);
+
+const UNIT_CONTRIBUTION_OPTIONS = new Set([
+  "Product donation",
+  "Percent of sales",
+  "Products or corporate gifting",
+  "Food & beverage",
+  "Percentage of sales campaign",
+]);
+
+function selectedBusinessSupportOptions() {
+  return [
+    ...(Array.isArray(quizAnswers.contributionTypes) ? quizAnswers.contributionTypes : []),
+    ...(Array.isArray(quizAnswers.offerTypes) ? quizAnswers.offerTypes : []),
+  ];
+}
+
+function businessNeedsPricingDetails() {
+  return selectedBusinessSupportOptions().some((option) => PRICING_RELEVANT_OPTIONS.has(option));
+}
+
+function businessNeedsUnitContribution() {
+  return selectedBusinessSupportOptions().some((option) => UNIT_CONTRIBUTION_OPTIONS.has(option));
+}
+
 function activeQuestionList() {
   if (quizPhase === "profile") {
-    return quizAudience === "business" ? BUSINESS_PROFILE_QUESTIONS : NONPROFIT_PROFILE_QUESTIONS;
+    if (quizAudience !== "business") return NONPROFIT_PROFILE_QUESTIONS;
+    return BUSINESS_PROFILE_QUESTIONS.filter((question) => question.key !== "averagePriceRange" || businessNeedsPricingDetails());
   }
-  const core = quizAudience === "business" ? BUSINESS_CORE_QUESTIONS : NONPROFIT_CORE_QUESTIONS;
+  const core = quizAudience === "business"
+    ? BUSINESS_CORE_QUESTIONS.filter((question) => {
+        if (question.key === "pricingPoint") return businessNeedsPricingDetails();
+        if (question.key === "estimatedUnitContribution") return businessNeedsUnitContribution();
+        return true;
+      })
+    : NONPROFIT_CORE_QUESTIONS;
   const contact = quizAudience === "business" ? BUSINESS_CONTACT_QUESTION : NONPROFIT_CONTACT_QUESTION;
   return [...core, contact];
 }
@@ -535,7 +576,7 @@ function syncNavForRole() {
 }
 
 function syncNotifications() {
-  const notifs = isAdmin() ? [] : myNotifications();
+  const notifs = myNotifications();
   const unread = notifs.filter((n) => !n.read).length;
   setBadge(document.getElementById("notif-badge"), unread);
 
@@ -1033,8 +1074,9 @@ function quizInputHtml(question) {
 
 function quizSuggestions(question) {
   const suggestions = {
-    organizationName: ["PS 118 PTA", "Fresh Start Pantry", "Young Excellence Society"],
+    organizationName: ["PS 118 PTA", "Fresh Start Pantry", "YES Academy Inc."],
     campaignDescription: ["Raise money for after-school supplies", "Fund weekend meal bags for local families", "Support a community arts program"],
+    campaignType: ["Food-based fundraiser", "Product fundraiser", "Community event"],
     geography: ["Brooklyn", "Queens", "Manhattan", "Bronx", "New York City"],
     fundingGoal: ["2500", "5000", "10000"],
     website: ["https://yourorganization.org"],
@@ -1048,6 +1090,7 @@ function quizSuggestions(question) {
     mustHaves: ["Local service area, reliable communication, and capacity for the campaign size."],
     niceToHaves: ["Pickup or delivery, social promotion, and flexible campaign dates."],
     name: ["Yamaas Olive Oil & Vinegar", "Sofia & Grace", "Paper Porch Goods"],
+    pricingPoint: ["$15-$40", "$25-$75", "$50-$120"],
     serviceAreas: ["Brooklyn, Queens", "Manhattan", "New York City"],
     minimumOrderRequirement: ["50", "100", "250"],
     estimatedUnitContribution: ["10", "15", "20"],
@@ -1106,6 +1149,13 @@ function wireGuidedQuiz(questions) {
     const answer = readQuizAnswer(question);
     if (isBlankAnswer(question, answer)) return;
     quizAnswers[question.key] = answer;
+    if (quizAudience === "business" && ["offerTypes", "contributionTypes"].includes(question.key)) {
+      if (!businessNeedsPricingDetails()) {
+        delete quizAnswers.pricingPoint;
+        delete quizAnswers.averagePriceRange;
+      }
+      if (!businessNeedsUnitContribution()) delete quizAnswers.estimatedUnitContribution;
+    }
     if (quizStep < questions.length - 1) {
       quizStep += 1;
       render();
@@ -1169,6 +1219,7 @@ function finishCoreQuiz() {
     syncCampaignRequest(request);
   }
   saveData(data);
+  notifyAdminOfSuggestedMatches(quizAudience, createdRecord);
   if (inAppProfileCreate) {
     quizConfirmation = quizAudience === "business" ? `${createdRecord.name} was added to the partner network.` : `${createdRecord.organizationName} campaign request was submitted.`;
     quizConfirmationAction = { type: quizAudience === "business" ? "business" : "request", id: createdRecord.id };
@@ -1202,6 +1253,9 @@ function finishProfileQuiz() {
     }
   }
   saveData(data);
+  notifyAdminOfSuggestedMatches(quizAudience, quizAudience === "business"
+    ? data.businesses.find((item) => item.id === quizActiveRecordId)
+    : data.campaignRequests.find((item) => item.id === quizActiveRecordId));
   quizConfirmation = conflicts.length
     ? `Profile saved. ${conflicts.length} client-owned field${conflicts.length === 1 ? "" : "s"} was preserved for review.`
     : "Profile completed — thanks for the extra detail. It helps Raise Local recommend stronger matches.";
@@ -1258,6 +1312,7 @@ function requestFromQuizAnswers() {
     audienceServed: "",
     audienceSize: 0,
     campaignDescription: quizAnswers.campaignDescription,
+    campaignType: quizAnswers.campaignType || "",
     fundingGoal: Number(quizAnswers.fundingGoal) || 0,
     startDate: "",
     endDate: "",
@@ -1266,7 +1321,7 @@ function requestFromQuizAnswers() {
     causeArea: quizAnswers.causeArea,
     businessPreference: quizAnswers.preferredCategories?.[0] || "No preference",
     preferredCategories: quizAnswers.preferredCategories || [],
-    eventType: "",
+    eventType: quizAnswers.campaignType || "",
     partnershipTypesNeeded: quizAnswers.partnershipTypesNeeded || [],
     supportNeeds: quizAnswers.supportNeeds || [],
     expectedParticipation: 0,
@@ -1319,6 +1374,7 @@ function businessFromQuizAnswers() {
     email: contact.email,
     phone: contact.phone,
     category: quizAnswers.category,
+    pricingPoint: quizAnswers.pricingPoint || "",
     businessGoals: quizAnswers.businessGoals || [],
     serviceAreas: splitSelections(quizAnswers.serviceAreas),
     fulfillmentScope: "",
@@ -1358,6 +1414,7 @@ function businessProfilePatch() {
     contributionTypes: quizAnswers.contributionTypes || [],
     productsServices: quizAnswers.productsServices || "",
     averagePriceRange: quizAnswers.averagePriceRange || "",
+    pricingPoint: quizAnswers.pricingPoint || quizAnswers.averagePriceRange || "",
     minimumCapacity: Number(quizAnswers.minimumCapacity) || 0,
     maximumCapacity: Number(quizAnswers.maximumCapacity) || 0,
     idealEventSize: Number(quizAnswers.idealEventSize) || 0,
@@ -1970,6 +2027,7 @@ function renderMatchDetail(match) {
     <section class="match-detail-grid">
       <div>
         ${matchCard(match, { showAdminControls: isAdmin() })}
+        ${matchDecisionActions(match)}
       </div>
       <aside class="match-detail-rail">
         <section class="panel detail-insight">
@@ -1992,6 +2050,12 @@ function renderMatchDetail(match) {
   root.querySelector("[data-match-back]").addEventListener("click", () => {
     selectedMatchKey = "";
     render();
+  });
+  root.querySelectorAll("[data-detail-decision]").forEach((button) => {
+    button.addEventListener("click", () => {
+      respondToMatch(match, button.dataset.detailDecision);
+      render();
+    });
   });
   wireActiveMatchControls();
   wireMatchProgressionButtons();
@@ -2146,6 +2210,14 @@ function renderMatchTriage() {
   wireBinCards();
 }
 
+function outreachDraft(match) {
+  const request = match.request;
+  const business = match.business;
+  const goal = request.fundingGoal ? `$${Number(request.fundingGoal).toLocaleString()}` : "the campaign goal";
+  const approach = request.campaignType || request.eventType || request.partnershipTypesNeeded?.[0] || "a community partnership";
+  return `Subject: A potential Raise Local partnership for ${request.organizationName}\n\nHi ${business.contactName || business.name} team,\n\nRaise Local identified ${business.name} as a potential fit for ${request.organizationName}'s ${approach.toLowerCase()} in ${request.geography || "the local community"}. The campaign is focused on ${request.causeArea || "community impact"} and is working toward ${goal}.\n\nThe suggested fit is based on your offer, service area, timing, and capacity. Please review the match details and let us know whether you would like to explore the idea.\n\nBest,\nTenyse\nRaise Local`;
+}
+
 function renderMessages() {
   setTitle("Outreach");
   const approved = currentMatches().filter((match) => ["mutually_approved", "outreach_pending", "outreach_sent", "accepted", "active", "completed", "launched"].includes(match.status));
@@ -2158,13 +2230,50 @@ function renderMessages() {
     ${approved.length ? `<section class="message-list">${approved.map((match) => `
       <article class="panel message-row">
         <div class="message-row-icon">${ICONS.handshake}</div>
-        <div><p class="eyebrow">${escapeHtml(statusLabel(match.status))}</p><h3>${escapeHtml(match.request.organizationName)} + ${escapeHtml(match.business.name)}</h3><p class="muted">This partnership is ready for coordination. Open the match to review context and next steps.</p></div>
+        <div><p class="eyebrow">${escapeHtml(statusLabel(match.status))}</p><h3>${escapeHtml(match.request.organizationName)} + ${escapeHtml(match.business.name)}</h3><p class="muted">This partnership is ready for coordination. Review the context, then prepare an introduction that both sides can edit before sending.</p><textarea class="outreach-draft" data-outreach-draft id="outreach-${escapeHtml(match.id)}" rows="6" placeholder="Draft a suggested introduction">${escapeHtml(match.outreachMessage || "")}</textarea><div class="message-row-actions"><button type="button" class="secondary-btn" data-draft-outreach data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">Draft introduction</button><button type="button" class="text-btn" data-copy-outreach data-target="outreach-${escapeHtml(match.id)}">Copy draft</button></div></div>
         <button type="button" class="secondary-btn" data-view-match data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">View match ${ICONS.arrowRight}</button>
       </article>
     `).join("")}</section>` : emptyState({ icon: { svg: ICONS.send, tint: "icon-tint-mint" }, title: "No partner conversations yet", body: "Once both sides approve a match, the conversation and outreach context will appear here.", action: { label: "Review matches", gotoView: "matches" } })}
   `;
   wireViewMatchButtons();
+  wireOutreachDrafts();
   wireEmptyStates(root, (view) => { activeView = view; }, render);
+}
+
+function wireOutreachDrafts() {
+  root.querySelectorAll("[data-draft-outreach]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const match = currentMatches().find((item) => item.request.id === button.dataset.requestId && item.business.id === button.dataset.businessId);
+      if (!match) return;
+      match.outreachMessage = outreachDraft(match);
+      saveData(data);
+      const field = root.querySelector(`[data-outreach-draft]#outreach-${CSS.escape(match.id)}`);
+      if (field) field.value = match.outreachMessage;
+      syncMatchDecision({
+        requestId: match.request.id,
+        businessId: match.business.id,
+        status: match.status,
+        nonprofitDecision: match.nonprofitDecision || "",
+        businessDecision: match.businessDecision || "",
+        outreachStatus: match.outreachStatus || "not_started",
+        outreachMessage: match.outreachMessage,
+        outreachAt: match.outreachAt || null,
+        declineReason: match.declineReason || "",
+        declineNote: match.declineNote || "",
+        adminNote: match.adminNote || "",
+        notifiedAt: match.notifiedAt || null,
+      });
+    });
+  });
+  root.querySelectorAll("[data-copy-outreach]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const field = document.getElementById(button.dataset.target);
+      if (!field) return;
+      await navigator.clipboard?.writeText(field.value);
+      button.textContent = "Copied";
+      window.setTimeout(() => { button.textContent = "Copy draft"; }, 1400);
+    });
+  });
 }
 
 function renderProjects() {
@@ -2465,6 +2574,7 @@ function businessForm({ quizMode = false } = {}) {
         ${multiSelectField("business-causes", "Cause areas they want to support", CAUSE_AREAS)}
         ${multiSelectField("business-contributions", "Contribution types", CONTRIBUTION_TYPES)}
         ${multiSelectField("business-offers", "Offer type", SUPPORT_NEEDS)}
+        <div class="business-pricing-field is-hidden" data-business-pricing-field>${inputField("business-pricing", "Typical price point", "$15-$40", "text", ["$15-$40", "$25-$75", "$50-$120"])}</div>
       </div>
       <div class="quiz-intro">
         <p class="eyebrow">Step 3 of 4</p>
@@ -2476,7 +2586,7 @@ function businessForm({ quizMode = false } = {}) {
         ${inputField("business-ideal-size", "Ideal event size", "100", "number")}
         ${inputField("business-campaign-cap", "Campaign cap at one time", "2", "number")}
         ${inputField("business-active-campaigns", "Active campaigns now", "0", "number")}
-        ${inputField("business-unit-value", "Estimated contribution per unit", "15", "number")}
+        <div class="business-pricing-field is-hidden" data-business-pricing-field>${inputField("business-unit-value", "Estimated contribution per unit", "15", "number")}</div>
       </div>
       <div class="quiz-intro">
         <p class="eyebrow">Step 4 of 4</p>
@@ -2551,6 +2661,7 @@ function wireRequestForm({ fromQuiz = false } = {}) {
         email: value("request-email"),
         phone: value("request-phone"),
         campaignDescription: value("request-description"),
+        campaignType: value("request-event"),
         fundingGoal: Number(value("request-goal")) || 0,
         startDate: value("request-start"),
         endDate: value("request-end"),
@@ -2572,6 +2683,7 @@ function wireRequestForm({ fromQuiz = false } = {}) {
     initializeRecordMeta(request, isAdmin() ? "admin" : "client");
     data.campaignRequests = [request, ...data.campaignRequests];
     saveData(data);
+    notifyAdminOfSuggestedMatches("request", request);
     if (fromQuiz) {
       quizConfirmation = "Campaign request saved. Raise Local can now compare it against business profiles.";
       activeView = "matches";
@@ -2584,12 +2696,22 @@ function wireRequestForm({ fromQuiz = false } = {}) {
 }
 
 function wireBusinessForm({ fromQuiz = false } = {}) {
+  const pricingFields = root.querySelectorAll("[data-business-pricing-field]");
+  const contributionSelect = document.getElementById("business-contributions");
+  const syncPricingFields = () => {
+    const selected = [...(contributionSelect?.selectedOptions || [])].map((option) => option.value);
+    const showPricing = selected.some((option) => PRICING_RELEVANT_OPTIONS.has(option));
+    pricingFields.forEach((field) => field.classList.toggle("is-hidden", !showPricing));
+  };
+  contributionSelect?.addEventListener("change", syncPricingFields);
+  syncPricingFields();
   document.getElementById("business-form").addEventListener("submit", (event) => {
     event.preventDefault();
     const business = {
         id: `business-${crypto.randomUUID()}`,
         name: value("business-name"),
         category: value("business-category"),
+        pricingPoint: value("business-pricing"),
         serviceAreas: splitSelections(value("business-areas")),
         causeAreas: selectedOptions("business-causes"),
         contributionTypes: selectedOptions("business-contributions"),
@@ -2612,6 +2734,7 @@ function wireBusinessForm({ fromQuiz = false } = {}) {
     initializeRecordMeta(business, isAdmin() ? "admin" : "client");
     data.businesses = [business, ...data.businesses];
     saveData(data);
+    notifyAdminOfSuggestedMatches("business", business);
     if (fromQuiz) {
       quizConfirmation = "Business profile saved. Raise Local can now recommend fit-based campaign opportunities.";
       activeView = "matches";
@@ -2662,6 +2785,10 @@ function upsertMatchDecision(requestId, businessId, role, decision) {
   if (existing.status === "mutually_approved" || existing.status === "outreach_pending") existing.notifiedAt = new Date().toISOString();
   const index = data.matches.findIndex((match) => match.requestId === requestId && match.businessId === businessId);
   if (index === -1) data.matches.push(existing);
+  if (existing.status === "mutually_approved" && fromStatus !== "mutually_approved") {
+    const match = currentMatches().find((item) => item.request.id === requestId && item.business.id === businessId);
+    if (match) notifyMutualApproval(match);
+  }
   saveData(data);
   syncMatchDecision({
     requestId,
@@ -2721,23 +2848,72 @@ function upsertMatchFeedback(requestId, businessId, fields) {
   });
 }
 
-// Notifications live in the same shared local data as everything else, so
-// they only actually reach a "different" account within the same browser
-// (e.g. switching demo logins here) — there's no cross-device push yet.
-// That's consistent with the rest of the app's local-first data model.
-function addNotification({ forEmail, message, requestId, businessId }) {
+// In-app notifications live in the same shared local data as everything else,
+// so demo role switching can show them in one browser. Gmail notifications are
+// sent separately by the server when OAuth has been configured.
+function addNotification({ forEmail, message, requestId, businessId, type = "workflow" }) {
   if (!forEmail) return;
   data.notifications = data.notifications || [];
+  const normalizedEmail = forEmail.trim().toLowerCase();
+  if (data.notifications.some((notification) => notification.forEmail === normalizedEmail && notification.requestId === requestId && notification.businessId === businessId && notification.type === type && notification.message === message)) return;
   data.notifications.push({
     id: `notif-${crypto.randomUUID()}`,
-    forEmail: forEmail.trim().toLowerCase(),
+    forEmail: normalizedEmail,
     message,
     requestId,
     businessId,
+    type,
     read: false,
     createdAt: new Date().toISOString(),
   });
   saveData(data);
+}
+
+function triggerGmailNotification({ subject, text }) {
+  void fetch("/api/gmail/send-notification", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ subject, text }),
+  }).catch(() => {});
+}
+
+function notifyAdminOfSuggestedMatches(kind, record) {
+  if (!record) return;
+  const matches = kind === "business"
+    ? buildMatches(data.campaignRequests, [record], data.matches)
+    : buildMatches([record], data.businesses, data.matches);
+  matches.filter((match) => !["declined", "on_hold"].includes(match.status)).forEach((match) => {
+    const completedBy = kind === "business" ? match.business.name : match.request.organizationName;
+    const message = `New Raise Local match: ${match.request.organizationName} + ${match.business.name}. ${completedBy} completed the intro quiz and a potential partner match is ready for review.`;
+    const alreadyNotified = (data.notifications || []).some((notification) => notification.type === "suggested_match" && notification.requestId === match.request.id && notification.businessId === match.business.id);
+    if (alreadyNotified) return;
+    ["demo@raiselocal.local", "admin@raiselocal.local"].forEach((email) => addNotification({
+      forEmail: email,
+      message,
+      requestId: match.request.id,
+      businessId: match.business.id,
+      type: "suggested_match",
+    }));
+    triggerGmailNotification({
+      subject: `New client match to review: ${match.request.organizationName} + ${match.business.name}`,
+      text: `${message}\n\nPlease log in to Raise Local to review your client's matches and follow up if either side needs help moving forward. One or both parties may still need to respond.`,
+    });
+  });
+}
+
+function notifyMutualApproval(match) {
+  const message = `${match.request.organizationName} and ${match.business.name} both approved a Raise Local match. Review the partnership and coordinate the introduction.`;
+  ["demo@raiselocal.local", match.request.email, match.business.email].forEach((email) => addNotification({
+    forEmail: email,
+    message,
+    requestId: match.request.id,
+    businessId: match.business.id,
+    type: "mutual_approval",
+  }));
+  triggerGmailNotification({
+    subject: `Raise Local match approved: ${match.request.organizationName} + ${match.business.name}`,
+    text: `${message}\n\nSuggested next step: review the match details and coordinate the introduction from the Raise Local Outreach workspace.`,
+  });
 }
 
 function myNotifications() {
@@ -2928,6 +3104,27 @@ function matchProgressionAction(match) {
   return "";
 }
 
+function matchDecisionActions(match) {
+  if (isAdmin()) return "";
+  const decisionField = myRole() === "business" ? "businessDecision" : "nonprofitDecision";
+  const decision = match[decisionField];
+  if (decision) {
+    const label = decision === "approved" ? "Approved" : decision === "held" ? "On hold" : "Declined";
+    return `<section class="panel match-detail-decision"><p class="eyebrow">Your decision</p><strong>${label}</strong><p class="muted">${decision === "approved" ? "The other side can now review this opportunity. Outreach begins after both sides approve." : decision === "held" ? "This match is saved for later. You can reconsider it from Match Review." : "This match will remain out of your active review list."}</p></section>`;
+  }
+  return `
+    <section class="panel match-detail-decision">
+      <p class="eyebrow">Your decision</p>
+      <p class="muted">Choose what should happen with this suggested partnership.</p>
+      <div class="match-detail-decision-actions">
+        <button type="button" class="triage-btn deny" data-detail-decision="deny" aria-label="Decline this match">${ICONS.close}<span>Decline</span></button>
+        <button type="button" class="triage-btn hold" data-detail-decision="hold" aria-label="Hold this match for later">${ICONS.bookmark}<span>Hold</span></button>
+        <button type="button" class="triage-btn approve" data-detail-decision="approve" aria-label="Approve this match">${ICONS.check}<span>Approve</span></button>
+      </div>
+    </section>
+  `;
+}
+
 function wireMatchProgressionButtons() {
   root.querySelectorAll("[data-progress-status]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -2980,7 +3177,7 @@ function matchCard(match, { showAdminControls = false, showRating = false } = {}
           </ul>
         </details>
       </div>
-      ${match.notifiedAt ? `<p class="notification-note">Email notification queued for ${escapeHtml(match.request.email)} and ${escapeHtml(match.business.name)} on ${formatDateTime(match.notifiedAt)}.</p>` : ""}
+      ${match.notifiedAt ? `<p class="notification-note">Mutual approval recorded for ${escapeHtml(match.request.organizationName)} and ${escapeHtml(match.business.name)} on ${formatDateTime(match.notifiedAt)}.</p>` : ""}
       ${
         showAdminControls
           ? `

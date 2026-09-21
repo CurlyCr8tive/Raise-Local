@@ -73,6 +73,14 @@ focuses only on validating the matching loop:
 See `docs/action-and-build-plan.md` for the current action plan and
 `docs/core-matchmaking-brief.md` for the product source of truth.
 
+## Handoff And Demo Guides
+
+- `docs/tenyse-use-guide.md` explains the role-based demo and everyday workflows.
+- `docs/technical-handoff.md` covers local setup, Supabase, environment variables,
+  production readiness, and known limitations.
+- `docs/demo-day-8-minute-script.md` contains the recommended combined
+  Verified Consulting and Raise Local presentation flow.
+
 Stripe checkout and 40/45/15 split payouts are future scope. Open marketplace
 browsing, e-commerce storefronts, in-app messaging, opaque AI matching, public
 profiles, automations, auth, and CRM integrations are not in phase one.

@@ -77,6 +77,7 @@ const REQUEST_NAME_PHOTO_OVERRIDES = {
   "fresh start pantry": unsplash("1615897570582-285ffe259530"),
   "ps 118 art room": unsplash("1589488766611-08aad2021d8b"),
   "young excellence society": "assets/young-excellence-society.png",
+  "yes academy inc.": "assets/young-excellence-society.png",
   "grove park foundation": "assets/grove-park-foundation.jpg",
   "unitynow": "assets/unity-now-supplied.png",
 };

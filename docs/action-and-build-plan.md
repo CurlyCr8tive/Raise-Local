@@ -201,3 +201,38 @@ Later:
 - Jessica's preferred reviewer/admin role.
 - Confirmation of service areas: Brooklyn first, plus Washington, DC and
   Maryland where applicable.
+
+## September 20 Follow-Up Actions
+
+### Completed In The Build
+
+- Added campaign/fundraiser type to nonprofit intake.
+- Added typical pricing point to business intake.
+- Added deterministic suggested outreach drafts that can be edited and copied.
+- Added visible in-app notifications when a nonprofit and business both approve
+  the same match.
+- Added the role-aware use guide and technical handoff documents.
+
+### Next Implementation Steps
+
+- Connect notification events to an approved email provider after the sender,
+  recipient list, and consent rules are confirmed.
+- Confirm the Wix Headless deployment path and map the Wix sign-up fields to
+  `campaign_type` and `pricing_point`.
+- Test Supabase persistence and row-level access with separate admin,
+  nonprofit, and business accounts.
+- Use Sofia & Grace plus YES Academy as the presentation match only after the
+  corresponding records and outreach language are confirmed.
+- Remove or clearly label Paper Porch Goods as demo-only before public use.
+- Replace the Eyeland Vibes logo background or add a contrast treatment so the
+  white wordmark remains readable.
+
+### Product Direction
+
+- Keep the deterministic decision tree as the matching authority to control
+  API cost and preserve explainability.
+- Use an LLM as an optional amplifier for intake interpretation and outreach
+  drafts, with human editing and approval before messages are sent.
+- Treat automated campaign creation, product/package selection, team sales
+  tracking, and links to a Double Good-style fundraiser as a later product
+  phase.
