@@ -2222,51 +2222,139 @@ function outreachDraft(match) {
   return `Subject: A potential Raise Local partnership for ${request.organizationName}\n\nHi ${business.contactName || business.name} team,\n\nRaise Local identified ${business.name} as a potential fit for ${request.organizationName}'s ${approach.toLowerCase()} in ${request.geography || "the local community"}. The campaign is focused on ${request.causeArea || "community impact"} and is working toward ${goal}.\n\nThe suggested fit is based on your offer, service area, timing, and capacity. Please review the match details and let us know whether you would like to explore the idea.\n\nBest,\nTenyse\nRaise Local`;
 }
 
+async function generateOutreachDraftWithAgent(match) {
+  const request = match.request;
+  const business = match.business;
+  const context = {
+    nonprofit: request.organizationName,
+    business: business.name,
+    campaign: request.campaignDescription,
+    cause: request.causeArea,
+    location: request.geography,
+    timing: request.startDate && request.endDate ? `${request.startDate} to ${request.endDate}` : request.partnershipDeadline || "Flexible timing",
+    partnershipType: request.partnershipTypesNeeded?.[0] || request.eventType || "Community partnership",
+    supportNeeded: request.supportNeeds?.join(", ") || "Partner support",
+    businessOffer: business.productsServices || business.offerTypes?.join(", ") || "Local business support",
+    businessGoals: business.businessGoals?.join(", ") || "Community visibility",
+    fundraisingScenario: match.forecast,
+  };
+  const response = await fetch("/api/ai", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      provider: "anthropic",
+      model: "claude-3-5-haiku-latest",
+      maxTokens: 700,
+      system: "You are Raise Local's outreach assistant. Draft warm, specific, concise partnership outreach for a human coordinator named Tenyse. Do not promise funding, approval, availability, or campaign terms. Make the next step a short exploratory conversation. Return only the subject line and email body, with no markdown commentary.",
+      messages: [{ role: "user", content: `Create a warm introduction email using this approved partnership context:\n${JSON.stringify(context, null, 2)}` }],
+    }),
+  });
+  if (!response.ok) throw new Error("Outreach assistant unavailable");
+  const payload = await response.json();
+  return payload.text?.trim() || outreachDraft(match);
+}
+
+function persistOutreachDraft(match) {
+  const saved = data.matches.find((item) => item.requestId === match.request.id && item.businessId === match.business.id);
+  if (saved) {
+    saved.outreachMessage = match.outreachMessage || "";
+    saved.outreachStatus = match.outreachStatus || "not_started";
+    saved.outreachAt = match.outreachAt || null;
+  } else {
+    data.matches.push({
+      requestId: match.request.id,
+      businessId: match.business.id,
+      status: match.status,
+      outreachStatus: match.outreachStatus || "not_started",
+      outreachMessage: match.outreachMessage || "",
+      outreachAt: match.outreachAt || null,
+    });
+  }
+  saveData(data);
+  syncMatchDecision({
+    requestId: match.request.id,
+    businessId: match.business.id,
+    status: match.status,
+    nonprofitDecision: match.nonprofitDecision || "",
+    businessDecision: match.businessDecision || "",
+    outreachStatus: match.outreachStatus || "not_started",
+    outreachMessage: match.outreachMessage || "",
+    outreachAt: match.outreachAt || null,
+    declineReason: match.declineReason || "",
+    declineNote: match.declineNote || "",
+    adminNote: match.adminNote || "",
+    notifiedAt: match.notifiedAt || null,
+  });
+}
+
 function renderMessages() {
   setTitle("Outreach");
   const approved = currentMatches().filter((match) => ["mutually_approved", "outreach_pending", "outreach_sent", "accepted", "active", "completed", "launched"].includes(match.status));
+  const sent = approved.filter((match) => match.outreachStatus === "sent").length;
   root.innerHTML = `
     <section class="directory-page-header">
       <p class="eyebrow">Relationship workspace</p>
       <h2>Outreach coordination</h2>
-      <p class="muted">Keep the next step visible after a match is approved. Raise Local keeps outreach context connected to the partnership.</p>
+      <p class="muted">Turn mutual approval into a thoughtful introduction, with the partnership context and next step in one place.</p>
     </section>
-    ${approved.length ? `<section class="message-list">${approved.map((match) => `
-      <article class="panel message-row">
-        <div class="message-row-icon">${ICONS.handshake}</div>
-        <div><p class="eyebrow">${escapeHtml(statusLabel(match.status))}</p><h3>${escapeHtml(match.request.organizationName)} + ${escapeHtml(match.business.name)}</h3><p class="muted">This partnership is ready for coordination. Review the context, then prepare an introduction that both sides can edit before sending.</p><textarea class="outreach-draft" data-outreach-draft id="outreach-${escapeHtml(match.id)}" rows="6" placeholder="Draft a suggested introduction">${escapeHtml(match.outreachMessage || "")}</textarea><div class="message-row-actions"><button type="button" class="secondary-btn" data-draft-outreach data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">Draft introduction</button><button type="button" class="text-btn" data-copy-outreach data-target="outreach-${escapeHtml(match.id)}">Copy draft</button></div></div>
-        <button type="button" class="secondary-btn" data-view-match data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">View match ${ICONS.arrowRight}</button>
-      </article>
-    `).join("")}</section>` : emptyState({ icon: { svg: ICONS.send, tint: "icon-tint-mint" }, title: "No partner conversations yet", body: "Once both sides approve a match, the conversation and outreach context will appear here.", action: { label: "Review matches", gotoView: "matches" } })}
+    ${approved.length ? `
+      <section class="metric-grid outreach-metrics">
+        <article class="metric-card"><span>Ready for coordination</span><strong>${approved.length}</strong><small>Mutually approved partnerships</small></article>
+        <article class="metric-card"><span>Drafts prepared</span><strong>${approved.filter((match) => Boolean(match.outreachMessage)).length}</strong><small>Editable introductions</small></article>
+        <article class="metric-card"><span>Outreach sent</span><strong>${sent}</strong><small>Waiting for partner response</small></article>
+      </section>
+      <section class="message-list">${approved.map((match) => `
+        <article class="panel outreach-card">
+          <div class="outreach-card-header">
+            <div class="message-row-icon">${ICONS.handshake}</div>
+            <div><p class="eyebrow">${escapeHtml(statusLabel(match.status))}</p><h3>${escapeHtml(match.request.organizationName)} + ${escapeHtml(match.business.name)}</h3><p class="muted">${escapeHtml(match.request.campaignDescription || "Community partnership")}</p></div>
+            <span class="status-pill ${match.outreachStatus === "sent" ? "status-active" : "status-ready"}">${match.outreachStatus === "sent" ? "Outreach sent" : "Draft needed"}</span>
+          </div>
+          <div class="outreach-context"><span>${escapeHtml(match.request.causeArea || "Community impact")}</span><span>${escapeHtml(match.request.geography || "Local")}</span><span>${escapeHtml(match.business.offerTypes?.[0] || match.business.category || "Partner offer")}</span><span>${escapeHtml(match.forecast)}</span></div>
+          <section class="outreach-agent-panel">
+            <div><p class="eyebrow">Outreach agent</p><h4>Prepare a warm introduction</h4><p class="muted">The assistant uses the approved match, campaign need, business offer, and timing to suggest a human-ready next step. Tenyse reviews and edits before anything is sent.</p></div>
+            <button type="button" class="primary-btn" data-draft-outreach data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">${match.outreachMessage ? "Refresh suggestion" : "Generate suggestion"} ${ICONS.arrowRight}</button>
+          </section>
+          <label class="outreach-label" for="outreach-${escapeHtml(match.id)}">Introduction draft</label>
+          <textarea class="outreach-draft" data-outreach-draft id="outreach-${escapeHtml(match.id)}" rows="8" placeholder="Generate a suggested introduction, then edit it before sending.">${escapeHtml(match.outreachMessage || "")}</textarea>
+          <div class="message-row-actions"><button type="button" class="secondary-btn" data-copy-outreach data-target="outreach-${escapeHtml(match.id)}">Copy draft</button><button type="button" class="text-btn" data-view-match data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">Review match ${ICONS.arrowRight}</button></div>
+        </article>
+      `).join("")}</section>` : `
+      <section class="panel outreach-empty-state">
+        <div class="message-row-icon">${ICONS.send}</div>
+        <div><p class="eyebrow">Outreach agent ready</p><h3>No introductions are ready yet</h3><p class="muted">Once the nonprofit and business both approve a match, this workspace will assemble the context, suggest an outreach approach, and prepare an editable introduction for Tenyse.</p><button type="button" class="primary-btn" data-empty-target="matches">Review matches ${ICONS.arrowRight}</button></div>
+      </section>`}
   `;
   wireViewMatchButtons();
   wireOutreachDrafts();
-  wireEmptyStates(root, (view) => { activeView = view; }, render);
+  root.querySelector("[data-empty-target]")?.addEventListener("click", () => { activeView = "matches"; render(); });
 }
 
 function wireOutreachDrafts() {
   root.querySelectorAll("[data-draft-outreach]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", async () => {
       const match = currentMatches().find((item) => item.request.id === button.dataset.requestId && item.business.id === button.dataset.businessId);
       if (!match) return;
-      match.outreachMessage = outreachDraft(match);
-      saveData(data);
-      const field = root.querySelector(`[data-outreach-draft]#outreach-${CSS.escape(match.id)}`);
-      if (field) field.value = match.outreachMessage;
-      syncMatchDecision({
-        requestId: match.request.id,
-        businessId: match.business.id,
-        status: match.status,
-        nonprofitDecision: match.nonprofitDecision || "",
-        businessDecision: match.businessDecision || "",
-        outreachStatus: match.outreachStatus || "not_started",
-        outreachMessage: match.outreachMessage,
-        outreachAt: match.outreachAt || null,
-        declineReason: match.declineReason || "",
-        declineNote: match.declineNote || "",
-        adminNote: match.adminNote || "",
-        notifiedAt: match.notifiedAt || null,
-      });
+      button.disabled = true;
+      const originalLabel = button.textContent;
+      button.textContent = "Preparing suggestion...";
+      try {
+        match.outreachMessage = await generateOutreachDraftWithAgent(match);
+      } catch {
+        match.outreachMessage = outreachDraft(match);
+      }
+      persistOutreachDraft(match);
+      renderMessages();
+      const nextButton = root.querySelector(`[data-draft-outreach][data-request-id="${CSS.escape(match.request.id)}"][data-business-id="${CSS.escape(match.business.id)}"]`);
+      if (nextButton) nextButton.setAttribute("aria-label", originalLabel);
+    });
+  });
+  root.querySelectorAll("[data-outreach-draft]").forEach((field) => {
+    field.addEventListener("change", () => {
+      const match = currentMatches().find((item) => item.id === field.id.replace("outreach-", ""));
+      if (!match) return;
+      match.outreachMessage = field.value;
+      persistOutreachDraft(match);
     });
   });
   root.querySelectorAll("[data-copy-outreach]").forEach((button) => {

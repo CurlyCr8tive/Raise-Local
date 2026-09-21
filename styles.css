@@ -494,6 +494,10 @@ h1 {
   gap: 14px;
 }
 
+.outreach-metrics {
+  margin-bottom: 14px;
+}
+
 .message-row,
 .project-row {
   align-items: center;
@@ -516,7 +520,7 @@ h1 {
 }
 
 .outreach-draft {
-  background: var(--surface-muted);
+  background: var(--field);
   border: 1px solid var(--line);
   border-radius: 8px;
   color: var(--forest);
@@ -550,7 +554,7 @@ h1 {
 
 .message-row-icon {
   align-items: center;
-  background: var(--mint-tint);
+  background: var(--mint);
   border-radius: 50%;
   color: var(--forest);
   display: flex;
@@ -562,6 +566,89 @@ h1 {
 .message-row-icon svg {
   height: 22px;
   width: 22px;
+}
+
+.outreach-card {
+  display: grid;
+  gap: 14px;
+}
+
+.outreach-card-header {
+  align-items: start;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.outreach-card-header h3 {
+  margin-bottom: 4px;
+}
+
+.outreach-card-header p {
+  margin-bottom: 0;
+}
+
+.outreach-context {
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px;
+}
+
+.outreach-context span {
+  background: var(--panel);
+  border-radius: 999px;
+  color: var(--forest);
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 6px 9px;
+}
+
+.outreach-agent-panel {
+  align-items: center;
+  background: #edf7f1;
+  border: 1px solid #cce5d8;
+  border-radius: 8px;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 14px;
+}
+
+.outreach-agent-panel h4 {
+  font-family: var(--font-serif);
+  font-size: 1.1rem;
+  margin: 0 0 4px;
+}
+
+.outreach-agent-panel p {
+  margin-bottom: 0;
+  max-width: 760px;
+}
+
+.outreach-label {
+  color: var(--forest);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.outreach-empty-state {
+  align-items: center;
+  display: flex;
+  gap: 18px;
+  padding: 28px;
+}
+
+.outreach-empty-state h3 {
+  margin-bottom: 6px;
+}
+
+.outreach-empty-state p {
+  margin-bottom: 14px;
+  max-width: 680px;
 }
 
 .project-row-identity {
@@ -2750,6 +2837,25 @@ body.no-sidebar .view-root {
 @media (max-width: 640px) {
   .directory-card-media {
     height: 168px;
+  }
+
+  .outreach-card-header {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .outreach-card-header .status-pill {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .outreach-agent-panel,
+  .outreach-empty-state {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .outreach-agent-panel .primary-btn {
+    width: 100%;
   }
 
   .match-detail-hero {
