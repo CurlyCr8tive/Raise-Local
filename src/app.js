@@ -1440,7 +1440,6 @@ function renderDashboard() {
 function renderAdminDashboard() {
   setTitle("Raise Local Dashboard");
   const matches = currentMatches().sort((a, b) => {
-    if (!demoMode) return 0;
     const isFeatured = (match) => match.request.id === "request-young-excellence" && match.business.id === "biz-sofia-grace";
     return Number(isFeatured(b)) - Number(isFeatured(a));
   });
