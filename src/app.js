@@ -749,8 +749,8 @@ function switchDemoRole(role) {
   demoRole = role;
   const demoEmails = {
     admin: "demo@raiselocal.local",
-    nonprofit: "demo-nonprofit@raiselocal.example",
-    business: "demo-business@raiselocal.example",
+    nonprofit: "demo-nonprofit-2@raiselocal.example",
+    business: "hello@sofiaandgrace.example",
   };
   session = { user: { email: demoEmails[role], user_metadata: { role, password_set: true } } };
   sessionStorage.setItem("raise_local_demo_role", role);
@@ -1439,7 +1439,11 @@ function renderDashboard() {
 
 function renderAdminDashboard() {
   setTitle("Raise Local Dashboard");
-  const matches = currentMatches();
+  const matches = currentMatches().sort((a, b) => {
+    if (!demoMode) return 0;
+    const isFeatured = (match) => match.request.id === "request-young-excellence" && match.business.id === "biz-sofia-grace";
+    return Number(isFeatured(b)) - Number(isFeatured(a));
+  });
   const approved = matches.filter((match) => ["accepted", "active", "completed", "launched"].includes(match.status)).length;
   const active = matches.filter((match) => ["active", "launched"].includes(match.status)).length;
   const topMatch = matches[0];
@@ -2080,6 +2084,7 @@ function renderAdminMatchReview() {
     <section class="match-grid">${matches.length ? matches.map((match) => matchCard(match, { showAdminControls: true })).join("") : `<p class="muted">No recommendations are ready yet. Add more campaign and partner details to improve the next set of suggestions.</p>`}</section>
   `;
   wireCauseFilter();
+  wireViewMatchButtons();
   wireActiveMatchControls();
 }
 
@@ -3182,6 +3187,7 @@ function matchCard(match, { showAdminControls = false, showRating = false } = {}
         showAdminControls
           ? `
       <div class="match-actions">
+        <button type="button" class="secondary-btn" data-view-match data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">View details ${ICONS.arrowRight}</button>
         <label for="status-${escapeHtml(match.id)}">Workflow status</label>
         <select id="status-${escapeHtml(match.id)}" data-status-update data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">
           ${MATCH_STATUSES.map((status) => `<option value="${status}" ${match.status === status ? "selected" : ""}>${statusLabel(status)}</option>`).join("")}
@@ -3196,6 +3202,9 @@ function matchCard(match, { showAdminControls = false, showRating = false } = {}
         <textarea id="admin-${escapeHtml(match.id)}" data-admin-note data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}" rows="2" placeholder="Manual recommendation, intro context, or override reason">${escapeHtml(match.adminNote || "")}</textarea>
         ${["mutually_approved", "outreach_pending"].includes(match.status) ? `<button type="button" class="primary-btn" data-outreach-send data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">Send outreach ${ICONS.arrowRight}</button>` : ""}
         ${match.status === "outreach_sent" ? `<p class="notification-note">Outreach sent${match.outreachAt ? ` on ${escapeHtml(formatDateTime(match.outreachAt))}` : ""}.</p>` : ""}
+        ${match.status === "outreach_sent" ? `<button type="button" class="secondary-btn" data-progress-status="accepted" data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">Confirm partnership ${ICONS.check}</button>` : ""}
+        ${match.status === "accepted" ? `<button type="button" class="secondary-btn" data-progress-status="active" data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">Mark campaign active ${ICONS.arrowRight}</button>` : ""}
+        ${match.status === "active" ? `<button type="button" class="secondary-btn" data-progress-status="completed" data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">Mark campaign complete ${ICONS.check}</button>` : ""}
       </div>`
           : matchProgressionAction(match)
       }
