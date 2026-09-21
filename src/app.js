@@ -2370,22 +2370,44 @@ function wireOutreachDrafts() {
 
 function renderProjects() {
   setTitle("My Projects");
-  const projects = currentMatches().filter((match) => ["accepted", "active", "completed", "launched"].includes(match.status));
+  const projects = currentMatches().filter((match) => ["mutually_approved", "outreach_pending", "outreach_sent", "accepted", "active", "completed", "launched"].includes(match.status));
+  const stageOrder = ["mutually_approved", "outreach_sent", "accepted", "active", "completed"];
+  const stageLabels = ["Mutually approved", "Outreach sent", "Partnership confirmed", "Campaign active", "Completed"];
+  const activeCount = projects.filter((match) => ["active", "launched"].includes(match.status)).length;
+  const completedCount = projects.filter((match) => ["completed", "launched"].includes(match.status)).length;
   root.innerHTML = `
     <section class="directory-page-header">
       <p class="eyebrow">Partnership follow-through</p>
       <h2>My Projects</h2>
-      <p class="muted">Track approved partnerships from the first conversation through a completed campaign.</p>
+      <p class="muted">Keep the relationship, campaign plan, and next action together from first introduction through community impact.</p>
     </section>
-    ${projects.length ? `<section class="project-list">${projects.map((match) => `
-      <article class="panel project-row">
-        <div class="project-row-identity"><img src="${escapeHtml(requestPhoto(match.request))}" alt="" /><div><h3>${escapeHtml(match.request.organizationName)} + ${escapeHtml(match.business.name)}</h3><p class="muted">${escapeHtml(match.request.causeArea)} · ${escapeHtml(match.request.geography)}</p></div></div>
-        <span class="status-pill status-ready">${escapeHtml(statusLabel(match.status))}</span>
-        <button type="button" class="secondary-btn" data-view-match data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">Open project ${ICONS.arrowRight}</button>
-      </article>
-    `).join("")}</section>` : emptyState({ icon: { svg: ICONS.handshake, tint: "icon-tint-mint" }, title: "No active projects yet", body: "Mutually approved matches become projects here once outreach is sent and the partnership begins.", action: { label: "Review matches", gotoView: "matches" } })}
+    ${projects.length ? `
+      <section class="metric-grid project-metrics">
+        <article class="metric-card"><span>Relationship workspace</span><strong>${projects.length}</strong><small>Approved partnerships</small></article>
+        <article class="metric-card"><span>Campaigns active</span><strong>${activeCount}</strong><small>Currently in motion</small></article>
+        <article class="metric-card"><span>Completed</span><strong>${completedCount}</strong><small>Ready for outcome review</small></article>
+      </section>
+      <section class="project-list">${projects.map((match) => {
+        const currentStage = Math.max(0, stageOrder.indexOf(match.status === "outreach_pending" ? "mutually_approved" : match.status));
+        const approach = suggestedCampaignApproach(match);
+        return `
+        <article class="panel project-detail-card">
+          <header class="project-detail-header">
+            <div class="project-row-identity"><img src="${escapeHtml(requestPhoto(match.request))}" alt="" /><div><p class="eyebrow">${escapeHtml(statusLabel(match.status))}</p><h3>${escapeHtml(match.request.organizationName)} + ${escapeHtml(match.business.name)}</h3><p class="muted">${escapeHtml(match.request.campaignDescription || "Community partnership")} · ${escapeHtml(match.request.geography || "Local")}</p></div></div>
+            <span class="status-pill ${match.status === "active" ? "status-active" : "status-ready"}">${escapeHtml(statusLabel(match.status))}</span>
+          </header>
+          <div class="project-stage-list">${stageLabels.map((label, index) => `<div class="project-stage ${index <= currentStage ? "is-complete" : ""} ${index === currentStage ? "is-current" : ""}"><span>${index + 1}</span><strong>${label}</strong></div>`).join("")}</div>
+          <div class="project-detail-grid">
+            <section class="project-brief-section"><p class="eyebrow">Why this partnership works</p><h4>${escapeHtml(match.label)} · ${escapeHtml(match.total)}/100 fit</h4><ul class="project-reasons">${(match.decisionStages || []).filter((stage) => stage.passed).slice(0, 5).map((stage) => `<li>${ICONS.check}<span><strong>${escapeHtml(stage.label)}:</strong> ${escapeHtml(stage.reason || "Aligned")}</span></li>`).join("")}</ul></section>
+            <section class="project-brief-section"><p class="eyebrow">Campaign plan</p><h4>${escapeHtml(approach)}</h4><p class="muted">${escapeHtml(match.request.campaignDescription || "A local partnership built around the community need.")}</p><div class="project-facts"><span><strong>Goal</strong>${match.request.fundingGoal ? `$${Number(match.request.fundingGoal).toLocaleString()}` : "To be confirmed"}</span><span><strong>Offer</strong>${escapeHtml(match.business.productsServices || match.business.offerTypes?.join(", ") || "Partner support")}</span><span><strong>Business goals</strong>${escapeHtml((match.business.businessGoals || []).slice(0, 3).join(", ") || "Community visibility")}</span></div></section>
+          </div>
+          <div class="project-forecast"><span class="eyebrow">Estimated fundraising scenario</span><strong>${escapeHtml(match.forecast)}</strong><small>Illustrative planning scenario; both partners confirm final terms.</small></div>
+          <footer class="project-detail-actions"><button type="button" class="text-btn" data-view-match data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">Review match details ${ICONS.arrowRight}</button>${match.status === "outreach_sent" ? `<button type="button" class="secondary-btn" data-progress-status="accepted" data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">Confirm partnership ${ICONS.check}</button>` : ""}${match.status === "accepted" ? `<button type="button" class="primary-btn" data-progress-status="active" data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">Mark campaign active ${ICONS.arrowRight}</button>` : ""}${match.status === "active" ? `<button type="button" class="secondary-btn" data-progress-status="completed" data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">Mark campaign complete ${ICONS.check}</button>` : ""}</footer>
+        </article>`;
+      }).join("")}</section>` : emptyState({ icon: { svg: ICONS.handshake, tint: "icon-tint-mint" }, title: "No approved projects yet", body: "Once both sides approve a match, the relationship brief and campaign plan will appear here for follow-through.", action: { label: "Review matches", gotoView: "matches" } })}
   `;
   wireViewMatchButtons();
+  wireMatchProgressionButtons();
   wireEmptyStates(root, (view) => { activeView = view; }, render);
 }
 
