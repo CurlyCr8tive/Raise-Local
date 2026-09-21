@@ -2029,7 +2029,7 @@ function renderMatchDetail(match) {
     </section>
     <section class="match-detail-grid">
       <div>
-        ${matchCard(match, { showAdminControls: isAdmin() })}
+        ${matchCard(match, { showAdminControls: isAdmin(), showViewDetails: false })}
         ${matchDecisionActions(match)}
       </div>
       <aside class="match-detail-rail">
@@ -3138,7 +3138,7 @@ function wireMatchProgressionButtons() {
   });
 }
 
-function matchCard(match, { showAdminControls = false, showRating = false } = {}) {
+function matchCard(match, { showAdminControls = false, showRating = false, showViewDetails = true } = {}) {
   const nonprofitImage = requestPhoto(match.request);
   const businessImage = businessPhoto(match.business);
   const nonprofitBrand = isBrandAsset(nonprofitImage) ? " brand-photo" : "";
@@ -3186,7 +3186,7 @@ function matchCard(match, { showAdminControls = false, showRating = false } = {}
         showAdminControls
           ? `
       <div class="match-actions">
-        <button type="button" class="secondary-btn" data-view-match data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">View details ${ICONS.arrowRight}</button>
+        ${showViewDetails ? `<button type="button" class="secondary-btn" data-view-match data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">View details ${ICONS.arrowRight}</button>` : ""}
         <label for="status-${escapeHtml(match.id)}">Workflow status</label>
         <select id="status-${escapeHtml(match.id)}" data-status-update data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">
           ${MATCH_STATUSES.map((status) => `<option value="${status}" ${match.status === status ? "selected" : ""}>${statusLabel(status)}</option>`).join("")}

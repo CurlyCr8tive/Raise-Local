@@ -342,15 +342,33 @@ h1 {
 .primary-btn,
 .secondary-btn,
 .danger-btn {
+  align-items: center;
   border: 0;
   border-radius: 8px;
   cursor: pointer;
+  display: inline-flex;
+  gap: 6px;
   font-weight: 700;
+  justify-content: center;
   padding: 10px 14px;
   transition:
     box-shadow 160ms ease,
     transform 160ms ease,
     background-color 160ms ease;
+}
+
+.primary-btn svg,
+.secondary-btn svg,
+.danger-btn svg {
+  flex: 0 0 16px;
+  height: 16px;
+  width: 16px;
+}
+
+.match-actions > .primary-btn,
+.match-actions > .secondary-btn {
+  min-height: 40px;
+  width: 100%;
 }
 
 .primary-btn:hover,
