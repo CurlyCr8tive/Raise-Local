@@ -579,6 +579,9 @@ function syncNotifications() {
   const notifs = myNotifications();
   const unread = notifs.filter((n) => !n.read).length;
   setBadge(document.getElementById("notif-badge"), unread);
+  const notificationButton = document.getElementById("notif-btn");
+  notificationButton?.classList.toggle("has-unread", unread > 0);
+  notificationButton?.setAttribute("aria-label", unread ? `Notifications, ${unread} unread` : "Notifications");
 
   const menu = document.getElementById("notif-menu");
   menu.innerHTML = notifs.length
@@ -2933,6 +2936,10 @@ function upsertMatchDecision(requestId, businessId, role, decision) {
   if (existing.status === "mutually_approved" || existing.status === "outreach_pending") existing.notifiedAt = new Date().toISOString();
   const index = data.matches.findIndex((match) => match.requestId === requestId && match.businessId === businessId);
   if (index === -1) data.matches.push(existing);
+  if (decision === "approved" && existing.status !== "mutually_approved" && fromStatus !== existing.status) {
+    const match = currentMatches().find((item) => item.request.id === requestId && item.business.id === businessId);
+    if (match) notifyAdminOfClientApproval(match, role);
+  }
   if (existing.status === "mutually_approved" && fromStatus !== "mutually_approved") {
     const match = currentMatches().find((item) => item.request.id === requestId && item.business.id === businessId);
     if (match) notifyMutualApproval(match);
@@ -3061,6 +3068,22 @@ function notifyMutualApproval(match) {
   triggerGmailNotification({
     subject: `Raise Local match approved: ${match.request.organizationName} + ${match.business.name}`,
     text: `${message}\n\nSuggested next step: review the match details and coordinate the introduction from the Raise Local Outreach workspace.`,
+  });
+}
+
+function notifyAdminOfClientApproval(match, role) {
+  const approver = role === "business" ? match.business.name : match.request.organizationName;
+  const message = `${approver} approved the Raise Local match with ${role === "business" ? match.request.organizationName : match.business.name}. Review the match and follow up with the other partner if needed.`;
+  ["demo@raiselocal.local", "admin@raiselocal.local"].forEach((email) => addNotification({
+    forEmail: email,
+    message,
+    requestId: match.request.id,
+    businessId: match.business.id,
+    type: "client_approval",
+  }));
+  triggerGmailNotification({
+    subject: `Raise Local approval to review: ${match.request.organizationName} + ${match.business.name}`,
+    text: `${message}\n\nPlease log in to Raise Local to review the match and help coordinate the next step.`,
   });
 }
 
