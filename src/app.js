@@ -596,6 +596,14 @@ function syncNotifications() {
 
   menu.querySelectorAll("[data-notif-id]").forEach((button) => {
     button.addEventListener("click", () => {
+      const notification = notifs.find((item) => item.id === button.dataset.notifId);
+      if (notification) {
+        notification.read = true;
+        saveData(data);
+        if (notification.requestId && notification.businessId) {
+          selectedMatchKey = `${notification.requestId}::${notification.businessId}`;
+        }
+      }
       menu.hidden = true;
       activeView = "matches";
       render();
@@ -1014,9 +1022,10 @@ function quizQuestionHtml(question, progress, total) {
         ${quizInputHtml(question)}
       </div>
       <div class="quiz-actions">
-        <button class="secondary-btn" type="button" id="quiz-back" ${quizStep === 0 ? "disabled" : ""}>Back</button>
+        <button class="secondary-btn" type="button" id="quiz-back">Back</button>
         <button class="primary-btn" type="submit">${quizStep === total - 1 ? "Finish" : "Next"}</button>
       </div>
+      <p class="form-note" id="quiz-back-feedback" role="status" aria-live="polite"></p>
     </form>
   `;
 }
@@ -1120,7 +1129,11 @@ function optionButton(question, option, checked, inputType) {
 function wireGuidedQuiz(questions) {
   const form = document.getElementById("guided-quiz-form");
   document.getElementById("quiz-back").addEventListener("click", () => {
-    if (quizStep === 0) return;
+    if (quizStep === 0) {
+      const feedback = document.getElementById("quiz-back-feedback");
+      if (feedback) feedback.textContent = "You are already at the first question.";
+      return;
+    }
     quizStep -= 1;
     render();
   });
@@ -1606,7 +1619,7 @@ function renderRoleDashboard() {
 
       <aside class="dashboard-sidebar">
         <section class="panel sidebar-widget">
-          <h3>Recent Activity <a class="text-link" href="#" data-dashboard-target="matches">View all ${ICONS.arrowRight}</a></h3>
+          <h3>Recent Activity <button type="button" class="text-link" data-dashboard-target="matches">View all ${ICONS.arrowRight}</button></h3>
           <ul class="activity-feed">
             <li><span class="activity-icon tint-blue">${ICONS.document}</span><div><strong>New campaign request</strong><span class="muted small-note">${escapeHtml(data.campaignRequests[0]?.organizationName || "Community partner")}</span></div><span class="muted small-note">Today</span></li>
             <li><span class="activity-icon tint-teal">${ICONS.users}</span><div><strong>New business profile</strong><span class="muted small-note">${escapeHtml(data.businesses[0]?.name || "Local business")}</span></div><span class="muted small-note">Today</span></li>
@@ -2361,9 +2374,16 @@ function wireOutreachDrafts() {
     button.addEventListener("click", async () => {
       const field = document.getElementById(button.dataset.target);
       if (!field) return;
-      await navigator.clipboard?.writeText(field.value);
-      button.textContent = "Copied";
-      window.setTimeout(() => { button.textContent = "Copy draft"; }, 1400);
+      const originalLabel = "Copy draft";
+      try {
+        if (!navigator.clipboard?.writeText) throw new Error("Clipboard access is unavailable");
+        await navigator.clipboard.writeText(field.value);
+        button.textContent = "Copied";
+      } catch {
+        button.textContent = "Copy unavailable";
+        button.setAttribute("title", "Clipboard access is unavailable in this browser. Select the draft text and copy it manually.");
+      }
+      window.setTimeout(() => { button.textContent = originalLabel; }, 1800);
     });
   });
 }
@@ -2388,7 +2408,8 @@ function renderProjects() {
         <article class="metric-card"><span>Completed</span><strong>${completedCount}</strong><small>Ready for outcome review</small></article>
       </section>
       <section class="project-list">${projects.map((match) => {
-        const currentStage = Math.max(0, stageOrder.indexOf(match.status === "outreach_pending" ? "mutually_approved" : match.status));
+        const normalizedStage = match.status === "outreach_pending" ? "mutually_approved" : match.status === "launched" ? "completed" : match.status;
+        const currentStage = Math.max(0, stageOrder.indexOf(normalizedStage));
         const approach = suggestedCampaignApproach(match);
         return `
         <article class="panel project-detail-card">
