@@ -165,6 +165,7 @@ export function buildMatches(campaignRequests, businesses, existingMatches = [])
           outreachStatus: saved?.outreachStatus || "not_started",
           outreachMessage: saved?.outreachMessage || "",
           outreachAt: saved?.outreachAt || "",
+          outreachFallback: Boolean(saved?.outreachFallback),
           declineReason: saved?.declineReason || "",
           declineNote: saved?.declineNote || "",
           adminNote: saved?.adminNote || "",

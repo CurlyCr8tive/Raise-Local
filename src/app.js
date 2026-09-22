@@ -1477,7 +1477,7 @@ function renderAdminDashboard() {
 
     <section class="panel">
       <h2>Top Match To Review</h2>
-      ${topMatch ? matchCard(topMatch) : `<p class="muted">Add one campaign request and one business profile to see matches.</p>`}
+      ${topMatch ? `${matchCard(topMatch)}<div class="dashboard-feature-actions"><button type="button" class="primary-btn" data-view-match data-request-id="${escapeHtml(topMatch.request.id)}" data-business-id="${escapeHtml(topMatch.business.id)}">Review match details ${ICONS.arrowRight}</button></div>` : `<p class="muted">Add one campaign request and one business profile to see matches.</p>`}
     </section>
   `;
   root.querySelectorAll("[data-dashboard-target]").forEach((button) => {
@@ -1490,6 +1490,7 @@ function renderAdminDashboard() {
       render();
     });
   });
+  wireViewMatchButtons();
 }
 
 function isProfileComplete(record, isBusiness) {
@@ -2273,6 +2274,7 @@ function persistOutreachDraft(match) {
     saved.outreachMessage = match.outreachMessage || "";
     saved.outreachStatus = match.outreachStatus || "not_started";
     saved.outreachAt = match.outreachAt || null;
+    saved.outreachFallback = Boolean(match.outreachFallback);
   } else {
     data.matches.push({
       requestId: match.request.id,
@@ -2281,6 +2283,7 @@ function persistOutreachDraft(match) {
       outreachStatus: match.outreachStatus || "not_started",
       outreachMessage: match.outreachMessage || "",
       outreachAt: match.outreachAt || null,
+      outreachFallback: Boolean(match.outreachFallback),
     });
   }
   saveData(data);
@@ -2293,6 +2296,7 @@ function persistOutreachDraft(match) {
     outreachStatus: match.outreachStatus || "not_started",
     outreachMessage: match.outreachMessage || "",
     outreachAt: match.outreachAt || null,
+    outreachFallback: Boolean(match.outreachFallback),
     declineReason: match.declineReason || "",
     declineNote: match.declineNote || "",
     adminNote: match.adminNote || "",
@@ -2327,6 +2331,7 @@ function renderMessages() {
           <section class="outreach-agent-panel">
             <div><p class="eyebrow">Outreach agent</p><h4>Prepare a warm introduction</h4><p class="muted">The assistant uses the approved match, campaign need, business offer, and timing to suggest a human-ready next step. Tenyse reviews and edits before anything is sent.</p></div>
             <button type="button" class="primary-btn" data-draft-outreach data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">${match.outreachMessage ? "Refresh suggestion" : "Generate suggestion"} ${ICONS.arrowRight}</button>
+            <p class="form-note" role="status">${match.outreachFallback ? "Preview suggestion ready. Live AI was unavailable, so Raise Local used its demo-safe draft." : match.outreachMessage ? "AI suggestion ready for review." : "No message has been generated yet."}</p>
           </section>
           <label class="outreach-label" for="outreach-${escapeHtml(match.id)}">Introduction draft</label>
           <textarea class="outreach-draft" data-outreach-draft id="outreach-${escapeHtml(match.id)}" rows="8" placeholder="Generate a suggested introduction, then edit it before sending.">${escapeHtml(match.outreachMessage || "")}</textarea>
@@ -2351,11 +2356,14 @@ function wireOutreachDrafts() {
       button.disabled = true;
       const originalLabel = button.textContent;
       button.textContent = "Preparing suggestion...";
+      let usedFallback = false;
       try {
         match.outreachMessage = await generateOutreachDraftWithAgent(match);
       } catch {
         match.outreachMessage = outreachDraft(match);
+        usedFallback = true;
       }
+      match.outreachFallback = usedFallback;
       persistOutreachDraft(match);
       renderMessages();
       const nextButton = root.querySelector(`[data-draft-outreach][data-request-id="${CSS.escape(match.request.id)}"][data-business-id="${CSS.escape(match.business.id)}"]`);
@@ -2554,7 +2562,7 @@ function ratingWidget(match) {
         ${[1, 2, 3, 4, 5].map((n) => `<button type="button" class="star-btn ${n <= existing ? "filled" : ""}" data-star="${n}" aria-label="${n} star${n === 1 ? "" : "s"}">${ICONS.star}</button>`).join("")}
       </div>
       <textarea data-rating-note rows="2" placeholder="Optional review note">${escapeHtml(record?.reviewNote || "")}</textarea>
-      <p class="form-error rating-error" hidden>A note is required for ratings of 2 stars or below.</p>
+      <p class="form-error rating-error" hidden></p>
       <button type="button" class="secondary-btn" data-submit-rating>Save Rating</button>
     </div>
   `;
@@ -2571,10 +2579,16 @@ function wireRatingWidgets() {
     });
     widget.querySelector("[data-submit-rating]").addEventListener("click", () => {
       const value = Number(widget.dataset.selected || 0);
-      if (!value) return;
+      const error = widget.querySelector(".rating-error");
+      if (!value) {
+        error.textContent = "Choose a star rating before saving.";
+        error.hidden = false;
+        return;
+      }
       const note = widget.querySelector("[data-rating-note]").value.trim();
       if (value <= 2 && !note) {
-        widget.querySelector(".rating-error").hidden = false;
+        error.textContent = "A note is required for ratings of 2 stars or below.";
+        error.hidden = false;
         widget.querySelector("[data-rating-note]").focus();
         return;
       }
@@ -2602,7 +2616,6 @@ function renderBrief() {
             <li>Campaign request intake.</li>
             <li>Business match profiles.</li>
             <li>Explainable top 3-5 filtered matches.</li>
-            <li>Approve, hold, decline, outreach, active, and completed statuses.</li>
             <li>Decline reason notes and simple business ratings.</li>
             <li>Human review before introductions.</li>
           </ul>
