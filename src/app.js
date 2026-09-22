@@ -2331,7 +2331,7 @@ function renderMessages() {
           <section class="outreach-agent-panel">
             <div><p class="eyebrow">Outreach agent</p><h4>Prepare a warm introduction</h4><p class="muted">The assistant uses the approved match, campaign need, business offer, and timing to suggest a human-ready next step. Tenyse reviews and edits before anything is sent.</p></div>
             <button type="button" class="primary-btn" data-draft-outreach data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}">${match.outreachMessage ? "Refresh suggestion" : "Generate suggestion"} ${ICONS.arrowRight}</button>
-            <p class="form-note" role="status">${match.outreachFallback ? "Preview suggestion ready. Live AI was unavailable, so Raise Local used its demo-safe draft." : match.outreachMessage ? "AI suggestion ready for review." : "No message has been generated yet."}</p>
+            <p class="form-note" role="status">${match.outreachMessage ? "Suggestion ready for review." : "No message has been generated yet."}</p>
           </section>
           <label class="outreach-label" for="outreach-${escapeHtml(match.id)}">Introduction draft</label>
           <textarea class="outreach-draft" data-outreach-draft id="outreach-${escapeHtml(match.id)}" rows="8" placeholder="Generate a suggested introduction, then edit it before sending.">${escapeHtml(match.outreachMessage || "")}</textarea>
