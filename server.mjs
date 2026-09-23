@@ -9,6 +9,8 @@ const rootDir = fileURLToPath(new URL(".", import.meta.url)).replace(/[\\/]+$/, 
 const port = Number(process.env.PORT || 4102);
 const gmailTokenPath = join(rootDir, ".gmail-token.json");
 const gmailAuthStates = new Map();
+const rateLimitBuckets = new Map();
+const MAX_BODY_BYTES = 100_000;
 
 loadEnvFile(join(rootDir, ".env.local"));
 
@@ -28,7 +30,30 @@ function requireText(path) {
   return readFileSync(path, "utf8");
 }
 
-function json(res, status, body) {
+function applySecurityHeaders(res, req, isHtml = false) {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+  if (isHtml) {
+    res.setHeader("Content-Security-Policy", [
+      "default-src 'self'",
+      "script-src 'self' https://cdn.jsdelivr.net",
+      "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'",
+      "font-src 'self' https://fonts.gstatic.com",
+      "img-src 'self' data: https://images.unsplash.com",
+      "connect-src 'self' https://*.supabase.co https://api.openai.com https://api.anthropic.com https://oauth2.googleapis.com https://gmail.googleapis.com",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+    ].join("; "));
+  }
+  if (req.headers["x-forwarded-proto"] === "https") res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+}
+
+function json(res, status, body, req) {
+  applySecurityHeaders(res, req);
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
   res.end(JSON.stringify(body));
 }
@@ -46,13 +71,66 @@ function contentType(path) {
   }[extname(path).toLowerCase()] || "application/octet-stream";
 }
 
-async function readBody(req) {
+async function readBody(req, maxBytes = MAX_BODY_BYTES) {
   let body = "";
   for await (const chunk of req) {
     body += chunk;
-    if (body.length > 1_000_000) throw new Error("Request body is too large");
+    if (body.length > maxBytes) throw Object.assign(new Error("Request body is too large"), { status: 413 });
   }
-  return JSON.parse(body || "{}");
+  try {
+    return JSON.parse(body || "{}");
+  } catch {
+    throw Object.assign(new Error("Request body must be valid JSON"), { status: 400 });
+  }
+}
+
+function requestOriginIsAllowed(req) {
+  const origin = req.headers.origin;
+  if (!origin) return true;
+  try {
+    const parsed = new URL(origin);
+    return parsed.host === (req.headers.host || `localhost:${port}`);
+  } catch {
+    return false;
+  }
+}
+
+function rateLimit(req, key, limit, windowMs) {
+  const now = Date.now();
+  const bucketKey = `${clientAddress(req)}:${key}`;
+  const bucket = rateLimitBuckets.get(bucketKey) || { count: 0, resetAt: now + windowMs };
+  if (bucket.resetAt <= now) {
+    bucket.count = 0;
+    bucket.resetAt = now + windowMs;
+  }
+  bucket.count += 1;
+  rateLimitBuckets.set(bucketKey, bucket);
+  if (rateLimitBuckets.size > 2_000) {
+    for (const [storedKey, stored] of rateLimitBuckets) if (stored.resetAt <= now) rateLimitBuckets.delete(storedKey);
+  }
+  return bucket.count <= limit ? null : Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
+}
+
+function clientAddress(req) {
+  return String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown").split(",")[0].trim();
+}
+
+function parseCookies(req) {
+  return Object.fromEntries(String(req.headers.cookie || "").split(";").map((part) => part.trim().split("=")).filter(([name, value]) => name && value));
+}
+
+function rejectUnsafeRequest(req, res, key, limit, windowMs) {
+  if (!requestOriginIsAllowed(req)) {
+    json(res, 403, { error: "Request origin is not allowed" }, req);
+    return true;
+  }
+  const retryAfter = rateLimit(req, key, limit, windowMs);
+  if (retryAfter) {
+    res.setHeader("Retry-After", String(retryAfter));
+    json(res, 429, { error: "Too many requests. Please try again shortly." }, req);
+    return true;
+  }
+  return false;
 }
 
 function providerKey(provider) {
@@ -157,11 +235,11 @@ async function handleGmailApi(req, res, url) {
   const config = gmailConfig();
   if (url.pathname === "/api/gmail/status" && req.method === "GET") {
     const token = await readGmailToken();
-    return json(res, 200, { configured: Boolean(config.clientId && config.clientSecret), connected: Boolean(token?.refresh_token), notificationEmail: Boolean(config.notificationEmail) });
+    return json(res, 200, { configured: Boolean(config.clientId && config.clientSecret), connected: Boolean(token?.refresh_token), notificationEmail: Boolean(config.notificationEmail) }, req);
   }
 
   if (url.pathname === "/api/gmail/connect" && req.method === "GET") {
-    if (!config.clientId || !config.clientSecret) return json(res, 503, { error: "Gmail OAuth is not configured on the server" });
+    if (!config.clientId || !config.clientSecret) return json(res, 503, { error: "Gmail OAuth is not configured on the server" }, req);
     const state = randomBytes(24).toString("hex");
     gmailAuthStates.set(state, Date.now() + 10 * 60 * 1000);
     const params = new URLSearchParams({
@@ -173,7 +251,10 @@ async function handleGmailApi(req, res, url) {
       scope: "https://www.googleapis.com/auth/gmail.send",
       state,
     });
-    res.writeHead(302, { Location: `https://accounts.google.com/o/oauth2/v2/auth?${params}` });
+    res.writeHead(302, {
+      Location: `https://accounts.google.com/o/oauth2/v2/auth?${params}`,
+      "Set-Cookie": `rl_oauth_state=${state}; HttpOnly; SameSite=Lax; Path=/api/gmail; Max-Age=600`,
+    });
     return res.end();
   }
 
@@ -181,28 +262,27 @@ async function handleGmailApi(req, res, url) {
     const state = url.searchParams.get("state");
     const code = url.searchParams.get("code");
     const expiresAt = state ? gmailAuthStates.get(state) : null;
-    if (!expiresAt || expiresAt < Date.now()) return json(res, 400, { error: "Gmail authorization expired. Start again." });
+    const cookieState = parseCookies(req).rl_oauth_state;
+    if (!expiresAt || expiresAt < Date.now() || !state || state !== cookieState) return json(res, 400, { error: "Gmail authorization expired or could not be verified. Start again." }, req);
     gmailAuthStates.delete(state);
-    if (!code) return json(res, 400, { error: "Gmail authorization was not completed" });
+    if (!code) return json(res, 400, { error: "Gmail authorization was not completed" }, req);
     const token = await exchangeGoogleToken({ code, client_id: config.clientId, client_secret: config.clientSecret, redirect_uri: config.redirectUri, grant_type: "authorization_code" });
     const previous = await readGmailToken();
     await writeFile(gmailTokenPath, JSON.stringify({ ...previous, ...token, expires_at: Date.now() + Number(token.expires_in || 3600) * 1000 }), { mode: 0o600 });
-    res.writeHead(302, { Location: "/?gmail=connected" });
+    res.writeHead(302, { Location: "/?gmail=connected", "Set-Cookie": "rl_oauth_state=; HttpOnly; SameSite=Lax; Path=/api/gmail; Max-Age=0" });
     return res.end();
   }
 
   if (["/api/gmail/send-test", "/api/gmail/send-notification"].includes(url.pathname) && req.method === "POST") {
-    if (url.pathname === "/api/gmail/send-notification" && req.headers.origin && !req.headers.origin.startsWith("http://localhost:")) {
-      return json(res, 403, { error: "Automatic demo notifications are limited to local development" });
-    }
+    if (rejectUnsafeRequest(req, res, `gmail:${url.pathname}`, 10, 60_000)) return;
     const body = await readBody(req);
     const to = body.to || config.notificationEmail;
-    if (!to) return json(res, 400, { error: "Provide a recipient or set GMAIL_NOTIFICATION_EMAIL" });
+    if (!to) return json(res, 400, { error: "Provide a recipient or set GMAIL_NOTIFICATION_EMAIL" }, req);
     const result = await sendGmailMessage({ to, subject: body.subject || "Raise Local test notification", text: body.text || "Raise Local Gmail notifications are connected." });
-    return json(res, 200, { ok: true, id: result.id || null });
+    return json(res, 200, { ok: true, id: result.id || null }, req);
   }
 
-  return json(res, 404, { error: "Gmail route not found" });
+  return json(res, 404, { error: "Gmail route not found" }, req);
 }
 
 async function handleApi(req, res, url) {
@@ -210,25 +290,26 @@ async function handleApi(req, res, url) {
     try {
       return await handleGmailApi(req, res, url);
     } catch (error) {
-      return json(res, error.status || 500, { error: error.message || "Gmail request failed" });
+      return json(res, error.status || 500, { error: error.message || "Gmail request failed" }, req);
     }
   }
   if (url.pathname === "/api/health" && req.method === "GET") {
-    return json(res, 200, { ok: true, providers: { openai: Boolean(process.env.OPENAI_API_KEY), anthropic: Boolean(process.env.ANTHROPIC_API_KEY) } });
+    return json(res, 200, { ok: true, providers: { openai: Boolean(process.env.OPENAI_API_KEY), anthropic: Boolean(process.env.ANTHROPIC_API_KEY) } }, req);
   }
 
-  if (url.pathname !== "/api/ai" || req.method !== "POST") return json(res, 404, { error: "API route not found" });
+  if (url.pathname !== "/api/ai" || req.method !== "POST") return json(res, 404, { error: "API route not found" }, req);
 
   try {
+    if (rejectUnsafeRequest(req, res, "ai", 30, 60_000)) return;
     const body = await readBody(req);
     const provider = body.provider === "anthropic" ? "anthropic" : body.provider === "openai" ? "openai" : null;
-    if (!provider || !Array.isArray(body.messages) || !body.messages.length) return json(res, 400, { error: "Provide a provider and at least one message" });
+    if (!provider || !Array.isArray(body.messages) || !body.messages.length) return json(res, 400, { error: "Provide a provider and at least one message" }, req);
     if (body.messages.some((message) => !message || !["user", "assistant"].includes(message.role) || typeof message.content !== "string")) {
-      return json(res, 400, { error: "Messages must contain user or assistant roles and text content" });
+      return json(res, 400, { error: "Messages must contain user or assistant roles and text content" }, req);
     }
-    return json(res, 200, await callProvider({ provider, model: body.model, messages: body.messages, system: body.system || "", maxTokens: body.maxTokens }));
+    return json(res, 200, await callProvider({ provider, model: body.model, messages: body.messages, system: body.system || "", maxTokens: body.maxTokens }), req);
   } catch (error) {
-    return json(res, error.status || 500, { error: error.message || "AI request failed" });
+    return json(res, error.status || 500, { error: error.message || "AI request failed" }, req);
   }
 }
 
@@ -238,13 +319,14 @@ const server = createServer(async (req, res) => {
 
   const requested = url.pathname === "/" ? "/index.html" : url.pathname;
   const filePath = normalize(join(rootDir, requested));
-  if (!filePath.startsWith(rootDir + sep)) return json(res, 403, { error: "Forbidden" });
+  if (!filePath.startsWith(rootDir + sep)) return json(res, 403, { error: "Forbidden" }, req);
   try {
     const content = await readFile(filePath);
-    res.writeHead(200, { "Content-Type": contentType(filePath) });
+    applySecurityHeaders(res, req, filePath.endsWith(".html"));
+    res.writeHead(200, { "Content-Type": contentType(filePath), "Cache-Control": filePath.endsWith(".html") ? "no-store" : "public, max-age=300" });
     res.end(content);
   } catch {
-    json(res, 404, { error: "File not found" });
+    json(res, 404, { error: "File not found" }, req);
   }
 });
 
