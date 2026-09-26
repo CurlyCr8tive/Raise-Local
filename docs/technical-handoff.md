@@ -69,6 +69,7 @@ The migration set includes:
 - Campaign lifecycle statuses.
 - Record edit metadata, revision tracking, and pending change review.
 - Trusted admin authorization through Supabase `app_metadata`.
+- Sanitized authenticated matchmaking pools for real nonprofit and business accounts.
 
 For a real admin account, set this in Supabase Auth user metadata through an
 authorized project administrator:
@@ -80,6 +81,11 @@ authorized project administrator:
 This belongs in `app_metadata`, not `user_metadata`. The latter is user-editable
 and must not be used to grant administrative access. After changing a role,
 sign out and back in so the refreshed JWT contains the new claim.
+
+Real accounts do not use the seeded browser records. A signed-in nonprofit or
+business sees its own records plus sanitized matching context; private contact
+email, phone, and contact-name fields remain limited to the owning account and
+admins. Apply the migrations before testing this path.
 
 Do not run migration filenames as shell commands. If the remote database already contains a migration’s schema but its history is missing, inspect the remote state first and use `supabase migration repair ... --status applied` only after confirming the schema is already present.
 

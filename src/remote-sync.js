@@ -217,25 +217,33 @@ export async function loadRemoteData({ admin = false, email = "" } = {}) {
   if (isDemoMode()) return null;
   let requestQuery = supabase.from("campaign_requests").select("*");
   let businessQuery = supabase.from("business_profiles").select("*");
+  const poolQueries = admin ? [Promise.resolve({ data: [], error: null }), Promise.resolve({ data: [], error: null })] : [
+    supabase.rpc("get_campaign_match_pool"),
+    supabase.rpc("get_business_match_pool"),
+  ];
   if (!admin) {
     requestQuery = requestQuery.eq("email", email);
     businessQuery = businessQuery.eq("email", email);
   }
 
-  const [requestsResult, businessesResult, matchesResult] = await Promise.all([
+  const [requestsResult, businessesResult, matchesResult, campaignPoolResult, businessPoolResult] = await Promise.all([
     requestQuery,
     businessQuery,
-    supabase.from("matches").select("*")
+    supabase.from("matches").select("*"),
+    ...poolQueries,
   ]);
-  const failed = [requestsResult, businessesResult, matchesResult].find((result) => result.error);
+  const failed = [requestsResult, businessesResult, matchesResult, campaignPoolResult, businessPoolResult].find((result) => result.error);
   if (failed) {
     console.error("Supabase remote data load failed:", failed.error.message);
     return null;
   }
 
+  const campaignRows = admin ? requestsResult.data || [] : [...(campaignPoolResult.data || []), ...(requestsResult.data || [])];
+  const businessRows = admin ? businessesResult.data || [] : [...(businessPoolResult.data || []), ...(businessesResult.data || [])];
+
   return {
-    campaignRequests: (requestsResult.data || []).map(fromRequestRow),
-    businesses: (businessesResult.data || []).map(fromBusinessRow),
+    campaignRequests: [...new Map(campaignRows.map((row) => [row.id, fromRequestRow(row)])).values()],
+    businesses: [...new Map(businessRows.map((row) => [row.id, fromBusinessRow(row)])).values()],
     matches: (matchesResult.data || []).map(fromMatchRow),
   };
 }

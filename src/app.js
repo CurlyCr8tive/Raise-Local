@@ -71,6 +71,7 @@ let demoRole = "admin";
 let authLoading = true;
 let authScreen = "landing";
 let authError = "";
+let passwordRecovery = false;
 let pendingEmail = "";
 let remoteLoadKey = "";
 let remoteLoading = false;
@@ -188,6 +189,27 @@ function myRole() {
 
 function myEmail() {
   return (session?.user?.email || "").trim().toLowerCase();
+}
+
+function isolateRealAccountData() {
+  if (demoMode || !session) return;
+  const email = myEmail();
+  if (isAdmin()) {
+    data = { campaignRequests: [], businesses: [], matches: [], notifications: [] };
+  } else {
+    const ownRequests = data.campaignRequests.filter((record) => (record.email || "").trim().toLowerCase() === email);
+    const ownBusinesses = data.businesses.filter((record) => (record.email || "").trim().toLowerCase() === email);
+    const requestIds = new Set(ownRequests.map((record) => record.id));
+    const businessIds = new Set(ownBusinesses.map((record) => record.id));
+    data = {
+      campaignRequests: ownRequests,
+      businesses: ownBusinesses,
+      matches: data.matches.filter((match) => requestIds.has(match.requestId) || businessIds.has(match.businessId)),
+      notifications: data.notifications.filter((notification) => notification.forEmail === email),
+    };
+  }
+  saveData(data);
+  remoteLoadKey = "";
 }
 
 const REQUEST_CLIENT_FIELDS = new Set([
@@ -317,8 +339,12 @@ supabase.auth.onAuthStateChange((event, newSession) => {
     quizAudience = null;
     quizPhase = "choose";
     remoteLoadKey = "";
-  } else if (session) {
+  } else if (session && ["INITIAL_SESSION", "SIGNED_IN", "USER_UPDATED"].includes(event)) {
+    isolateRealAccountData();
     determinePostSessionScreen();
+  } else if (event === "PASSWORD_RECOVERY") {
+    passwordRecovery = true;
+    authScreen = "set-password";
   }
   authLoading = false;
   render();
@@ -933,8 +959,8 @@ function renderSetPassword() {
   root.innerHTML = `
     <section class="auth-panel">
       <p class="eyebrow">Almost Done</p>
-      <h2>Create a password for your Raise Local login.</h2>
-      <p class="muted">You're verified as ${escapeHtml(session?.user?.email || "")}. Set a password so you can log back in directly next time.</p>
+      <h2>${passwordRecovery ? "Choose a new Raise Local password." : "Create a password for your Raise Local login."}</h2>
+      <p class="muted">You're verified as ${escapeHtml(session?.user?.email || "")}. ${passwordRecovery ? "Choose a new password to continue." : "Set a password so you can log back in directly next time."}</p>
       ${authError ? `<p class="form-error">${escapeHtml(authError)}</p>` : ""}
       <form id="set-password-form">
         <div class="field-row"><label for="set-password-input">Password</label><input id="set-password-input" type="password" minlength="6" required placeholder="At least 6 characters" /></div>
@@ -959,6 +985,7 @@ function renderSetPassword() {
       return;
     }
     if (updated.user) session = { ...session, user: updated.user };
+    passwordRecovery = false;
     authScreen = "app";
     activeView = "dashboard";
     render();
@@ -977,6 +1004,7 @@ function renderLogin() {
         <div class="field-row"><label for="login-password">Password</label><input id="login-password" type="password" required placeholder="Your password" /></div>
         <button class="primary-btn" type="submit" style="width:100%;">Log in</button>
       </form>
+      <button class="link-btn" type="button" id="forgot-password" style="margin-top:14px;">Forgot password?</button>
       <div class="auth-divider"><span>or</span></div>
       <button class="secondary-btn" type="button" id="demo-login" style="width:100%;">Open Demo Workspace</button>
       <p class="muted" style="margin-top:14px;">New here? <button class="link-btn" type="button" id="login-back">Find your match instead</button></p>
@@ -999,6 +1027,26 @@ function renderLogin() {
   document.getElementById("login-back").addEventListener("click", () => {
     authScreen = "landing";
     authError = "";
+    render();
+  });
+  document.getElementById("forgot-password").addEventListener("click", async () => {
+    const email = document.getElementById("login-email").value.trim();
+    if (!email) {
+      authError = "Enter your email first, then choose Forgot password.";
+      render();
+      return;
+    }
+    authError = "";
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + window.location.pathname,
+    });
+    if (error) {
+      authError = error.message;
+      render();
+      return;
+    }
+    pendingEmail = email;
+    authScreen = "verify-sent";
     render();
   });
   document.getElementById("demo-login").addEventListener("click", enterDemoWorkspace);
