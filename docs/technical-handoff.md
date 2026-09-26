@@ -68,6 +68,18 @@ The migration set includes:
 - Mutual match consent.
 - Campaign lifecycle statuses.
 - Record edit metadata, revision tracking, and pending change review.
+- Trusted admin authorization through Supabase `app_metadata`.
+
+For a real admin account, set this in Supabase Auth user metadata through an
+authorized project administrator:
+
+```json
+{"role":"admin"}
+```
+
+This belongs in `app_metadata`, not `user_metadata`. The latter is user-editable
+and must not be used to grant administrative access. After changing a role,
+sign out and back in so the refreshed JWT contains the new claim.
 
 Do not run migration filenames as shell commands. If the remote database already contains a migration’s schema but its history is missing, inspect the remote state first and use `supabase migration repair ... --status applied` only after confirming the schema is already present.
 
@@ -117,6 +129,8 @@ The OAuth refresh token is stored in the ignored local `.gmail-token.json` file.
 - [ ] Mutual approval unlocks outreach coordination.
 - [ ] Campaign lifecycle transitions are visible to the right roles.
 - [ ] RLS policies are tested with admin, nonprofit, and business accounts.
+- [ ] Admin access is granted through trusted `app_metadata`, not `user_metadata`.
+- [ ] Hosted API routes enforce authentication, origin checks, rate limits, and request logging.
 - [ ] Provider keys are configured only in the server environment if AI drafts are enabled.
 - [ ] Hosted Gmail sending has authenticated server-side authorization, sending identity, logging, and approval rules.
 - [ ] Backup and support ownership are documented.

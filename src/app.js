@@ -175,12 +175,10 @@ function passwordAlreadySet() {
   return Boolean(session?.user?.user_metadata?.password_set);
 }
 
-// No invite flow yet — an account becomes admin only by someone with
-// Supabase dashboard access setting user_metadata.role to "admin" for that
-// user directly (Authentication -> Users -> edit raw user metadata).
-// Everyone else defaults to the role captured at quiz signup.
+// Production admin authority comes from trusted Supabase app_metadata. Demo
+// mode keeps its local role switcher separate from production authorization.
 function isAdmin() {
-  return demoMode ? demoRole === "admin" : session?.user?.user_metadata?.role === "admin";
+  return demoMode ? demoRole === "admin" : session?.user?.app_metadata?.role === "admin";
 }
 
 function myRole() {
