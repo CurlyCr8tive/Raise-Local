@@ -76,6 +76,27 @@ The demo identities are presentation identities. Do not use them for production 
 6. Use **My Projects** to show the partnership moving from approved to outreach pending, active, and completed.
 7. Use **Reports** to show the record of what happened and what value was created.
 
+## Live Invite Flow
+
+In a hosted handoff build, Tenyse can use the admin dashboard to invite real nonprofits and businesses.
+
+1. Log in as admin.
+2. Open the dashboard.
+3. Use **Copy nonprofit invite link** or **Copy business invite link** for manual sharing.
+4. If Gmail OAuth is connected, enter the client email, choose nonprofit or business, and select **Send invite**.
+5. The client should use that same email address when registering so Supabase can scope their records correctly.
+
+If Gmail is not connected yet, the app will show the invite link so it can be sent manually.
+
+## Shared Notes And Notifications
+
+Campaign, business, and match detail pages include a **Shared notes** section.
+
+- Clients can add questions, clarifications, or updates.
+- Admins can review notes in context.
+- In-app notifications appear after login.
+- Gmail notifications are sent only after Google OAuth and `GMAIL_NOTIFICATION_EMAIL` are configured.
+
 ## Editing Client Records
 
 Each campaign request and partner profile has one canonical record. Nonprofits and businesses own their core facts; Tenyse owns operational review, quality, matching context, and coordination.
@@ -92,5 +113,6 @@ Each campaign request and partner profile has one canonical record. Nonprofits a
 ## What Is Not In The Current Demo
 
 - Local Gmail demo notifications can be enabled when a completed intake creates a suggested match and again after mutual approval through the technical OAuth setup. Hosted Gmail sending is not production-ready yet.
+- Shared notes/comments are available, but live Gmail delivery still requires hosted Google OAuth setup.
 - The matching assistant uses explainable rules as the source of truth. AI provider keys are optional for future explanations and drafts; they are not required for the core match result.
 - The current local demo is not a production deployment. Use the hosted handoff only after auth, persistence, and account permissions have been tested.

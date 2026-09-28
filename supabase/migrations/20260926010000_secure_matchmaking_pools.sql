@@ -47,7 +47,6 @@ as $$
   where auth.uid() is not null
     and not public.is_raise_local_admin();
 $$;
-
 create or replace function public.get_business_match_pool()
 returns setof jsonb
 language sql
@@ -95,7 +94,6 @@ as $$
   where auth.uid() is not null
     and not public.is_raise_local_admin();
 $$;
-
 revoke all on function public.get_campaign_match_pool() from public;
 revoke all on function public.get_business_match_pool() from public;
 grant execute on function public.get_campaign_match_pool() to authenticated;

@@ -8,7 +8,6 @@ create policy "authenticated users can read campaign requests"
     lower(email) = lower(auth.email())
     or (auth.jwt() -> 'user_metadata' ->> 'role') = 'admin'
   );
-
 create policy "authenticated users can update campaign requests"
   on campaign_requests for update
   to authenticated
@@ -20,7 +19,6 @@ create policy "authenticated users can update campaign requests"
     lower(email) = lower(auth.email())
     or (auth.jwt() -> 'user_metadata' ->> 'role') = 'admin'
   );
-
 create policy "authenticated users can read business profiles"
   on business_profiles for select
   to authenticated
@@ -28,7 +26,6 @@ create policy "authenticated users can read business profiles"
     lower(email) = lower(auth.email())
     or (auth.jwt() -> 'user_metadata' ->> 'role') = 'admin'
   );
-
 create policy "authenticated users can update business profiles"
   on business_profiles for update
   to authenticated
@@ -40,7 +37,6 @@ create policy "authenticated users can update business profiles"
     lower(email) = lower(auth.email())
     or (auth.jwt() -> 'user_metadata' ->> 'role') = 'admin'
   );
-
 create policy "authenticated users can read related matches"
   on matches for select
   to authenticated
@@ -55,7 +51,6 @@ create policy "authenticated users can read related matches"
       where b.id = business_id and lower(b.email) = lower(auth.email())
     )
   );
-
 create policy "authenticated users can write related matches"
   on matches for insert
   to authenticated
@@ -70,7 +65,6 @@ create policy "authenticated users can write related matches"
       where b.id = business_id and lower(b.email) = lower(auth.email())
     )
   );
-
 create policy "authenticated users can update related matches"
   on matches for update
   to authenticated
@@ -96,7 +90,6 @@ create policy "authenticated users can update related matches"
       where b.id = business_id and lower(b.email) = lower(auth.email())
     )
   );
-
 create policy "authenticated users can read related match events"
   on match_events for select
   to authenticated
@@ -111,7 +104,6 @@ create policy "authenticated users can read related match events"
         )
     )
   );
-
 create policy "authenticated users can write related match events"
   on match_events for insert
   to authenticated

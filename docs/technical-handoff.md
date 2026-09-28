@@ -4,7 +4,7 @@
 
 - GitHub: [CurlyCr8tive/Raise-Local](https://github.com/CurlyCr8tive/Raise-Local)
 - Branch: `main`
-- Local project folder: `/Users/chericeheron/Documents/ChatGPT/Grow Local`
+- Local project folder: `/Users/chericeheron/Desktop/Raise Local Platform`
 - The project is a vanilla JavaScript app served by `server.mjs`.
 
 ## Run And Verify Locally
@@ -42,6 +42,13 @@ Set secrets only in `.env.local` or in the hosting provider’s secret manager:
 ```text
 OPENAI_API_KEY=
 ANTHROPIC_API_KEY=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=
+GMAIL_NOTIFICATION_EMAIL=
+GMAIL_ALLOWED_ORIGINS=
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
 ```
 
 Never place provider keys in `src/`, `index.html`, screenshots, slides, GitHub issues, or committed files. Restart the server after changing `.env.local`.
@@ -70,6 +77,14 @@ The migration set includes:
 - Record edit metadata, revision tracking, and pending change review.
 - Trusted admin authorization through Supabase `app_metadata`.
 - Sanitized authenticated matchmaking pools for real nonprofit and business accounts.
+- Trusted admin inserts for live admin-created campaign/business records.
+- Persistent notifications.
+- Shared campaign/business/match comments.
+
+Current verified remote state as of September 28, 2026:
+
+- Remote migrations are applied through `20260928020000_campaign_comments`.
+- `npm run handoff:audit-live-data` found `0` mock/demo campaign requests and `0` mock/demo business profiles in live Supabase.
 
 For a real admin account, set this in Supabase Auth user metadata through an
 authorized project administrator:
@@ -91,7 +106,7 @@ Do not run migration filenames as shell commands. If the remote database already
 
 ## Gmail Notification
 
-The build can send a Gmail notification when a completed intake creates a suggested match, and again when both sides approve that match. It uses Gmail API OAuth with the narrow `gmail.send` scope. It does not use a Gmail password or an API key.
+The build can send Gmail notifications for suggested matches, client approvals, mutual approvals, workflow/status changes, outreach updates, profile changes that affect timing/capacity/status, and client-added shared notes. It uses Gmail API OAuth with the narrow `gmail.send` scope. It does not use a Gmail password or an API key.
 
 1. In Google Cloud Console, create or select a project and enable the Gmail API.
 2. Configure the OAuth consent screen and add Tenyse's Google account as a test user.
@@ -122,6 +137,16 @@ The build can send a Gmail notification when a completed intake creates a sugges
 
 9. Create or use a completed nonprofit or business intake that produces a match. That triggers the first Gmail notification to `GMAIL_NOTIFICATION_EMAIL`. If you then approve it from the business view and the nonprofit view, mutual approval triggers a second notification.
 
+Current local status as of September 28, 2026:
+
+```text
+Gmail configured: no
+Gmail connected: no
+Notification recipient configured: no
+```
+
+This is expected until Verified Consulting supplies or owns the Google Cloud OAuth client and sender Gmail account.
+
 The OAuth refresh token is stored in the ignored local `.gmail-token.json` file. Never commit it. For hosted use, keep that token and all Google credentials on the server, and allowlist only the real deployed origin.
 
 For a hosted deployment, add the deployed site origin to `GMAIL_ALLOWED_ORIGINS`
@@ -151,6 +176,7 @@ email.
 - [ ] Hosted API routes enforce authentication, origin checks, rate limits, and request logging.
 - [ ] Provider keys are configured only in the server environment if AI drafts are enabled.
 - [ ] Hosted Gmail sending has the deployed URL in `GMAIL_ALLOWED_ORIGINS`, a confirmed sending identity, and a successful test email.
+- [ ] Shared notes/comments can be added by a client and reviewed by admin.
 - [ ] Backup and support ownership are documented.
 
 ## Live-Account Deployment Prep
@@ -204,10 +230,10 @@ only see the expected dashboard and records.
 ## Known Limitations
 
 - The current demo is optimized for a presentation and local rehearsal, not production operations.
-- New suggested matches and mutual approval can send Gmail notifications after OAuth is connected and the deployed origin is allowlisted.
+- Suggested matches, approvals, workflow changes, and client notes can send Gmail notifications after OAuth is connected and the deployed origin is allowlisted.
 - The matching assistant is deterministic and explainable; it is not an autonomous agent.
 - Local demo reset affects browser demo state only.
-- A Supabase migration must be applied before revision and field-source columns exist remotely.
+- The Supabase migration history is currently synced through shared comments, but future schema changes must be pushed before testing hosted features that depend on them.
 - Real multi-user testing is required before calling the handoff production-ready.
 
 ## Safe Handoff Sequence

@@ -7,5 +7,4 @@ alter table matches add column if not exists business_decision text;
 alter table matches add column if not exists outreach_status text default 'not_started';
 alter table matches add column if not exists outreach_message text;
 alter table matches add column if not exists outreach_at timestamptz;
-
 create index if not exists matches_outreach_status_idx on matches (outreach_status);

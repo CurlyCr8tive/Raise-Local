@@ -4,7 +4,6 @@
 -- src/decision-tree-agent.js so client records map onto rows with no renaming.
 
 create extension if not exists "pgcrypto";
-
 create table if not exists campaign_requests (
   id text primary key,
   organization_name text not null,
@@ -42,7 +41,6 @@ create table if not exists campaign_requests (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-
 create table if not exists business_profiles (
   id text primary key,
   name text not null,
@@ -82,7 +80,6 @@ create table if not exists business_profiles (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-
 create table if not exists matches (
   id uuid primary key default gen_random_uuid(),
   request_id text not null references campaign_requests(id) on delete cascade,
@@ -96,7 +93,6 @@ create table if not exists matches (
   updated_at timestamptz not null default now(),
   unique (request_id, business_id)
 );
-
 create table if not exists match_events (
   id uuid primary key default gen_random_uuid(),
   match_id uuid not null references matches(id) on delete cascade,
@@ -106,7 +102,6 @@ create table if not exists match_events (
   note text,
   created_at timestamptz not null default now()
 );
-
 create table if not exists ratings (
   id uuid primary key default gen_random_uuid(),
   business_id text not null references business_profiles(id) on delete cascade,
@@ -115,12 +110,10 @@ create table if not exists ratings (
   review_note text,
   created_at timestamptz not null default now()
 );
-
 create index if not exists matches_request_id_idx on matches(request_id);
 create index if not exists matches_business_id_idx on matches(business_id);
 create index if not exists match_events_match_id_idx on match_events(match_id);
 create index if not exists ratings_business_id_idx on ratings(business_id);
-
 -- RLS: phase one has no auth, so the anon key is what the browser quiz uses.
 -- Public intake (Match Finder) can INSERT its own submission but cannot read,
 -- update, or delete anyone's data through the anon key. Admin review (Match
@@ -131,12 +124,10 @@ alter table business_profiles enable row level security;
 alter table matches enable row level security;
 alter table match_events enable row level security;
 alter table ratings enable row level security;
-
 create policy "anon can submit campaign requests"
   on campaign_requests for insert
   to anon
   with check (true);
-
 create policy "anon can submit business profiles"
   on business_profiles for insert
   to anon
