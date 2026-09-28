@@ -25,6 +25,7 @@ import {
   syncBusinessQuality,
   syncBusinessRating,
   syncCampaignRequest,
+  syncComment,
   syncMatchDecision,
   syncMatchFeedback,
   loadRemoteData,
@@ -233,7 +234,7 @@ function isolateRealAccountData() {
   if (demoMode || !session) return;
   const email = myEmail();
   if (isAdmin()) {
-    data = { campaignRequests: [], businesses: [], matches: [], notifications: [] };
+    data = { campaignRequests: [], businesses: [], matches: [], notifications: [], comments: [] };
   } else {
     const ownRequests = data.campaignRequests.filter((record) => (record.email || "").trim().toLowerCase() === email);
     const ownBusinesses = data.businesses.filter((record) => (record.email || "").trim().toLowerCase() === email);
@@ -244,6 +245,7 @@ function isolateRealAccountData() {
       businesses: ownBusinesses,
       matches: data.matches.filter((match) => requestIds.has(match.requestId) || businessIds.has(match.businessId)),
       notifications: data.notifications.filter((notification) => notification.forEmail === email),
+      comments: (data.comments || []).filter((comment) => requestIds.has(comment.requestId) || businessIds.has(comment.businessId)),
     };
   }
   saveData(data);
@@ -303,6 +305,7 @@ function applyProfilePatch(record, patch, kind) {
   const actor = recordActor();
   const clientFields = kind === "business" ? BUSINESS_CLIENT_FIELDS : REQUEST_CLIENT_FIELDS;
   const conflicts = [];
+  const changedFields = [];
 
   Object.entries(patch).forEach(([field, nextValue]) => {
     if (nextValue === undefined) return;
@@ -313,6 +316,7 @@ function applyProfilePatch(record, patch, kind) {
       conflicts.push({ field, proposedValue: nextValue, currentValue: previousValue, proposedBy: actor.email, proposedAt: new Date().toISOString() });
       return;
     }
+    if (!sameRecordValue(previousValue, nextValue)) changedFields.push(field);
     record[field] = nextValue;
     record.fieldSources[field] = actor.type;
   });
@@ -323,6 +327,7 @@ function applyProfilePatch(record, patch, kind) {
   record.lastEditedAt = now;
   record.lastEditedBy = actor.email;
   record.updatedAt = now;
+  conflicts.changedFields = changedFields;
   return conflicts;
 }
 
@@ -416,6 +421,7 @@ async function hydrateRemoteData() {
     campaignRequests: mergeById(data.campaignRequests, remote.campaignRequests),
     businesses: mergeById(data.businesses, remote.businesses),
     matches: mergeMatches(data.matches, remote.matches),
+    comments: mergeById(data.comments || [], remote.comments || []),
   };
   saveData(data);
   remoteLoadKey = key;
@@ -1354,12 +1360,14 @@ function finishProfileQuiz() {
     if (business) {
       conflicts = applyProfilePatch(business, businessProfilePatch(), "business");
       updateBusinessProfile(business);
+      notifyRecordChange({ record: business, kind: "business", changedFields: conflicts.changedFields || [], conflicts });
     }
   } else {
     const request = data.campaignRequests.find((item) => item.id === quizActiveRecordId);
     if (request) {
       conflicts = applyProfilePatch(request, requestProfilePatch(), "request");
       updateCampaignRequest(request);
+      notifyRecordChange({ record: request, kind: "request", changedFields: conflicts.changedFields || [], conflicts });
     }
   }
   saveData(data);
@@ -1579,6 +1587,17 @@ function renderAdminDashboard() {
         <button type="button" class="primary-btn" data-open-intake="nonprofit">${ICONS.arrowRight} Test nonprofit intake</button>
         <button type="button" class="primary-btn" data-open-intake="business">${ICONS.arrowRight} Test business intake</button>
       </div>
+      <form class="invite-email-form" id="invite-email-form">
+        <label for="invite-email">Send invite link by email</label>
+        <div class="invite-email-controls">
+          <input id="invite-email" type="email" placeholder="client@example.org" required />
+          <select id="invite-audience" aria-label="Invite type">
+            <option value="nonprofit">Nonprofit / school</option>
+            <option value="business">Small business</option>
+          </select>
+          <button type="submit" class="primary-btn">${ICONS.send} Send invite</button>
+        </div>
+      </form>
       <p class="small-note" id="invite-link-feedback" role="status">Use these during deployment testing instead of mock logins.</p>
     </section>
 
@@ -1623,6 +1642,36 @@ function renderAdminDashboard() {
     button.addEventListener("click", () => {
       window.open(introQuizUrl(button.dataset.openIntake), "_blank", "noopener,noreferrer");
     });
+  });
+  document.getElementById("invite-email-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const email = document.getElementById("invite-email").value.trim();
+    const audience = document.getElementById("invite-audience").value;
+    const feedback = document.getElementById("invite-link-feedback");
+    const link = introQuizUrl(audience);
+    const label = audience === "business" ? "business" : "nonprofit";
+    const button = event.target.querySelector("button[type=submit]");
+    button.disabled = true;
+    button.textContent = "Sending...";
+    try {
+      const response = await fetch("/api/gmail/send-notification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: email,
+          subject: `You're invited to Raise Local`,
+          text: `Hi,\n\nTenyse invited you to complete your Raise Local ${label} intake so your profile can be matched with the right partners.\n\nStart here: ${link}\n\nAfter you submit, create your login with this same email address so your record is scoped to your account.`,
+        }),
+      });
+      if (!response.ok) throw new Error("Invite email was not sent.");
+      if (feedback) feedback.textContent = `Invite sent to ${email}. Link used: ${link}`;
+      event.target.reset();
+    } catch {
+      if (feedback) feedback.textContent = `Email was not sent. Share this ${label} invite link manually: ${link}`;
+    } finally {
+      button.disabled = false;
+      button.innerHTML = `${ICONS.send} Send invite`;
+    }
   });
 }
 
@@ -2048,6 +2097,11 @@ function renderEntityDetail() {
         <button type="button" class="primary-btn" data-entity-matches>View matches ${ICONS.arrowRight}</button>
       </aside>
     </section>
+    ${commentThread({
+      requestId: isBusiness ? "" : record.id,
+      businessId: isBusiness ? record.id : "",
+      title: `${name} notes`,
+    })}
     ${isAdmin() && record.pendingChanges?.length ? `<section class="panel change-review"><p class="eyebrow">Review updates</p><h3>Client-owned details were preserved</h3><p class="muted">These fields already had client-provided values, so the proposed admin changes were held for review.</p><div class="change-review-list">${record.pendingChanges.slice(-6).map((change) => `<div><strong>${escapeHtml(humanizeField(change.field))}</strong><span class="muted">Proposed by ${escapeHtml(change.proposedBy || "admin")}</span></div>`).join("")}</div></section>` : ""}
   `;
   root.querySelector("[data-entity-back]").addEventListener("click", () => {
@@ -2060,6 +2114,7 @@ function renderEntityDetail() {
     activeView = "matches";
     render();
   });
+  wireCommentForms();
 }
 
 function wireEntityDetailLinks() {
@@ -2196,6 +2251,11 @@ function renderMatchDetail(match) {
         </section>
       </aside>
     </section>
+    ${commentThread({
+      requestId: match.request.id,
+      businessId: match.business.id,
+      title: `${match.request.organizationName} + ${match.business.name} notes`,
+    })}
   `;
   root.querySelector("[data-match-back]").addEventListener("click", () => {
     selectedMatchKey = "";
@@ -2210,6 +2270,7 @@ function renderMatchDetail(match) {
   wireActiveMatchControls();
   wireMatchProgressionButtons();
   wireRatingWidgets();
+  wireCommentForms();
 }
 
 function causeFilterOptions(matches) {
@@ -2964,6 +3025,7 @@ function wireRequestForm({ fromQuiz = false } = {}) {
     initializeRecordMeta(request, isAdmin() ? "admin" : "client");
     data.campaignRequests = [request, ...data.campaignRequests];
     saveData(data);
+    syncCampaignRequest(request);
     notifyAdminOfSuggestedMatches("request", request);
     if (fromQuiz) {
       quizConfirmation = "Campaign request saved. Raise Local can now compare it against business profiles.";
@@ -3015,6 +3077,7 @@ function wireBusinessForm({ fromQuiz = false } = {}) {
     initializeRecordMeta(business, isAdmin() ? "admin" : "client");
     data.businesses = [business, ...data.businesses];
     saveData(data);
+    syncBusinessProfile(business);
     notifyAdminOfSuggestedMatches("business", business);
     if (fromQuiz) {
       quizConfirmation = "Business profile saved. Raise Local can now recommend fit-based campaign opportunities.";
@@ -3054,6 +3117,8 @@ function upsertMatchStatus(requestId, businessId, status) {
     adminNote: existing?.adminNote || "",
     notifiedAt: fields.notifiedAt || existing?.notifiedAt || null,
   });
+  const match = currentMatches().find((item) => item.request.id === requestId && item.business.id === businessId);
+  if (match && fromStatus !== status) notifyMatchWorkflowUpdate(match, fromStatus, status);
 }
 
 function upsertMatchDecision(requestId, businessId, role, decision) {
@@ -3116,9 +3181,12 @@ function upsertMatchOutreach(requestId, businessId) {
     adminNote: match.adminNote || "",
     notifiedAt: match.notifiedAt || match.outreachAt,
   });
+  const hydrated = currentMatches().find((item) => item.request.id === requestId && item.business.id === businessId);
+  if (hydrated) notifyMatchWorkflowUpdate(hydrated, fromStatus, hydrated.status || "outreach_sent");
 }
 
 function upsertMatchFeedback(requestId, businessId, fields) {
+  const before = data.matches.find((match) => match.requestId === requestId && match.businessId === businessId) || {};
   const existing = data.matches.find((match) => match.requestId === requestId && match.businessId === businessId);
   if (existing) Object.assign(existing, fields);
   else data.matches.push({ requestId, businessId, status: "recommended", ...fields });
@@ -3131,6 +3199,9 @@ function upsertMatchFeedback(requestId, businessId, fields) {
     declineNote: updated?.declineNote || "",
     adminNote: updated?.adminNote || "",
   });
+  const changedFields = Object.keys(fields).filter((field) => !sameRecordValue(before[field], fields[field]));
+  const match = currentMatches().find((item) => item.request.id === requestId && item.business.id === businessId);
+  if (match && changedFields.length) notifyMatchNoteUpdate(match, changedFields);
 }
 
 // In-app notifications live in the same shared local data as everything else,
@@ -3154,12 +3225,158 @@ function addNotification({ forEmail, message, requestId, businessId, type = "wor
   saveData(data);
 }
 
-function triggerGmailNotification({ subject, text }) {
+function triggerGmailNotification({ subject, text, to }) {
   void fetch("/api/gmail/send-notification", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ subject, text }),
+    body: JSON.stringify({ subject, text, to }),
   }).catch(() => {});
+}
+
+function adminNotificationRecipients() {
+  return ["demo@raiselocal.local", "admin@raiselocal.local"];
+}
+
+function recordNameFromComment(comment) {
+  const request = data.campaignRequests.find((item) => item.id === comment.requestId);
+  const business = data.businesses.find((item) => item.id === comment.businessId);
+  if (request && business) return `${request.organizationName} + ${business.name}`;
+  return request?.organizationName || business?.name || "Raise Local record";
+}
+
+function commentParticipants(comment) {
+  const request = data.campaignRequests.find((item) => item.id === comment.requestId);
+  const business = data.businesses.find((item) => item.id === comment.businessId);
+  return [request?.email, business?.email].filter(Boolean).map((email) => email.trim().toLowerCase());
+}
+
+function notifySharedRecordComment(comment) {
+  const title = recordNameFromComment(comment);
+  const author = comment.authorEmail || "A Raise Local user";
+  const message = `${author} added a note on ${title}: "${comment.body.slice(0, 140)}${comment.body.length > 140 ? "..." : ""}"`;
+  const authorEmail = (comment.authorEmail || "").trim().toLowerCase();
+  const recipients = new Set([...adminNotificationRecipients(), ...commentParticipants(comment)]);
+  recipients.delete(authorEmail);
+  recipients.forEach((email) => addNotification({
+    forEmail: email,
+    message,
+    requestId: comment.requestId,
+    businessId: comment.businessId,
+    type: "record_comment",
+  }));
+  if (!isAdmin()) {
+    triggerGmailNotification({
+      subject: `New Raise Local client note: ${title}`,
+      text: `${message}\n\nOpen Raise Local to review the note, reply, or update the match/campaign record.`,
+    });
+  }
+}
+
+function commentsFor({ requestId = "", businessId = "" }) {
+  return (data.comments || [])
+    .filter((comment) => {
+      const requestMatch = requestId && comment.requestId === requestId;
+      const businessMatch = businessId && comment.businessId === businessId;
+      return requestMatch || businessMatch;
+    })
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+}
+
+function commentThread({ requestId = "", businessId = "", title = "Shared notes" }) {
+  const comments = commentsFor({ requestId, businessId });
+  return `
+    <section class="panel comment-thread">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Shared notes</p>
+          <h2>${escapeHtml(title)}</h2>
+          <p class="muted">Clients and admins can add campaign notes here. Client notes also notify Tenyse by Gmail when Gmail is configured.</p>
+        </div>
+      </div>
+      <div class="comment-list">
+        ${comments.length ? comments.map((comment) => `
+          <article class="comment-item">
+            <div>
+              <strong>${escapeHtml(comment.authorEmail || "Raise Local user")}</strong>
+              <span class="muted small-note">${escapeHtml(comment.authorRole || "client")} · ${formatDateTime(comment.createdAt)}</span>
+            </div>
+            <p>${escapeHtml(comment.body)}</p>
+          </article>
+        `).join("") : `<p class="muted">No notes yet. Add the first update, question, client clarification, or campaign handoff note.</p>`}
+      </div>
+      <form class="comment-form" data-comment-form data-request-id="${escapeHtml(requestId)}" data-business-id="${escapeHtml(businessId)}">
+        <label for="comment-${escapeHtml(requestId || businessId)}">Add note</label>
+        <textarea id="comment-${escapeHtml(requestId || businessId)}" name="comment-body" rows="3" placeholder="Add a client note, campaign update, question, or next step..." required></textarea>
+        <div class="split-actions">
+          <button type="submit" class="primary-btn">Add note + notify</button>
+          <span class="form-note" data-comment-status role="status" aria-live="polite"></span>
+        </div>
+      </form>
+    </section>
+  `;
+}
+
+function wireCommentForms() {
+  root.querySelectorAll("[data-comment-form]").forEach((form) => {
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const body = new FormData(form).get("comment-body").trim();
+      const status = form.querySelector("[data-comment-status]");
+      if (!body) {
+        if (status) status.textContent = "Add a note before saving.";
+        return;
+      }
+      const actor = recordActor();
+      const comment = {
+        id: `comment-${crypto.randomUUID()}`,
+        requestId: form.dataset.requestId || "",
+        businessId: form.dataset.businessId || "",
+        authorEmail: actor.email,
+        authorRole: actor.type,
+        body,
+        visibility: "shared",
+        createdAt: new Date().toISOString(),
+      };
+      data.comments = [comment, ...(data.comments || [])];
+      saveData(data);
+      syncComment(comment);
+      notifySharedRecordComment(comment);
+      render();
+    });
+  });
+}
+
+function notifyRecordChange({ record, kind, changedFields = [], conflicts = [] }) {
+  if (!record || (!changedFields.length && !conflicts.length)) return;
+  const actor = recordActor();
+  const isBusinessRecord = kind === "business";
+  const title = isBusinessRecord ? record.name : record.organizationName;
+  const readableFields = changedFields.slice(0, 6).map(humanizeField).join(", ");
+  const conflictCopy = conflicts.length ? ` ${conflicts.length} protected client-owned field${conflicts.length === 1 ? " was" : "s were"} held for review.` : "";
+  const message = `${actor.email} updated ${title}${readableFields ? ` (${readableFields})` : ""}.${conflictCopy}`;
+  adminNotificationRecipients().forEach((email) => addNotification({
+    forEmail: email,
+    message,
+    requestId: isBusinessRecord ? "" : record.id,
+    businessId: isBusinessRecord ? record.id : "",
+    type: "record_update",
+  }));
+  if (record.email && record.email.trim().toLowerCase() !== actor.email) {
+    addNotification({
+      forEmail: record.email,
+      message: `Raise Local updated ${title}${readableFields ? ` (${readableFields})` : ""}. Review your profile details when you have a moment.`,
+      requestId: isBusinessRecord ? "" : record.id,
+      businessId: isBusinessRecord ? record.id : "",
+      type: "record_update",
+    });
+  }
+  const autoFields = new Set(["leadTimeDays", "activeCampaigns", "campaignCap", "availableFrom", "availableTo", "startDate", "endDate", "partnershipDeadline", "status", "campaignStage"]);
+  if (changedFields.some((field) => autoFields.has(field))) {
+    triggerGmailNotification({
+      subject: `Raise Local update to review: ${title}`,
+      text: `${message}\n\nThis touched timing, lead time, capacity, or status fields that can affect matches and client follow-up.`,
+    });
+  }
 }
 
 function notifyAdminOfSuggestedMatches(kind, record) {
@@ -3215,6 +3432,42 @@ function notifyAdminOfClientApproval(match, role) {
     subject: `Raise Local approval to review: ${match.request.organizationName} + ${match.business.name}`,
     text: `${message}\n\nPlease log in to Raise Local to review the match and help coordinate the next step.`,
   });
+}
+
+function notifyMatchWorkflowUpdate(match, fromStatus, toStatus) {
+  const message = `Raise Local match updated: ${match.request.organizationName} + ${match.business.name} moved from ${statusLabel(fromStatus)} to ${statusLabel(toStatus)}.`;
+  const recipients = new Set([...adminNotificationRecipients(), match.request.email, match.business.email]);
+  recipients.forEach((email) => addNotification({
+    forEmail: email,
+    message,
+    requestId: match.request.id,
+    businessId: match.business.id,
+    type: "match_update",
+  }));
+  triggerGmailNotification({
+    subject: `Raise Local match status changed: ${match.request.organizationName} + ${match.business.name}`,
+    text: `${message}\n\nOpen Raise Local to review the updated lead time, outreach status, or next step.`,
+  });
+}
+
+function notifyMatchNoteUpdate(match, changedFields) {
+  const actor = recordActor();
+  const message = `${actor.email} updated ${changedFields.map(humanizeField).join(", ")} for ${match.request.organizationName} + ${match.business.name}.`;
+  const recipients = new Set([...adminNotificationRecipients(), match.request.email, match.business.email]);
+  recipients.delete(actor.email);
+  recipients.forEach((email) => addNotification({
+    forEmail: email,
+    message,
+    requestId: match.request.id,
+    businessId: match.business.id,
+    type: "match_note",
+  }));
+  if (!isAdmin()) {
+    triggerGmailNotification({
+      subject: `Raise Local match note updated: ${match.request.organizationName} + ${match.business.name}`,
+      text: `${message}\n\nOpen Raise Local to review the client note and decide whether follow-up is needed.`,
+    });
+  }
 }
 
 function myNotifications() {

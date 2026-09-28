@@ -2821,6 +2821,49 @@ body.no-sidebar .view-root {
   width: 100%;
 }
 
+.invite-email-form,
+.comment-form {
+  display: grid;
+  gap: 8px;
+}
+
+.invite-email-form label,
+.comment-form label {
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.invite-email-controls {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(220px, 1fr) minmax(180px, 220px) auto;
+}
+
+.comment-thread {
+  display: grid;
+  gap: 16px;
+}
+
+.comment-list {
+  display: grid;
+  gap: 10px;
+}
+
+.comment-item {
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+}
+
+.comment-item p {
+  color: var(--ink);
+  margin: 0;
+}
+
 .sr-only {
   height: 1px;
   margin: -1px;
@@ -3029,6 +3072,10 @@ body.no-sidebar .view-root {
 
   .quick-action-grid {
     grid-template-columns: repeat(2, minmax(180px, 1fr));
+  }
+
+  .invite-email-controls {
+    grid-template-columns: 1fr;
   }
 
   .dashboard-layout {

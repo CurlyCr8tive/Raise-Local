@@ -370,7 +370,7 @@ export function loadData({ includeDemo = false } = {}) {
   if (!raw) {
     return includeDemo
       ? structuredClone(DEMO_DATA)
-      : { campaignRequests: [], businesses: [], matches: [], notifications: [] };
+      : { campaignRequests: [], businesses: [], matches: [], notifications: [], comments: [] };
   }
   try {
     const parsed = JSON.parse(raw);
@@ -398,11 +398,12 @@ export function loadData({ includeDemo = false } = {}) {
       businesses: includeDemo ? [...businesses, ...DEMO_DATA.businesses.filter((record) => !existingBusinessIds.has(record.id))] : businesses,
       matches: Array.isArray(parsed.matches) ? parsed.matches : [],
       notifications: Array.isArray(parsed.notifications) ? parsed.notifications : [],
+      comments: Array.isArray(parsed.comments) ? parsed.comments : [],
     };
   } catch {
     return includeDemo
       ? structuredClone(DEMO_DATA)
-      : { campaignRequests: [], businesses: [], matches: [], notifications: [] };
+      : { campaignRequests: [], businesses: [], matches: [], notifications: [], comments: [] };
   }
 }
 
@@ -412,5 +413,5 @@ export function saveData(data) {
 
 export function resetDemoData() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(DEMO_DATA));
-  return loadData();
+  return loadData({ includeDemo: true });
 }

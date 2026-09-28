@@ -213,6 +213,31 @@ function fromMatchRow(row) {
   };
 }
 
+function fromCommentRow(row) {
+  return {
+    id: row.id,
+    requestId: row.request_id || "",
+    businessId: row.business_id || "",
+    authorEmail: row.author_email || "",
+    authorRole: row.author_role || "client",
+    body: row.body || "",
+    visibility: row.visibility || "shared",
+    createdAt: row.created_at || "",
+  };
+}
+
+function toCommentRow(comment) {
+  return {
+    id: comment.id,
+    request_id: comment.requestId || null,
+    business_id: comment.businessId || null,
+    author_email: comment.authorEmail,
+    author_role: comment.authorRole || "client",
+    body: comment.body,
+    visibility: comment.visibility || "shared",
+  };
+}
+
 export async function loadRemoteData({ admin = false, email = "" } = {}) {
   if (isDemoMode()) return null;
   let requestQuery = supabase.from("campaign_requests").select("*");
@@ -226,12 +251,14 @@ export async function loadRemoteData({ admin = false, email = "" } = {}) {
     businessQuery = businessQuery.eq("email", email);
   }
 
-  const [requestsResult, businessesResult, matchesResult, campaignPoolResult, businessPoolResult] = await Promise.all([
+  const [requestsResult, businessesResult, matchesResult, commentsResult, campaignPoolResult, businessPoolResult] = await Promise.all([
     requestQuery,
     businessQuery,
     supabase.from("matches").select("*"),
+    supabase.from("campaign_comments").select("*").order("created_at", { ascending: true }),
     ...poolQueries,
   ]);
+  if (commentsResult.error) console.error("Supabase campaign comments load skipped:", commentsResult.error.message);
   const failed = [requestsResult, businessesResult, matchesResult, campaignPoolResult, businessPoolResult].find((result) => result.error);
   if (failed) {
     console.error("Supabase remote data load failed:", failed.error.message);
@@ -245,6 +272,7 @@ export async function loadRemoteData({ admin = false, email = "" } = {}) {
     campaignRequests: [...new Map(campaignRows.map((row) => [row.id, fromRequestRow(row)])).values()],
     businesses: [...new Map(businessRows.map((row) => [row.id, fromBusinessRow(row)])).values()],
     matches: (matchesResult.data || []).map(fromMatchRow),
+    comments: commentsResult.error ? [] : (commentsResult.data || []).map(fromCommentRow),
   };
 }
 
@@ -365,6 +393,13 @@ export async function syncMatchFeedback({ requestId, businessId, declineReason =
     ...fields,
   });
   if (error) console.error("Supabase match feedback create failed:", error.message);
+  return !error;
+}
+
+export async function syncComment(comment) {
+  if (isDemoMode()) return false;
+  const { error } = await supabase.from("campaign_comments").insert(toCommentRow(comment));
+  if (error) console.error("Supabase campaign comment sync failed:", error.message);
   return !error;
 }
 
