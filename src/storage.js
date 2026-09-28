@@ -358,34 +358,51 @@ export const DEMO_DATA = {
   notifications: [],
 };
 
-export function loadData() {
+const DEMO_REQUEST_IDS = new Set(DEMO_DATA.campaignRequests.map((record) => record.id));
+const DEMO_BUSINESS_IDS = new Set(DEMO_DATA.businesses.map((record) => record.id));
+
+function isMockEmail(email) {
+  return /\.example$/i.test(String(email || "").trim());
+}
+
+export function loadData({ includeDemo = false } = {}) {
   const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return structuredClone(DEMO_DATA);
+  if (!raw) {
+    return includeDemo
+      ? structuredClone(DEMO_DATA)
+      : { campaignRequests: [], businesses: [], matches: [], notifications: [] };
+  }
   try {
     const parsed = JSON.parse(raw);
     // Upgrades old partner-type labels (see LEGACY_SUPPORT_NEEDS in
     // matching.js) on read, non-destructively, so previously saved answers
     // keep matching instead of silently failing a string-overlap comparison.
-    const campaignRequests = (Array.isArray(parsed.campaignRequests) ? parsed.campaignRequests : []).map((r) => ({
+    let campaignRequests = (Array.isArray(parsed.campaignRequests) ? parsed.campaignRequests : []).map((r) => ({
         rating: null,
         reviewNote: "",
         ...r,
         supportNeeds: normalizeSupportNeeds(r.supportNeeds),
       }));
-    const businesses = (Array.isArray(parsed.businesses) ? parsed.businesses : []).map((b) => ({
+    let businesses = (Array.isArray(parsed.businesses) ? parsed.businesses : []).map((b) => ({
         ...b,
         offerTypes: normalizeSupportNeeds(b.offerTypes),
       }));
+    if (!includeDemo) {
+      campaignRequests = campaignRequests.filter((record) => !DEMO_REQUEST_IDS.has(record.id) && !isMockEmail(record.email));
+      businesses = businesses.filter((record) => !DEMO_BUSINESS_IDS.has(record.id) && !isMockEmail(record.email));
+    }
     const existingRequestIds = new Set(campaignRequests.map((record) => record.id));
     const existingBusinessIds = new Set(businesses.map((record) => record.id));
     return {
-      campaignRequests: [...campaignRequests, ...DEMO_DATA.campaignRequests.filter((record) => !existingRequestIds.has(record.id))],
-      businesses: [...businesses, ...DEMO_DATA.businesses.filter((record) => !existingBusinessIds.has(record.id))],
+      campaignRequests: includeDemo ? [...campaignRequests, ...DEMO_DATA.campaignRequests.filter((record) => !existingRequestIds.has(record.id))] : campaignRequests,
+      businesses: includeDemo ? [...businesses, ...DEMO_DATA.businesses.filter((record) => !existingBusinessIds.has(record.id))] : businesses,
       matches: Array.isArray(parsed.matches) ? parsed.matches : [],
       notifications: Array.isArray(parsed.notifications) ? parsed.notifications : [],
     };
   } catch {
-    return structuredClone(DEMO_DATA);
+    return includeDemo
+      ? structuredClone(DEMO_DATA)
+      : { campaignRequests: [], businesses: [], matches: [], notifications: [] };
   }
 }
 

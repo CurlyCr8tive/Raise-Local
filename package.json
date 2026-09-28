@@ -6,6 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
-    "check": "node scripts/check-build.mjs"
+    "check": "node scripts/check-build.mjs",
+    "handoff:audit-live-data": "node scripts/audit-live-data.mjs",
+    "handoff:provision-accounts": "node scripts/provision-handoff-accounts.mjs"
   }
 }

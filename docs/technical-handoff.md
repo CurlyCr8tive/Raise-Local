@@ -89,9 +89,9 @@ admins. Apply the migrations before testing this path.
 
 Do not run migration filenames as shell commands. If the remote database already contains a migration’s schema but its history is missing, inspect the remote state first and use `supabase migration repair ... --status applied` only after confirming the schema is already present.
 
-## Gmail Demo Notification
+## Gmail Notification
 
-The current local build can send a Gmail notification when a completed intake creates a suggested match, and again when both sides approve that match. It uses Gmail API OAuth with the narrow `gmail.send` scope. It does not use a Gmail password or an API key.
+The build can send a Gmail notification when a completed intake creates a suggested match, and again when both sides approve that match. It uses Gmail API OAuth with the narrow `gmail.send` scope. It does not use a Gmail password or an API key.
 
 1. In Google Cloud Console, create or select a project and enable the Gmail API.
 2. Configure the OAuth consent screen and add Tenyse's Google account as a test user.
@@ -109,6 +109,7 @@ The current local build can send a Gmail notification when a completed intake cr
    GOOGLE_CLIENT_SECRET=
    GOOGLE_REDIRECT_URI=http://localhost:4102/api/gmail/oauth2callback
    GMAIL_NOTIFICATION_EMAIL=
+   GMAIL_ALLOWED_ORIGINS=http://localhost:4102
    ```
 
 6. Start the server and open `http://localhost:4102/api/gmail/connect`.
@@ -121,7 +122,18 @@ The current local build can send a Gmail notification when a completed intake cr
 
 9. Create or use a completed nonprofit or business intake that produces a match. That triggers the first Gmail notification to `GMAIL_NOTIFICATION_EMAIL`. If you then approve it from the business view and the nonprofit view, mutual approval triggers a second notification.
 
-The OAuth refresh token is stored in the ignored local `.gmail-token.json` file. Never commit it. This local notification route is for the demo only; a hosted deployment needs authenticated server-side authorization before enabling automated sending.
+The OAuth refresh token is stored in the ignored local `.gmail-token.json` file. Never commit it. For hosted use, keep that token and all Google credentials on the server, and allowlist only the real deployed origin.
+
+For a hosted deployment, add the deployed site origin to `GMAIL_ALLOWED_ORIGINS`
+in the server environment, for example:
+
+```text
+GMAIL_ALLOWED_ORIGINS=https://your-raise-local-domain.com
+```
+
+If the hosted origin is missing, the app will reject automatic notification
+sends with a clear error instead of silently allowing any website to trigger
+email.
 
 ## Production Handoff Checklist
 
@@ -138,13 +150,61 @@ The OAuth refresh token is stored in the ignored local `.gmail-token.json` file.
 - [ ] Admin access is granted through trusted `app_metadata`, not `user_metadata`.
 - [ ] Hosted API routes enforce authentication, origin checks, rate limits, and request logging.
 - [ ] Provider keys are configured only in the server environment if AI drafts are enabled.
-- [ ] Hosted Gmail sending has authenticated server-side authorization, sending identity, logging, and approval rules.
+- [ ] Hosted Gmail sending has the deployed URL in `GMAIL_ALLOWED_ORIGINS`, a confirmed sending identity, and a successful test email.
 - [ ] Backup and support ownership are documented.
+
+## Live-Account Deployment Prep
+
+The live handoff path should not use mock logins or accidental mock data.
+The app now keeps demo records out of normal live mode. Demo records appear only
+when demo mode is explicitly opened from localhost or a `?demo=1` presentation
+URL.
+
+Before deploying, audit the live Supabase project:
+
+```sh
+npm run handoff:audit-live-data
+```
+
+If the audit finds old mock/demo rows in Supabase and you have confirmed they
+should be removed from the live database:
+
+```sh
+npm run handoff:audit-live-data -- --delete-mock --confirm DELETE_MOCK_DATA
+```
+
+Provision real handoff accounts in dry-run mode first:
+
+```sh
+npm run handoff:provision-accounts -- \
+  --jessica-email "jessica@example.com" \
+  --nonprofit-email "internal-nonprofit-test@example.com" \
+  --business-email "internal-business-test@example.com"
+```
+
+Apply only after confirming the emails:
+
+```sh
+npm run handoff:provision-accounts -- \
+  --jessica-email "jessica@example.com" \
+  --nonprofit-email "internal-nonprofit-test@example.com" \
+  --business-email "internal-business-test@example.com" \
+  --write
+```
+
+The script sets Supabase Auth metadata roles:
+
+- `app_metadata.role=admin` for Tenyse/Jessica
+- `user_metadata.role=nonprofit` for an internal nonprofit tester
+- `user_metadata.role=business` for an internal business tester
+
+After provisioning, test each role in the hosted app and confirm the account can
+only see the expected dashboard and records.
 
 ## Known Limitations
 
 - The current demo is optimized for a presentation and local rehearsal, not production operations.
-- New suggested matches and mutual approval can send local demo notifications; hosted Gmail sending is not production-ready.
+- New suggested matches and mutual approval can send Gmail notifications after OAuth is connected and the deployed origin is allowlisted.
 - The matching assistant is deterministic and explainable; it is not an autonomous agent.
 - Local demo reset affects browser demo state only.
 - A Supabase migration must be applied before revision and field-source columns exist remotely.

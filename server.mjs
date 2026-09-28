@@ -84,12 +84,12 @@ async function readBody(req, maxBytes = MAX_BODY_BYTES) {
   }
 }
 
-function requestOriginIsAllowed(req) {
+function requestOriginIsAllowed(req, allowedOrigins = []) {
   const origin = req.headers.origin;
   if (!origin) return true;
   try {
     const parsed = new URL(origin);
-    return parsed.host === (req.headers.host || `localhost:${port}`);
+    return parsed.host === (req.headers.host || `localhost:${port}`) || allowedOrigins.includes(origin);
   } catch {
     return false;
   }
@@ -119,8 +119,8 @@ function parseCookies(req) {
   return Object.fromEntries(String(req.headers.cookie || "").split(";").map((part) => part.trim().split("=")).filter(([name, value]) => name && value));
 }
 
-function rejectUnsafeRequest(req, res, key, limit, windowMs) {
-  if (!requestOriginIsAllowed(req)) {
+function rejectUnsafeRequest(req, res, key, limit, windowMs, allowedOrigins = []) {
+  if (!requestOriginIsAllowed(req, allowedOrigins)) {
     json(res, 403, { error: "Request origin is not allowed" }, req);
     return true;
   }
@@ -168,7 +168,17 @@ function gmailConfig() {
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
     redirectUri: process.env.GOOGLE_REDIRECT_URI || `http://localhost:${port}/api/gmail/oauth2callback`,
     notificationEmail: process.env.GMAIL_NOTIFICATION_EMAIL || "",
+    allowedOrigins: (process.env.GMAIL_ALLOWED_ORIGINS || "")
+      .split(",")
+      .map((origin) => origin.trim())
+      .filter(Boolean),
   };
+}
+
+function isAllowedNotificationOrigin(origin, config) {
+  if (!origin) return true;
+  if (origin.startsWith("http://localhost:") || origin.startsWith("http://127.0.0.1:")) return true;
+  return config.allowedOrigins.includes(origin);
 }
 
 async function readGmailToken() {
@@ -274,7 +284,8 @@ async function handleGmailApi(req, res, url) {
   }
 
   if (["/api/gmail/send-test", "/api/gmail/send-notification"].includes(url.pathname) && req.method === "POST") {
-    if (rejectUnsafeRequest(req, res, `gmail:${url.pathname}`, 10, 60_000)) return;
+    const allowedOrigins = url.pathname === "/api/gmail/send-notification" ? config.allowedOrigins : [];
+    if (rejectUnsafeRequest(req, res, `gmail:${url.pathname}`, 10, 60_000, allowedOrigins)) return;
     const body = await readBody(req);
     const to = body.to || config.notificationEmail;
     if (!to) return json(res, 400, { error: "Provide a recipient or set GMAIL_NOTIFICATION_EMAIL" }, req);

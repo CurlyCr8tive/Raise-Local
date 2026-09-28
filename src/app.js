@@ -37,7 +37,42 @@ import { ICONS } from "./icons.js";
 import { escapeHtml, formatDateTime, statusLabel } from "./format.js";
 import { emptyState, wireEmptyStates } from "./ui.js";
 
-let data = loadData();
+function demoAccessAllowed() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("demo") === "1" || ["localhost", "127.0.0.1"].includes(window.location.hostname);
+}
+
+function currentLocalData() {
+  return loadData({ includeDemo: demoMode });
+}
+
+function introQuizUrl(audience) {
+  const url = new URL(window.location.href);
+  url.search = "";
+  url.hash = "";
+  url.searchParams.set("start", audience === "business" ? "business" : "nonprofit");
+  return url.toString();
+}
+
+let startLinkApplied = false;
+
+function applyStartLinkIfPresent() {
+  if (startLinkApplied || session || demoMode) return;
+  const params = new URLSearchParams(window.location.search);
+  const start = params.get("start");
+  if (!["nonprofit", "business"].includes(start)) return;
+  startLinkApplied = true;
+  quizAudience = start === "business" ? "business" : "request";
+  quizPhase = "core";
+  quizStep = 0;
+  quizAnswers = {};
+  quizActiveRecordId = null;
+  quizResultsPreview = null;
+  authScreen = "quiz";
+  window.history.replaceState({}, "", window.location.pathname);
+}
+
+let data = loadData({ includeDemo: sessionStorage.getItem("raise_local_demo_mode") === "true" && demoAccessAllowed() });
 let activeView = "dashboard";
 let dashboardTab = "matches"; // "matches" | "own" | "counterpart"
 let dashboardSort = "best"; // "best" | "name"
@@ -83,6 +118,7 @@ const topbarEl = document.getElementById("app-topbar");
 const navButtons = [...document.querySelectorAll("[data-view]")];
 
 document.getElementById("seed-btn").addEventListener("click", () => {
+  if (!demoMode) return;
   data = resetDemoData();
   render();
 });
@@ -104,9 +140,11 @@ document.getElementById("topbar-logout-btn").addEventListener("click", () => {
 function leaveSession() {
   if (demoMode) {
     sessionStorage.removeItem("raise_local_demo_mode");
+    sessionStorage.removeItem("raise_local_demo_role");
     demoMode = false;
     demoRole = "admin";
     session = null;
+    data = currentLocalData();
     authScreen = "landing";
     activeView = "dashboard";
     render();
@@ -726,6 +764,7 @@ function renderSettings() {
 }
 
 function renderPreAuth() {
+  applyStartLinkIfPresent();
   const screens = {
     landing: renderLanding,
     "quiz-choose": renderQuizChoose,
@@ -739,6 +778,7 @@ function renderPreAuth() {
 }
 
 function renderLanding() {
+  const canUseDemo = demoAccessAllowed();
   root.innerHTML = `
     <div class="landing-scene">
       ${communityNetworkSvg()}
@@ -750,8 +790,9 @@ function renderLanding() {
         <div class="landing-actions">
           <button class="primary-btn" type="button" id="landing-start">Find a Partner</button>
           <button class="secondary-btn" type="button" id="landing-login">Log in</button>
-          <button class="link-btn" type="button" id="landing-demo">Explore Demo Workspace</button>
+          ${canUseDemo ? `<button class="link-btn" type="button" id="landing-demo">Explore Demo Workspace</button>` : ""}
         </div>
+        ${authError ? `<p class="form-error" role="alert">${escapeHtml(authError)}</p>` : ""}
       </section>
     </div>
   `;
@@ -765,13 +806,20 @@ function renderLanding() {
     authError = "";
     render();
   });
-  document.getElementById("landing-demo").addEventListener("click", enterDemoWorkspace);
+  document.getElementById("landing-demo")?.addEventListener("click", enterDemoWorkspace);
 }
 
 function enterDemoWorkspace() {
+  if (!demoAccessAllowed()) {
+    authError = "Demo workspace is disabled on this live URL. Use a real account, or open a dedicated demo link.";
+    authScreen = "landing";
+    render();
+    return;
+  }
   demoMode = true;
   sessionStorage.setItem("raise_local_demo_mode", "true");
   demoRole = "admin";
+  data = loadData({ includeDemo: true });
   session = { user: { email: "demo@raiselocal.local", user_metadata: { role: "admin", password_set: true } } };
   authError = "";
   authScreen = "app";
@@ -993,6 +1041,7 @@ function renderSetPassword() {
 }
 
 function renderLogin() {
+  const canUseDemo = demoAccessAllowed();
   root.innerHTML = `
     <section class="auth-panel">
       <p class="eyebrow">Welcome Back</p>
@@ -1005,8 +1054,7 @@ function renderLogin() {
         <button class="primary-btn" type="submit" style="width:100%;">Log in</button>
       </form>
       <button class="link-btn" type="button" id="forgot-password" style="margin-top:14px;">Forgot password?</button>
-      <div class="auth-divider"><span>or</span></div>
-      <button class="secondary-btn" type="button" id="demo-login" style="width:100%;">Open Demo Workspace</button>
+      ${canUseDemo ? `<div class="auth-divider"><span>or</span></div><button class="secondary-btn" type="button" id="demo-login" style="width:100%;">Open Demo Workspace</button>` : ""}
       <p class="muted" style="margin-top:14px;">New here? <button class="link-btn" type="button" id="login-back">Find your match instead</button></p>
     </section>
   `;
@@ -1049,7 +1097,7 @@ function renderLogin() {
     authScreen = "verify-sent";
     render();
   });
-  document.getElementById("demo-login").addEventListener("click", enterDemoWorkspace);
+  document.getElementById("demo-login")?.addEventListener("click", enterDemoWorkspace);
 }
 
 function progressCopy(step, total) {
@@ -1517,6 +1565,23 @@ function renderAdminDashboard() {
       </div>
     </section>
 
+    <section class="panel admin-launch-panel">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Live handoff links</p>
+          <h2>Invite real nonprofits and businesses into the intake flow.</h2>
+          <p class="muted">These links open the real Match Finder, send Supabase email verification, and create scoped records tied to the user's email. Demo data is available only from localhost or a URL with <code>?demo=1</code>.</p>
+        </div>
+      </div>
+      <div class="quick-action-grid">
+        <button type="button" class="secondary-btn" data-copy-intake="nonprofit">${ICONS.document} Copy nonprofit invite link</button>
+        <button type="button" class="secondary-btn" data-copy-intake="business">${ICONS.briefcase} Copy business invite link</button>
+        <button type="button" class="primary-btn" data-open-intake="nonprofit">${ICONS.arrowRight} Test nonprofit intake</button>
+        <button type="button" class="primary-btn" data-open-intake="business">${ICONS.arrowRight} Test business intake</button>
+      </div>
+      <p class="small-note" id="invite-link-feedback" role="status">Use these during deployment testing instead of mock logins.</p>
+    </section>
+
     <section class="metric-grid">
       <button type="button" class="metric-card metric-link" data-dashboard-target="requests"><span>Campaign Requests</span><strong>${data.campaignRequests.length}</strong></button>
       <button type="button" class="metric-card metric-link" data-dashboard-target="businesses"><span>Business Profiles</span><strong>${data.businesses.length}</strong></button>
@@ -1540,6 +1605,25 @@ function renderAdminDashboard() {
     });
   });
   wireViewMatchButtons();
+  wireViewMatchButtons();
+  root.querySelectorAll("[data-copy-intake]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const audience = button.dataset.copyIntake;
+      const link = introQuizUrl(audience);
+      const feedback = document.getElementById("invite-link-feedback");
+      try {
+        await navigator.clipboard.writeText(link);
+        if (feedback) feedback.textContent = `${audience === "business" ? "Business" : "Nonprofit"} invite link copied: ${link}`;
+      } catch {
+        if (feedback) feedback.textContent = `Copy unavailable in this browser. Use this ${audience === "business" ? "business" : "nonprofit"} invite link: ${link}`;
+      }
+    });
+  });
+  root.querySelectorAll("[data-open-intake]").forEach((button) => {
+    button.addEventListener("click", () => {
+      window.open(introQuizUrl(button.dataset.openIntake), "_blank", "noopener,noreferrer");
+    });
+  });
 }
 
 function isProfileComplete(record, isBusiness) {

@@ -2803,6 +2803,24 @@ body.no-sidebar .view-root {
   width: 15px;
 }
 
+.admin-launch-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.quick-action-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(180px, 1fr));
+}
+
+.quick-action-grid .primary-btn,
+.quick-action-grid .secondary-btn {
+  min-height: 44px;
+  text-align: center;
+  width: 100%;
+}
+
 .sr-only {
   height: 1px;
   margin: -1px;
@@ -3009,6 +3027,10 @@ body.no-sidebar .view-root {
     grid-template-columns: repeat(2, minmax(140px, 1fr));
   }
 
+  .quick-action-grid {
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+  }
+
   .dashboard-layout {
     grid-template-columns: 1fr;
   }
@@ -3110,6 +3132,7 @@ body.no-sidebar .view-root {
   .metric-grid,
   .form-grid,
   .scope-grid,
+  .quick-action-grid,
   .quiz-choice-grid {
     grid-template-columns: 1fr;
   }
