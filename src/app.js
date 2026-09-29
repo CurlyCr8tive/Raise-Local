@@ -1399,6 +1399,7 @@ function finishCoreQuiz() {
     syncCampaignRequest(request);
   }
   saveData(data);
+  notifyAdminOfQuizCompletion(quizAudience, createdRecord);
   notifyAdminOfSuggestedMatches(quizAudience, createdRecord);
   if (inAppProfileCreate) {
     quizConfirmation = quizAudience === "business" ? `${createdRecord.name} was added to the partner network.` : `${createdRecord.organizationName} campaign request was submitted.`;
@@ -3356,6 +3357,28 @@ function persistAdminNotification({ message, requestId, businessId, type }) {
   void syncAdminNotification({ message, requestId, businessId, type });
 }
 
+function notifyAdminOfQuizCompletion(kind, record) {
+  if (!record) return;
+  const isBusinessRecord = kind === "business";
+  const name = isBusinessRecord ? record.name : record.organizationName;
+  const profileLabel = isBusinessRecord ? "business profile" : "campaign request";
+  const message = `${name} completed the Raise Local intro quiz. Their ${profileLabel} is ready for admin review, and they were prompted to verify their email and create a login.`;
+  const requestId = isBusinessRecord ? "" : record.id;
+  const businessId = isBusinessRecord ? record.id : "";
+  adminNotificationRecipients().forEach((email) => addNotification({
+    forEmail: email,
+    message,
+    requestId,
+    businessId,
+    type: "intro_quiz_completed",
+  }));
+  persistAdminNotification({ message, requestId, businessId, type: "intro_quiz_completed" });
+  triggerAdminAlertEmail({
+    subject: `Intro quiz completed: ${name}`,
+    text: `${message}\n\nOpen Raise Local to review the submitted details, confirm any Wix signup information, and check whether matches are ready.`,
+  });
+}
+
 function recordNameFromComment(comment) {
   const request = data.campaignRequests.find((item) => item.id === comment.requestId);
   const business = data.businesses.find((item) => item.id === comment.businessId);
@@ -3627,13 +3650,14 @@ function sendQuizInvite(record, kind, button) {
   button.disabled = true;
   button.textContent = "Sending invite...";
   const name = kind === "business" ? record.name : record.organizationName;
+  const quizLink = introQuizUrl(kind);
   fetch("/api/gmail/send-quiz-invite", {
     method: "POST",
     headers: authorizedJsonHeaders(),
     body: JSON.stringify({
       recipient: record.email,
       kind,
-      text: `Hi ${record.contactName || name},\n\nVerified Consulting invited you to complete your Raise Local ${kind === "business" ? "business profile" : "campaign request"}. Please open Raise Local, log in, and choose Match Finder to finish your details.`,
+      text: `Hi ${record.contactName || name},\n\nThank you for joining Raise Local. The next step is to complete the short intro quiz so we can prepare your ${kind === "business" ? "business profile" : "campaign request"} and start finding relevant matches.\n\nStart here: ${quizLink}`,
     }),
   }).then(async (response) => {
     if (!response.ok) throw new Error((await response.json()).error || "The invite could not be sent.");
