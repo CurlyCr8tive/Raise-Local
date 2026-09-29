@@ -3324,6 +3324,14 @@ function triggerWorkflowEmail({ recipients, subject, text }) {
   }).catch(() => {});
 }
 
+function triggerAdminAlertEmail({ subject, text }) {
+  void fetch("/api/gmail/send-admin-alert", {
+    method: "POST",
+    headers: authorizedJsonHeaders(),
+    body: JSON.stringify({ subject, text }),
+  }).catch(() => {});
+}
+
 function changedRecordFields(before, after) {
   const ignored = new Set(["updatedAt", "lastEditedAt", "lastEditedBy", "revision", "pendingChanges", "fieldSources"]);
   return Object.keys({ ...before, ...after }).filter((field) => !ignored.has(field) && !sameRecordValue(before[field], after[field]));
@@ -3509,8 +3517,7 @@ function notifyAdminOfSuggestedMatches(kind, record) {
       type: "suggested_match",
     }));
     persistAdminNotification({ message, requestId: match.request.id, businessId: match.business.id, type: "suggested_match" });
-    triggerWorkflowEmail({
-      recipients: workflowRecipients(match, adminNotificationRecipients()),
+    triggerAdminAlertEmail({
       subject: `New client match to review: ${match.request.organizationName} + ${match.business.name}`,
       text: `${message}\n\nPlease log in to Raise Local to review your client's matches and follow up if either side needs help moving forward. One or both parties may still need to respond.`,
     });

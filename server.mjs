@@ -377,6 +377,27 @@ async function handleGmailApi(req, res, url) {
     return json(res, 200, { ok: true, results }, req);
   }
 
+  if (url.pathname === "/api/gmail/send-admin-alert" && req.method === "POST") {
+    if (rejectUnsafeRequest(req, res, "gmail:admin-alert", 20, 60_000, config.allowedOrigins)) return;
+    if (!await authenticatedUser(req)) return json(res, 403, { error: "Authentication is required" }, req);
+    const body = await readBody(req);
+    // Public/client-side match events may alert the admin team, but they must
+    // never choose arbitrary recipients from the browser.
+    const recipients = [...new Set([
+      config.notificationEmail,
+      ...config.adminEmails,
+    ].map((email) => String(email || "").trim().toLowerCase()).filter((email) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)))];
+    if (!recipients.length) return json(res, 400, { error: "No admin notification recipients are configured" }, req);
+    const subject = String(body.subject || "Raise Local match ready to review").slice(0, 180);
+    const text = appendAppLink(String(body.text || "A Raise Local match is ready for admin review.").slice(0, 10_000), req);
+    const results = [];
+    for (const to of recipients) {
+      const result = await sendGmailMessage({ to, subject, text });
+      results.push({ to, id: result.id || null });
+    }
+    return json(res, 200, { ok: true, results }, req);
+  }
+
   if (url.pathname === "/api/gmail/send-quiz-invite" && req.method === "POST") {
     if (rejectUnsafeRequest(req, res, "gmail:quiz-invite", 10, 60_000, config.allowedOrigins)) return;
     if (!await requireAdmin(req, res)) return;
