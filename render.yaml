@@ -12,6 +12,10 @@ services:
         sync: false
       - key: OPENAI_API_KEY
         sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET
@@ -29,4 +33,6 @@ services:
       - key: GMAIL_ADMIN_EMAILS
         sync: false
       - key: GMAIL_REFRESH_TOKEN
+        sync: false
+      - key: GMAIL_SETUP_TOKEN
         sync: false

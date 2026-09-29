@@ -14,6 +14,10 @@ const MAX_BODY_BYTES = 100_000;
 
 loadEnvFile(join(rootDir, ".env.local"));
 
+const SUPABASE_URL = process.env.SUPABASE_URL || "https://ojirczskecmcwpkwiomq.supabase.co";
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY ||
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qaXJjenNrZWNtY3dwa3dpb21xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkxMzA0NzQsImV4cCI6MjEwNDcwNjQ3NH0.2pkWYVEZUyKSOby0HoefiyX-a32B_9KRjk0MnNEva3U";
+
 function loadEnvFile(path) {
   if (!existsSync(path)) return;
   // Small dotenv reader so the prototype does not need a dependency just to
@@ -117,6 +121,37 @@ function clientAddress(req) {
 
 function parseCookies(req) {
   return Object.fromEntries(String(req.headers.cookie || "").split(";").map((part) => part.trim().split("=")).filter(([name, value]) => name && value));
+}
+
+function bearerToken(req) {
+  const match = String(req.headers.authorization || "").match(/^Bearer\s+(.+)$/i);
+  return match?.[1] || "";
+}
+
+async function authenticatedUser(req) {
+  const token = bearerToken(req);
+  if (!token) return null;
+  const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!response.ok) return null;
+  return response.json();
+}
+
+async function requireAdmin(req, res) {
+  const user = await authenticatedUser(req);
+  if (user?.app_metadata?.role === "admin") return user;
+  json(res, 403, { error: "Admin authorization is required" }, req);
+  return null;
+}
+
+function gmailSetupAllowed(req, url) {
+  const configuredToken = process.env.GMAIL_SETUP_TOKEN || "";
+  if (!configuredToken && ["localhost", "127.0.0.1"].includes(String(req.headers.host || "").split(":")[0])) return true;
+  return Boolean(configuredToken && url.searchParams.get("setup_token") === configuredToken);
 }
 
 function rejectUnsafeRequest(req, res, key, limit, windowMs, allowedOrigins = []) {
@@ -268,10 +303,12 @@ async function handleGmailApi(req, res, url) {
       notificationEmail: Boolean(config.notificationEmail),
       testRecipientEmail: Boolean(config.testRecipientEmail),
       appBaseUrl: Boolean(config.appBaseUrl),
+      setupTokenRequired: Boolean(process.env.GMAIL_SETUP_TOKEN),
     }, req);
   }
 
   if (url.pathname === "/api/gmail/connect" && req.method === "GET") {
+    if (!gmailSetupAllowed(req, url)) return json(res, 403, { error: "Gmail setup token is required" }, req);
     if (!config.clientId || !config.clientSecret) return json(res, 503, { error: "Gmail OAuth is not configured on the server" }, req);
     const state = randomBytes(24).toString("hex");
     gmailAuthStates.set(state, Date.now() + 10 * 60 * 1000);
@@ -309,6 +346,7 @@ async function handleGmailApi(req, res, url) {
   if (["/api/gmail/send-test", "/api/gmail/send-notification"].includes(url.pathname) && req.method === "POST") {
     const allowedOrigins = url.pathname === "/api/gmail/send-notification" ? config.allowedOrigins : [];
     if (rejectUnsafeRequest(req, res, `gmail:${url.pathname}`, 10, 60_000, allowedOrigins)) return;
+    if (!await requireAdmin(req, res)) return;
     const body = await readBody(req);
     // Notifications are intentionally locked to the configured recipient.
     // Never accept an arbitrary `to` address from the browser.
@@ -320,6 +358,7 @@ async function handleGmailApi(req, res, url) {
 
   if (url.pathname === "/api/gmail/send-change-notification" && req.method === "POST") {
     if (rejectUnsafeRequest(req, res, "gmail:change-notification", 20, 60_000, config.allowedOrigins)) return;
+    if (!await requireAdmin(req, res)) return;
     const body = await readBody(req);
     const recipients = [...new Set([
       ...(Array.isArray(body.recipients) ? body.recipients : []),
@@ -340,6 +379,7 @@ async function handleGmailApi(req, res, url) {
 
   if (url.pathname === "/api/gmail/send-quiz-invite" && req.method === "POST") {
     if (rejectUnsafeRequest(req, res, "gmail:quiz-invite", 10, 60_000, config.allowedOrigins)) return;
+    if (!await requireAdmin(req, res)) return;
     const body = await readBody(req);
     const recipient = String(body.recipient || "").trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(recipient)) return json(res, 400, { error: "Provide a valid quiz invite recipient" }, req);

@@ -233,6 +233,13 @@ function myEmail() {
   return (session?.user?.email || "").trim().toLowerCase();
 }
 
+function authorizedJsonHeaders() {
+  return {
+    "Content-Type": "application/json",
+    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+  };
+}
+
 function isolateRealAccountData() {
   if (demoMode || !session) return;
   // Never use the browser's seeded demo records as a source for a real
@@ -1726,7 +1733,7 @@ function renderAdminDashboard() {
     try {
       const response = await fetch("/api/gmail/send-notification", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authorizedJsonHeaders(),
         body: JSON.stringify({
           to: email,
           subject: `You're invited to Raise Local`,
@@ -3312,7 +3319,7 @@ function workflowRecipients(match, extra = []) {
 function triggerWorkflowEmail({ recipients, subject, text }) {
   void fetch("/api/gmail/send-change-notification", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authorizedJsonHeaders(),
     body: JSON.stringify({ recipients, subject, text }),
   }).catch(() => {});
 }
@@ -3615,7 +3622,7 @@ function sendQuizInvite(record, kind, button) {
   const name = kind === "business" ? record.name : record.organizationName;
   fetch("/api/gmail/send-quiz-invite", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authorizedJsonHeaders(),
     body: JSON.stringify({
       recipient: record.email,
       kind,
