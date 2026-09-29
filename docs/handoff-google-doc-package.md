@@ -127,7 +127,8 @@ Reason:
 
 For Grove Park:
 
-- Use a manually curated list of 3-5 Atlanta businesses.
+- Use a publicly sourced curated list of real Atlanta businesses.
+- Keep public source links or Google/Maps lookup links on each potential lead.
 - Clearly label them as potential leads.
 - Do not imply those businesses are registered or confirmed.
 - Let Tenyse/Jess manually reach out after the presentation.

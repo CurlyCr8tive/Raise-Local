@@ -50,9 +50,10 @@ The demo identities are presentation identities. Do not use them for production 
 
 Grove Park Foundation is the primary Raise Local presentation-planning nonprofit
 record with its Atlanta campaign context and October 1 to December 15 campaign
-window. The seeded Atlanta businesses are marked **potential lead** and should
-not be described as confirmed partners until Tenyse or the business confirms
-participation.
+window. The seeded Atlanta businesses are real public leads sourced from
+public Google/Maps-style listings, official sites, directories, or articles.
+They are marked **potential lead** and should not be described as confirmed
+partners until Tenyse or the business confirms participation.
 
 YES Academy Inc. and Sofia & Grace remain available as a secondary walkthrough
 if Tenyse wants a cleaner nonprofit/business example after the Grove Park

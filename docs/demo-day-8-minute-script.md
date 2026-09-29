@@ -100,7 +100,7 @@ Show:
 
 Open [Raise Local](http://localhost:4102), choose **View Demo Workspace**, and reset the demo before recording.
 
-Use the seeded **Grove Park Foundation** campaign as the primary story. The demo now includes a small, manually curated set of Atlanta business profiles labeled **Potential Lead**. These are presentation leads only; they are not confirmed Raise Local partners until Tenyse or the business confirms participation.
+Use the seeded **Grove Park Foundation** campaign as the primary story. The demo now includes a small, publicly sourced set of real Atlanta business profiles labeled **Potential Lead**. These are presentation leads only; they are not confirmed Raise Local partners until Tenyse or the business confirms participation.
 
 Keep **YES Academy Inc. + Sofia & Grace** as the backup demo path if Tenyse wants to show a second, cleaner example with a more familiar business/nonprofit pairing.
 
@@ -124,7 +124,7 @@ Choose **Find New Matches** or open Match Review.
 
 ### 5:05-5:45, Strongest match
 
-Open the strongest **Grove Park Foundation + Atlanta Potential Lead** match.
+Open the strongest **Grove Park Foundation + Atlanta potential lead** match.
 
 **Say:**
 
@@ -136,7 +136,7 @@ Point to the suggested campaign approach and scenario. Add:
 
 Also point out the business status:
 
-"For this Grove Park presentation, this business is labeled as a potential lead. That means Raise Local can organize a possible outreach target, but the platform does not treat the business as a confirmed partner until they opt in."
+"For this Grove Park presentation, this business is labeled as a potential lead. That means it is a real public lead from Google/Maps-style research or public web records, but Raise Local does not treat the business as a confirmed partner until they opt in."
 
 ### 5:45-6:15, Business approval
 
