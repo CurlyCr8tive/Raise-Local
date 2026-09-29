@@ -22,6 +22,8 @@ services:
         sync: false
       - key: GMAIL_NOTIFICATION_EMAIL
         sync: false
+      - key: GMAIL_ALLOWED_ORIGINS
+        sync: false
       - key: GMAIL_TEST_RECIPIENT_EMAIL
         sync: false
       - key: GMAIL_ADMIN_EMAILS
