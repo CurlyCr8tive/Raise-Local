@@ -3752,6 +3752,9 @@ function businessCard(business, { showCompleteProfile = false, adminDirectory = 
   const isPotentialLead = business.status === "potential_lead" || business.qualityStatus === "potential_lead";
   const statusClass = business.unavailable ? "status-active" : isPotentialLead || business.qualityStatus === "needs_review" ? "status-new" : "status-ready";
   const statusText = business.unavailable ? "paused" : isPotentialLead ? "potential lead" : business.qualityStatus === "needs_review" ? "needs review" : "ready";
+  const leadSourceNote = isPotentialLead
+    ? business.leadSource || "Potential lead only. This business has not signed up with Raise Local yet and needs outreach confirmation."
+    : "";
   const photo = businessPhoto(business);
   return `
     <article class="entity-card directory-card">
@@ -3769,6 +3772,7 @@ function businessCard(business, { showCompleteProfile = false, adminDirectory = 
       <div class="directory-card-copy">
         <h4>${escapeHtml(business.businessType || "Local partner")}</h4>
         <p>${escapeHtml(business.notes || "Ready to explore a community partnership.")}</p>
+        ${leadSourceNote ? `<p class="small-note lead-source-note"><strong>Lead source:</strong> ${escapeHtml(leadSourceNote)}</p>` : ""}
       </div>
       <div class="directory-meta">
         <span>${ICONS.calendar} ${escapeHtml(business.availableFrom || "Timing flexible")}</span>

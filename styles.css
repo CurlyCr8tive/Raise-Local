@@ -1081,6 +1081,15 @@ h1 {
   margin: 0;
 }
 
+.directory-card-copy .lead-source-note {
+  background: #fff8ec;
+  border: 1px solid #f6d8ad;
+  border-radius: 8px;
+  color: #654319;
+  margin-top: 10px;
+  padding: 8px 10px;
+}
+
 .directory-meta {
   justify-content: flex-start;
   margin-top: 13px;
