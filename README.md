@@ -75,6 +75,10 @@ See `docs/action-and-build-plan.md` for the current action plan and
 
 ## Handoff And Demo Guides
 
+- `docs/raise-local-cto-handoff-packet.md` is the consolidated technical and
+  operational handoff packet for Verified Consulting's CTO.
+- `docs/raise-local-everyday-user-guide.md` is the regular day-to-day guide
+  for Tenyse outside of presentations.
 - `docs/tenyse-use-guide.md` explains the role-based demo and everyday workflows.
 - `docs/technical-handoff.md` covers local setup, Supabase, environment variables,
   production readiness, and known limitations.

@@ -7,6 +7,23 @@
 - Local project folder: `/Users/chericeheron/Desktop/Raise Local Platform`
 - The project is a vanilla JavaScript app served by `server.mjs`.
 
+## Hosting Target
+
+The prepared hosting target is a Render Node web service. This matches the
+current architecture because the same server serves the app and protects the
+server-side AI and Gmail routes. The repository includes `render.yaml` with:
+
+- `npm install` as the build command.
+- `npm start` as the start command.
+- `/api/health` as the HTTP health check.
+- secret values marked `sync: false` so they must be entered in Render's secret
+  environment, not committed to the repository.
+
+After the Render service is created, set `GOOGLE_REDIRECT_URI` to the deployed
+HTTPS URL plus `/api/gmail/oauth2callback`, then add that exact URI to the
+Google OAuth client. The final public URL is not known until Render assigns the
+service subdomain or a custom domain.
+
 ## Run And Verify Locally
 
 From the project folder:
@@ -86,7 +103,7 @@ Current verified remote state as of September 28, 2026:
 - Remote migrations are applied through `20260928020000_campaign_comments`.
 - `npm run handoff:audit-live-data` found `0` mock/demo campaign requests and `0` mock/demo business profiles in live Supabase.
 
-For a real admin account, set this in Supabase Auth user metadata through an
+For a real admin account, set this in Supabase Auth app metadata through an
 authorized project administrator:
 
 ```json
@@ -123,8 +140,12 @@ The build can send Gmail notifications for suggested matches, client approvals, 
    GOOGLE_CLIENT_ID=
    GOOGLE_CLIENT_SECRET=
    GOOGLE_REDIRECT_URI=http://localhost:4102/api/gmail/oauth2callback
+   APP_BASE_URL=http://localhost:4102
    GMAIL_NOTIFICATION_EMAIL=
    GMAIL_ALLOWED_ORIGINS=http://localhost:4102
+   GMAIL_TEST_RECIPIENT_EMAIL=
+   GMAIL_ADMIN_EMAILS=
+   GMAIL_REFRESH_TOKEN=
    ```
 
 6. Start the server and open `http://localhost:4102/api/gmail/connect`.
@@ -135,7 +156,8 @@ The build can send Gmail notifications for suggested matches, client approvals, 
    curl -s http://localhost:4102/api/gmail/status
    ```
 
-9. Create or use a completed nonprofit or business intake that produces a match. That triggers the first Gmail notification to `GMAIL_NOTIFICATION_EMAIL`. If you then approve it from the business view and the nonprofit view, mutual approval triggers a second notification.
+9. Use `GMAIL_TEST_RECIPIENT_EMAIL` with `/api/gmail/send-test` for an isolated delivery test. Do not use Tenyse's or a real client's address for repeated testing.
+10. Create or use a completed nonprofit or business intake that produces a match. That triggers the first Gmail notification to `GMAIL_NOTIFICATION_EMAIL`. If you then approve it from the business view and the nonprofit view, mutual approval triggers a second notification. Edits to an existing client record notify the record's email plus the configured `GMAIL_ADMIN_EMAILS` recipients. Each message includes `APP_BASE_URL` as the login link.
 
 Current local status as of September 28, 2026:
 
@@ -160,10 +182,14 @@ If the hosted origin is missing, the app will reject automatic notification
 sends with a clear error instead of silently allowing any website to trigger
 email.
 
+For a hosted server, put the refresh token in `GMAIL_REFRESH_TOKEN` in the host's secret manager. The current Gmail route still needs a hosted authentication gateway and provider-specific deployment configuration before it should be exposed publicly.
+
 ## Production Handoff Checklist
 
 - [ ] Tenyse has access to the GitHub repository or an agreed deployment owner is documented.
 - [ ] A hosted URL replaces `localhost` for real use.
+- [ ] `APP_BASE_URL` is set to the exact deployed HTTPS URL.
+- [ ] A separate pilot inbox is configured as `GMAIL_TEST_RECIPIENT_EMAIL` for delivery tests.
 - [ ] Supabase project ownership and billing contact are confirmed.
 - [ ] Tenyse’s admin account exists and has the intended role.
 - [ ] Nonprofit and business test accounts can sign in.
@@ -231,6 +257,9 @@ only see the expected dashboard and records.
 
 - The current demo is optimized for a presentation and local rehearsal, not production operations.
 - Suggested matches, approvals, workflow changes, and client notes can send Gmail notifications after OAuth is connected and the deployed origin is allowlisted.
+- Real accounts start from an empty local cache and load only Supabase records after authentication.
+- Raise Local uses same-origin browser API calls (`/api/...`) when the frontend and Node server deploy together; no separate frontend API URL is needed for this architecture.
+- New suggested matches and mutual approval can persist an admin notification in Supabase and send the configured Gmail notification locally; hosted Gmail sending is not production-ready until the route is protected and deployed with secrets.
 - The matching assistant is deterministic and explainable; it is not an autonomous agent.
 - Local demo reset affects browser demo state only.
 - The Supabase migration history is currently synced through shared comments, but future schema changes must be pushed before testing hosted features that depend on them.

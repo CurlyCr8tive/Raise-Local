@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: raise-local-platform
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: APP_BASE_URL
+        sync: false
+      - key: GMAIL_NOTIFICATION_EMAIL
+        sync: false
+      - key: GMAIL_TEST_RECIPIENT_EMAIL
+        sync: false
+      - key: GMAIL_ADMIN_EMAILS
+        sync: false
+      - key: GMAIL_REFRESH_TOKEN
+        sync: false

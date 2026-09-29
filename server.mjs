@@ -167,7 +167,10 @@ function gmailConfig() {
     clientId: process.env.GOOGLE_CLIENT_ID || "",
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
     redirectUri: process.env.GOOGLE_REDIRECT_URI || `http://localhost:${port}/api/gmail/oauth2callback`,
+    appBaseUrl: String(process.env.APP_BASE_URL || "").trim().replace(/\/$/, ""),
     notificationEmail: process.env.GMAIL_NOTIFICATION_EMAIL || "",
+    testRecipientEmail: process.env.GMAIL_TEST_RECIPIENT_EMAIL || "",
+    adminEmails: String(process.env.GMAIL_ADMIN_EMAILS || "").split(",").map((email) => email.trim()).filter(Boolean),
     allowedOrigins: (process.env.GMAIL_ALLOWED_ORIGINS || "")
       .split(",")
       .map((origin) => origin.trim())
@@ -181,7 +184,21 @@ function isAllowedNotificationOrigin(origin, config) {
   return config.allowedOrigins.includes(origin);
 }
 
+function publicAppUrl(req) {
+  const configured = gmailConfig().appBaseUrl;
+  if (configured) return configured;
+  const forwardedProto = String(req.headers["x-forwarded-proto"] || "http").split(",")[0].trim();
+  return `${forwardedProto}://${req.headers.host || `localhost:${port}`}`;
+}
+
+function appendAppLink(text, req) {
+  return `${text}\n\nOpen Raise Local: ${publicAppUrl(req)}`;
+}
+
 async function readGmailToken() {
+  if (process.env.GMAIL_REFRESH_TOKEN) {
+    return { refresh_token: process.env.GMAIL_REFRESH_TOKEN };
+  }
   try {
     return JSON.parse(await readFile(gmailTokenPath, "utf8"));
   } catch {
@@ -245,7 +262,13 @@ async function handleGmailApi(req, res, url) {
   const config = gmailConfig();
   if (url.pathname === "/api/gmail/status" && req.method === "GET") {
     const token = await readGmailToken();
-    return json(res, 200, { configured: Boolean(config.clientId && config.clientSecret), connected: Boolean(token?.refresh_token), notificationEmail: Boolean(config.notificationEmail) }, req);
+    return json(res, 200, {
+      configured: Boolean(config.clientId && config.clientSecret),
+      connected: Boolean(token?.refresh_token),
+      notificationEmail: Boolean(config.notificationEmail),
+      testRecipientEmail: Boolean(config.testRecipientEmail),
+      appBaseUrl: Boolean(config.appBaseUrl),
+    }, req);
   }
 
   if (url.pathname === "/api/gmail/connect" && req.method === "GET") {
@@ -287,10 +310,51 @@ async function handleGmailApi(req, res, url) {
     const allowedOrigins = url.pathname === "/api/gmail/send-notification" ? config.allowedOrigins : [];
     if (rejectUnsafeRequest(req, res, `gmail:${url.pathname}`, 10, 60_000, allowedOrigins)) return;
     const body = await readBody(req);
-    const to = body.to || config.notificationEmail;
-    if (!to) return json(res, 400, { error: "Provide a recipient or set GMAIL_NOTIFICATION_EMAIL" }, req);
-    const result = await sendGmailMessage({ to, subject: body.subject || "Raise Local test notification", text: body.text || "Raise Local Gmail notifications are connected." });
+    // Notifications are intentionally locked to the configured recipient.
+    // Never accept an arbitrary `to` address from the browser.
+    const to = url.pathname === "/api/gmail/send-test" ? (config.testRecipientEmail || config.notificationEmail) : config.notificationEmail;
+    if (!to) return json(res, 400, { error: "Set GMAIL_NOTIFICATION_EMAIL on the server" }, req);
+    const result = await sendGmailMessage({ to, subject: body.subject || "Raise Local test notification", text: appendAppLink(body.text || "Raise Local Gmail notifications are connected.", req) });
     return json(res, 200, { ok: true, id: result.id || null }, req);
+  }
+
+  if (url.pathname === "/api/gmail/send-change-notification" && req.method === "POST") {
+    if (rejectUnsafeRequest(req, res, "gmail:change-notification", 20, 60_000)) return;
+    const body = await readBody(req);
+    const recipients = [...new Set([
+      ...(Array.isArray(body.recipients) ? body.recipients : []),
+      config.notificationEmail,
+      ...config.adminEmails,
+    ].map((email) => String(email || "").trim().toLowerCase()).filter((email) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)))];
+    if (!recipients.length) return json(res, 400, { error: "No valid notification recipients are configured" }, req);
+    if (recipients.length > 6) return json(res, 400, { error: "Too many notification recipients" }, req);
+    const subject = String(body.subject || "Raise Local record updated").slice(0, 180);
+    const text = appendAppLink(String(body.text || "A Raise Local record was updated.").slice(0, 10_000), req);
+    const results = [];
+    for (const to of recipients) {
+      const result = await sendGmailMessage({ to, subject, text });
+      results.push({ to, id: result.id || null });
+    }
+    return json(res, 200, { ok: true, results }, req);
+  }
+
+  if (url.pathname === "/api/gmail/send-quiz-invite" && req.method === "POST") {
+    if (rejectUnsafeRequest(req, res, "gmail:quiz-invite", 10, 60_000)) return;
+    const body = await readBody(req);
+    const recipient = String(body.recipient || "").trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(recipient)) return json(res, 400, { error: "Provide a valid quiz invite recipient" }, req);
+    const audience = body.kind === "business" ? "business" : "nonprofit";
+    const subject = `Complete your Raise Local ${audience} profile`;
+    const text = appendAppLink(String(body.text || `You have been invited to complete your Raise Local ${audience} profile. Log in to Raise Local and open Match Finder to continue.`).slice(0, 10_000), req);
+    const recipients = [...new Set([recipient, config.notificationEmail, ...config.adminEmails]
+      .map((email) => String(email || "").trim().toLowerCase())
+      .filter((email) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)))];
+    const results = [];
+    for (const to of recipients) {
+      const result = await sendGmailMessage({ to, subject, text });
+      results.push({ to, id: result.id || null });
+    }
+    return json(res, 200, { ok: true, results }, req);
   }
 
   return json(res, 404, { error: "Gmail route not found" }, req);
@@ -341,4 +405,4 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(port, () => console.log(`Raise Local server running at http://localhost:${port}`));
+server.listen(port, "0.0.0.0", () => console.log(`Raise Local server running at http://localhost:${port}`));

@@ -19,9 +19,10 @@ import {
   scoreMatch,
   splitSelections,
 } from "./matching.js?v=3607856";
-import { loadData, resetDemoData, saveData } from "./storage.js";
+import { emptyData, loadData, resetDemoData, saveData } from "./storage.js";
 import {
   syncBusinessProfile,
+  syncAdminNotification,
   syncBusinessQuality,
   syncBusinessRating,
   syncCampaignRequest,
@@ -111,6 +112,8 @@ let passwordRecovery = false;
 let pendingEmail = "";
 let remoteLoadKey = "";
 let remoteLoading = false;
+let remoteDataReady = false;
+let remoteDataError = "";
 
 const root = document.getElementById("view-root");
 const title = document.getElementById("page-title");
@@ -232,24 +235,14 @@ function myEmail() {
 
 function isolateRealAccountData() {
   if (demoMode || !session) return;
-  const email = myEmail();
-  if (isAdmin()) {
-    data = { campaignRequests: [], businesses: [], matches: [], notifications: [], comments: [] };
-  } else {
-    const ownRequests = data.campaignRequests.filter((record) => (record.email || "").trim().toLowerCase() === email);
-    const ownBusinesses = data.businesses.filter((record) => (record.email || "").trim().toLowerCase() === email);
-    const requestIds = new Set(ownRequests.map((record) => record.id));
-    const businessIds = new Set(ownBusinesses.map((record) => record.id));
-    data = {
-      campaignRequests: ownRequests,
-      businesses: ownBusinesses,
-      matches: data.matches.filter((match) => requestIds.has(match.requestId) || businessIds.has(match.businessId)),
-      notifications: data.notifications.filter((notification) => notification.forEmail === email),
-      comments: (data.comments || []).filter((comment) => requestIds.has(comment.requestId) || businessIds.has(comment.businessId)),
-    };
-  }
+  // Never use the browser's seeded demo records as a source for a real
+  // account. The authenticated session must start from an empty local cache
+  // and be repopulated only from Supabase below.
+  data = emptyData();
   saveData(data);
   remoteLoadKey = "";
+  remoteDataReady = false;
+  remoteDataError = "";
 }
 
 const REQUEST_CLIENT_FIELDS = new Set([
@@ -314,7 +307,6 @@ function applyProfilePatch(record, patch, kind) {
     const adminProtectsClientValue = actor.type === "admin" && clientFields.has(field) && previousSource === "client" && hasRecordValue(previousValue) && !sameRecordValue(previousValue, nextValue);
     if (adminProtectsClientValue) {
       conflicts.push({ field, proposedValue: nextValue, currentValue: previousValue, proposedBy: actor.email, proposedAt: new Date().toISOString() });
-      return;
     }
     if (!sameRecordValue(previousValue, nextValue)) changedFields.push(field);
     record[field] = nextValue;
@@ -382,6 +374,8 @@ supabase.auth.onAuthStateChange((event, newSession) => {
     quizAudience = null;
     quizPhase = "choose";
     remoteLoadKey = "";
+    remoteDataReady = false;
+    remoteDataError = "";
   } else if (session && ["INITIAL_SESSION", "SIGNED_IN", "USER_UPDATED"].includes(event)) {
     isolateRealAccountData();
     determinePostSessionScreen();
@@ -413,18 +407,25 @@ async function hydrateRemoteData() {
   const key = `${session.user.id}:${isAdmin() ? "admin" : myRole()}`;
   if (remoteLoadKey === key) return;
   remoteLoading = true;
+  remoteDataError = "";
   const remote = await loadRemoteData({ admin: isAdmin(), email: myEmail() });
   remoteLoading = false;
-  if (!remote) return;
+  if (!remote) {
+    remoteDataError = "We could not load your live Raise Local records. Check the Supabase connection and try again.";
+    render();
+    return;
+  }
   data = {
     ...data,
     campaignRequests: mergeById(data.campaignRequests, remote.campaignRequests),
     businesses: mergeById(data.businesses, remote.businesses),
     matches: mergeMatches(data.matches, remote.matches),
     comments: mergeById(data.comments || [], remote.comments || []),
+    notifications: mergeById(data.notifications || [], remote.notifications || []),
   };
   saveData(data);
   remoteLoadKey = key;
+  remoteDataReady = true;
   render();
 }
 
@@ -584,6 +585,17 @@ function render() {
   syncNavForRole();
   syncAccountIdentity();
   syncNotifications();
+  if (!demoMode && session && passwordAlreadySet() && !remoteDataReady) {
+    setTitle("Connecting to Raise Local");
+    root.innerHTML = `<section class="panel remote-status-panel" role="status"><p class="eyebrow">Live account</p><h2>${remoteDataError ? "Live records need attention" : "Loading your live records"}</h2><p class="muted">${escapeHtml(remoteDataError || "Connecting to Supabase. Demo records are hidden until the live account is ready.")}</p>${remoteDataError ? `<button type="button" class="primary-btn" data-retry-live-data>Try again ${ICONS.refresh}</button>` : `<p class="form-note">Please wait a moment.</p>`}</section>`;
+    root.querySelector("[data-retry-live-data]")?.addEventListener("click", () => {
+      remoteLoadKey = "";
+      remoteDataError = "";
+      render();
+    });
+    if (!remoteLoading && !remoteDataError) void hydrateRemoteData();
+    return;
+  }
   void hydrateRemoteData();
   if (activeView === "brief" && !isAdmin()) activeView = "dashboard";
 
@@ -597,10 +609,51 @@ function render() {
     projects: renderProjects,
     reports: renderReports,
     brief: renderBrief,
+    "admin-intro": renderAdminIntro,
     settings: renderSettings,
     "complete-profile": renderCompleteProfile,
   };
   (views[activeView] || renderDashboard)();
+}
+
+function renderAdminIntro() {
+  if (!isAdmin()) {
+    activeView = "dashboard";
+    render();
+    return;
+  }
+  setTitle("Run Intro Quiz");
+  root.innerHTML = `
+    <button type="button" class="back-link" data-admin-intro-back>${ICONS.undo} Back to dashboard</button>
+    <section class="panel quiz-choice-panel">
+      <p class="eyebrow">Admin demo workflow</p>
+      <h2>Start the intro quiz</h2>
+      <p class="muted">Choose which side you want to enter so you can demonstrate a new request or profile without leaving the admin workspace.</p>
+      <div class="split-actions">
+        <button type="button" class="primary-btn" data-start-intro="request">Start nonprofit quiz ${ICONS.arrowRight}</button>
+        <button type="button" class="secondary-btn" data-start-intro="business">Start business quiz ${ICONS.arrowRight}</button>
+      </div>
+    </section>
+  `;
+  root.querySelector("[data-admin-intro-back]").addEventListener("click", () => {
+    activeView = "dashboard";
+    render();
+  });
+  root.querySelectorAll("[data-start-intro]").forEach((button) => {
+    button.addEventListener("click", () => {
+      quizAudience = button.dataset.startIntro === "business" ? "business" : "request";
+      quizPhase = "core";
+      quizStep = 0;
+      quizAnswers = {};
+      quizConfirmation = "";
+      quizConfirmationAction = null;
+      quizActiveRecordId = null;
+      quizResultsPreview = null;
+      inAppProfileCreate = true;
+      activeView = "complete-profile";
+      render();
+    });
+  });
 }
 
 function navLabel(view) {
@@ -829,6 +882,8 @@ function enterDemoWorkspace() {
   session = { user: { email: "demo@raiselocal.local", user_metadata: { role: "admin", password_set: true } } };
   authError = "";
   authScreen = "app";
+  remoteDataReady = true;
+  remoteDataError = "";
   activeView = "dashboard";
   render();
 }
@@ -849,6 +904,8 @@ function switchDemoRole(role) {
   adminComposer = "";
   inAppProfileCreate = false;
   matchLoaderShown = false;
+  remoteDataReady = true;
+  remoteDataError = "";
   document.getElementById("topbar-account-menu").hidden = true;
   render();
 }
@@ -1358,16 +1415,20 @@ function finishProfileQuiz() {
   if (quizAudience === "business") {
     const business = data.businesses.find((item) => item.id === quizActiveRecordId);
     if (business) {
+      const before = structuredClone(business);
       conflicts = applyProfilePatch(business, businessProfilePatch(), "business");
       updateBusinessProfile(business);
-      notifyRecordChange({ record: business, kind: "business", changedFields: conflicts.changedFields || [], conflicts });
+      saveData(data);
+      triggerRecordChangeNotification(business, "business", changedRecordFields(before, business));
     }
   } else {
     const request = data.campaignRequests.find((item) => item.id === quizActiveRecordId);
     if (request) {
+      const before = structuredClone(request);
       conflicts = applyProfilePatch(request, requestProfilePatch(), "request");
       updateCampaignRequest(request);
-      notifyRecordChange({ record: request, kind: "request", changedFields: conflicts.changedFields || [], conflicts });
+      saveData(data);
+      triggerRecordChangeNotification(request, "request", changedRecordFields(before, request));
     }
   }
   saveData(data);
@@ -1375,7 +1436,7 @@ function finishProfileQuiz() {
     ? data.businesses.find((item) => item.id === quizActiveRecordId)
     : data.campaignRequests.find((item) => item.id === quizActiveRecordId));
   quizConfirmation = conflicts.length
-    ? `Profile saved. ${conflicts.length} client-owned field${conflicts.length === 1 ? "" : "s"} was preserved for review.`
+    ? `Profile saved. ${conflicts.length} previously client-entered field${conflicts.length === 1 ? "" : "s"} was updated and logged for review.`
     : "Profile completed — thanks for the extra detail. It helps Raise Local recommend stronger matches.";
   activeView = quizAudience === "business" ? "businesses" : "requests";
   render();
@@ -1606,6 +1667,15 @@ function renderAdminDashboard() {
       <button type="button" class="metric-card metric-link" data-dashboard-target="businesses"><span>Business Profiles</span><strong>${data.businesses.length}</strong></button>
       <button type="button" class="metric-card metric-link" data-dashboard-target="matches"><span>Top Matches</span><strong>${matches.length}</strong></button>
       <button type="button" class="metric-card metric-link" data-dashboard-target="matches"><span>Approved / Active</span><strong>${approved} / ${active}</strong></button>
+    </section>
+
+    <section class="panel admin-demo-entry">
+      <div>
+        <p class="eyebrow">Demo workflow</p>
+        <h2>Run a new intro quiz</h2>
+        <p class="muted">Start a nonprofit or business intake from the admin workspace when you need to rehearse the matching flow.</p>
+      </div>
+      <button type="button" class="primary-btn" data-dashboard-target="admin-intro">${ICONS.document} Open Intro Quiz ${ICONS.arrowRight}</button>
     </section>
 
     <section class="panel">
@@ -1894,6 +1964,7 @@ function renderRequests() {
     });
     wireCompleteProfileLinks();
     wireEntityDetailLinks();
+    wireQuizInviteButtons();
     wireConfirmationLink();
     return;
   }
@@ -2046,6 +2117,7 @@ function renderBusinesses() {
     wireCompleteProfileLinks();
     wireQualityControls();
     wireEntityDetailLinks();
+    wireQuizInviteButtons();
     wireConfirmationLink();
     return;
   }
@@ -3024,6 +3096,7 @@ function wireRequestForm({ fromQuiz = false } = {}) {
       };
     initializeRecordMeta(request, isAdmin() ? "admin" : "client");
     data.campaignRequests = [request, ...data.campaignRequests];
+    syncCampaignRequest(request);
     saveData(data);
     syncCampaignRequest(request);
     notifyAdminOfSuggestedMatches("request", request);
@@ -3076,6 +3149,7 @@ function wireBusinessForm({ fromQuiz = false } = {}) {
       };
     initializeRecordMeta(business, isAdmin() ? "admin" : "client");
     data.businesses = [business, ...data.businesses];
+    syncBusinessProfile(business);
     saveData(data);
     syncBusinessProfile(business);
     notifyAdminOfSuggestedMatches("business", business);
@@ -3102,6 +3176,10 @@ function upsertMatchStatus(requestId, businessId, status) {
   if (existing) Object.assign(existing, fields);
   else data.matches.push({ requestId, businessId, ...fields });
   saveData(data);
+  if (fromStatus !== status) {
+    const match = currentMatches().find((item) => item.request.id === requestId && item.business.id === businessId);
+    if (match) notifyWorkflowStatusChange(match, fromStatus, status);
+  }
   syncMatchDecision({
     requestId,
     businessId,
@@ -3131,14 +3209,9 @@ function upsertMatchDecision(requestId, businessId, role, decision) {
   if (existing.status === "mutually_approved" || existing.status === "outreach_pending") existing.notifiedAt = new Date().toISOString();
   const index = data.matches.findIndex((match) => match.requestId === requestId && match.businessId === businessId);
   if (index === -1) data.matches.push(existing);
-  if (decision === "approved" && existing.status !== "mutually_approved" && fromStatus !== existing.status) {
-    const match = currentMatches().find((item) => item.request.id === requestId && item.business.id === businessId);
-    if (match) notifyAdminOfClientApproval(match, role);
-  }
-  if (existing.status === "mutually_approved" && fromStatus !== "mutually_approved") {
-    const match = currentMatches().find((item) => item.request.id === requestId && item.business.id === businessId);
-    if (match) notifyMutualApproval(match);
-  }
+  const match = currentMatches().find((item) => item.request.id === requestId && item.business.id === businessId);
+  if (match && existing.status === "mutually_approved" && fromStatus !== "mutually_approved") notifyMutualApproval(match);
+  else if (match && decision) notifyMatchDecision(match, role, decision);
   saveData(data);
   syncMatchDecision({
     requestId,
@@ -3166,6 +3239,8 @@ function upsertMatchOutreach(requestId, businessId) {
   const index = data.matches.findIndex((item) => item.requestId === requestId && item.businessId === businessId);
   if (index === -1) data.matches.push(match);
   saveData(data);
+  const hydratedMatch = currentMatches().find((item) => item.request.id === requestId && item.business.id === businessId);
+  if (hydratedMatch && fromStatus !== hydratedMatch.status) notifyWorkflowStatusChange(hydratedMatch, fromStatus, hydratedMatch.status);
   syncMatchDecision({
     requestId,
     businessId,
@@ -3234,7 +3309,48 @@ function triggerGmailNotification({ subject, text, to }) {
 }
 
 function adminNotificationRecipients() {
-  return ["demo@raiselocal.local", "admin@raiselocal.local"];
+  if (demoMode) return ["demo@raiselocal.local", "admin@raiselocal.local"];
+  return isAdmin() && myEmail() ? [myEmail()] : [];
+}
+
+function workflowRecipients(match, extra = []) {
+  return [...new Set([
+    ...extra,
+    match?.request?.email,
+    match?.business?.email,
+  ].map((email) => String(email || "").trim().toLowerCase()).filter(Boolean))];
+}
+
+function triggerWorkflowEmail({ recipients, subject, text }) {
+  void fetch("/api/gmail/send-change-notification", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ recipients, subject, text }),
+  }).catch(() => {});
+}
+
+function changedRecordFields(before, after) {
+  const ignored = new Set(["updatedAt", "lastEditedAt", "lastEditedBy", "revision", "pendingChanges", "fieldSources"]);
+  return Object.keys({ ...before, ...after }).filter((field) => !ignored.has(field) && !sameRecordValue(before[field], after[field]));
+}
+
+function triggerRecordChangeNotification(record, kind, fields) {
+  if (!record?.email || !fields.length) return;
+  const name = kind === "business" ? record.name : record.organizationName;
+  const label = kind === "business" ? "business profile" : "campaign request";
+  const actor = record.lastEditedBy || recordActor().email;
+  const relatedRecipients = currentMatches()
+    .filter((match) => kind === "business" ? match.business.id === record.id : match.request.id === record.id)
+    .flatMap((match) => [match.request.email, match.business.email]);
+  triggerWorkflowEmail({
+    recipients: [...new Set([record.email, ...relatedRecipients, ...adminNotificationRecipients()])],
+    subject: `Raise Local ${label} updated: ${name}`,
+    text: `${name}'s Raise Local ${label} was updated by ${actor}.\n\nChanged fields: ${fields.map(humanizeField).join(", ")}.\n\nPlease log in to Raise Local to review the current details and matching context.`,
+  });
+}
+
+function persistAdminNotification({ message, requestId, businessId, type }) {
+  void syncAdminNotification({ message, requestId, businessId, type });
 }
 
 function recordNameFromComment(comment) {
@@ -3264,8 +3380,10 @@ function notifySharedRecordComment(comment) {
     businessId: comment.businessId,
     type: "record_comment",
   }));
+  persistAdminNotification({ message, requestId: comment.requestId, businessId: comment.businessId, type: "record_comment" });
   if (!isAdmin()) {
-    triggerGmailNotification({
+    triggerWorkflowEmail({
+      recipients: [...recipients],
       subject: `New Raise Local client note: ${title}`,
       text: `${message}\n\nOpen Raise Local to review the note, reply, or update the match/campaign record.`,
     });
@@ -3372,7 +3490,8 @@ function notifyRecordChange({ record, kind, changedFields = [], conflicts = [] }
   }
   const autoFields = new Set(["leadTimeDays", "activeCampaigns", "campaignCap", "availableFrom", "availableTo", "startDate", "endDate", "partnershipDeadline", "status", "campaignStage"]);
   if (changedFields.some((field) => autoFields.has(field))) {
-    triggerGmailNotification({
+    triggerWorkflowEmail({
+      recipients: [...new Set([record.email, ...adminNotificationRecipients()].filter(Boolean))],
       subject: `Raise Local update to review: ${title}`,
       text: `${message}\n\nThis touched timing, lead time, capacity, or status fields that can affect matches and client follow-up.`,
     });
@@ -3389,14 +3508,16 @@ function notifyAdminOfSuggestedMatches(kind, record) {
     const message = `New Raise Local match: ${match.request.organizationName} + ${match.business.name}. ${completedBy} completed the intro quiz and a potential partner match is ready for review.`;
     const alreadyNotified = (data.notifications || []).some((notification) => notification.type === "suggested_match" && notification.requestId === match.request.id && notification.businessId === match.business.id);
     if (alreadyNotified) return;
-    ["demo@raiselocal.local", "admin@raiselocal.local"].forEach((email) => addNotification({
+    adminNotificationRecipients().forEach((email) => addNotification({
       forEmail: email,
       message,
       requestId: match.request.id,
       businessId: match.business.id,
       type: "suggested_match",
     }));
-    triggerGmailNotification({
+    persistAdminNotification({ message, requestId: match.request.id, businessId: match.business.id, type: "suggested_match" });
+    triggerWorkflowEmail({
+      recipients: workflowRecipients(match, adminNotificationRecipients()),
       subject: `New client match to review: ${match.request.organizationName} + ${match.business.name}`,
       text: `${message}\n\nPlease log in to Raise Local to review your client's matches and follow up if either side needs help moving forward. One or both parties may still need to respond.`,
     });
@@ -3405,14 +3526,16 @@ function notifyAdminOfSuggestedMatches(kind, record) {
 
 function notifyMutualApproval(match) {
   const message = `${match.request.organizationName} and ${match.business.name} both approved a Raise Local match. Review the partnership and coordinate the introduction.`;
-  ["demo@raiselocal.local", match.request.email, match.business.email].forEach((email) => addNotification({
+  [...adminNotificationRecipients(), match.request.email, match.business.email].forEach((email) => addNotification({
     forEmail: email,
     message,
     requestId: match.request.id,
     businessId: match.business.id,
     type: "mutual_approval",
   }));
-  triggerGmailNotification({
+  persistAdminNotification({ message, requestId: match.request.id, businessId: match.business.id, type: "mutual_approval" });
+  triggerWorkflowEmail({
+    recipients: workflowRecipients(match, adminNotificationRecipients()),
     subject: `Raise Local match approved: ${match.request.organizationName} + ${match.business.name}`,
     text: `${message}\n\nSuggested next step: review the match details and coordinate the introduction from the Raise Local Outreach workspace.`,
   });
@@ -3421,14 +3544,16 @@ function notifyMutualApproval(match) {
 function notifyAdminOfClientApproval(match, role) {
   const approver = role === "business" ? match.business.name : match.request.organizationName;
   const message = `${approver} approved the Raise Local match with ${role === "business" ? match.request.organizationName : match.business.name}. Review the match and follow up with the other partner if needed.`;
-  ["demo@raiselocal.local", "admin@raiselocal.local"].forEach((email) => addNotification({
+  workflowRecipients(match, adminNotificationRecipients()).forEach((email) => addNotification({
     forEmail: email,
     message,
     requestId: match.request.id,
     businessId: match.business.id,
     type: "client_approval",
   }));
-  triggerGmailNotification({
+  persistAdminNotification({ message, requestId: match.request.id, businessId: match.business.id, type: "client_approval" });
+  triggerWorkflowEmail({
+    recipients: workflowRecipients(match, adminNotificationRecipients()),
     subject: `Raise Local approval to review: ${match.request.organizationName} + ${match.business.name}`,
     text: `${message}\n\nPlease log in to Raise Local to review the match and help coordinate the next step.`,
   });
@@ -3436,38 +3561,129 @@ function notifyAdminOfClientApproval(match, role) {
 
 function notifyMatchWorkflowUpdate(match, fromStatus, toStatus) {
   const message = `Raise Local match updated: ${match.request.organizationName} + ${match.business.name} moved from ${statusLabel(fromStatus)} to ${statusLabel(toStatus)}.`;
-  const recipients = new Set([...adminNotificationRecipients(), match.request.email, match.business.email]);
-  recipients.forEach((email) => addNotification({
+  workflowRecipients(match, adminNotificationRecipients()).forEach((email) => addNotification({
     forEmail: email,
     message,
     requestId: match.request.id,
     businessId: match.business.id,
     type: "match_update",
   }));
-  triggerGmailNotification({
+  persistAdminNotification({ message, requestId: match.request.id, businessId: match.business.id, type: "match_update" });
+  triggerWorkflowEmail({
+    recipients: workflowRecipients(match, adminNotificationRecipients()),
     subject: `Raise Local match status changed: ${match.request.organizationName} + ${match.business.name}`,
     text: `${message}\n\nOpen Raise Local to review the updated lead time, outreach status, or next step.`,
+  });
+}
+
+function notifyMatchDecision(match, role, decision) {
+  const actor = role === "business" ? match.business.name : match.request.organizationName;
+  const counterpart = role === "business" ? match.request.organizationName : match.business.name;
+  const verb = decision === "approved" ? "approved" : decision === "held" ? "put on hold" : "declined";
+  const message = `${actor} ${verb} the Raise Local match with ${counterpart}.`;
+  workflowRecipients(match, adminNotificationRecipients()).forEach((email) => addNotification({
+    forEmail: email,
+    message,
+    requestId: match.request.id,
+    businessId: match.business.id,
+    type: `match_${decision}`,
+  }));
+  persistAdminNotification({ message, requestId: match.request.id, businessId: match.business.id, type: `match_${decision}` });
+  triggerWorkflowEmail({
+    recipients: workflowRecipients(match, adminNotificationRecipients()),
+    subject: `Raise Local match update: ${match.request.organizationName} + ${match.business.name}`,
+    text: `${message}\n\nPlease log in to Raise Local to review the match and decide on the next step.`,
   });
 }
 
 function notifyMatchNoteUpdate(match, changedFields) {
   const actor = recordActor();
   const message = `${actor.email} updated ${changedFields.map(humanizeField).join(", ")} for ${match.request.organizationName} + ${match.business.name}.`;
-  const recipients = new Set([...adminNotificationRecipients(), match.request.email, match.business.email]);
-  recipients.delete(actor.email);
-  recipients.forEach((email) => addNotification({
-    forEmail: email,
-    message,
-    requestId: match.request.id,
-    businessId: match.business.id,
-    type: "match_note",
-  }));
+  workflowRecipients(match, adminNotificationRecipients())
+    .filter((email) => email !== actor.email)
+    .forEach((email) => addNotification({
+      forEmail: email,
+      message,
+      requestId: match.request.id,
+      businessId: match.business.id,
+      type: "match_note",
+    }));
+  persistAdminNotification({ message, requestId: match.request.id, businessId: match.business.id, type: "match_note" });
   if (!isAdmin()) {
-    triggerGmailNotification({
+    triggerWorkflowEmail({
+      recipients: workflowRecipients(match, adminNotificationRecipients()).filter((email) => email !== actor.email),
       subject: `Raise Local match note updated: ${match.request.organizationName} + ${match.business.name}`,
       text: `${message}\n\nOpen Raise Local to review the client note and decide whether follow-up is needed.`,
     });
   }
+}
+
+function notifyWorkflowStatusChange(match, fromStatus, status) {
+  const message = `The Raise Local partnership between ${match.request.organizationName} and ${match.business.name} moved from ${statusLabel(fromStatus)} to ${statusLabel(status)}.`;
+  workflowRecipients(match, adminNotificationRecipients()).forEach((email) => addNotification({
+    forEmail: email,
+    message,
+    requestId: match.request.id,
+    businessId: match.business.id,
+    type: "workflow_status",
+  }));
+  persistAdminNotification({ message, requestId: match.request.id, businessId: match.business.id, type: "workflow_status" });
+  triggerWorkflowEmail({
+    recipients: workflowRecipients(match, adminNotificationRecipients()),
+    subject: `Raise Local partnership update: ${match.request.organizationName} + ${match.business.name}`,
+    text: `${message}\n\nPlease log in to Raise Local to review the partnership details and next action.`,
+  });
+}
+
+function sendQuizInvite(record, kind, button) {
+  if (!record?.email) {
+    setInlineFeedback(button, "No email address is available for this record.", true);
+    return;
+  }
+  const originalLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = "Sending invite...";
+  const name = kind === "business" ? record.name : record.organizationName;
+  fetch("/api/gmail/send-quiz-invite", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      recipient: record.email,
+      kind,
+      text: `Hi ${record.contactName || name},\n\nVerified Consulting invited you to complete your Raise Local ${kind === "business" ? "business profile" : "campaign request"}. Please open Raise Local, log in, and choose Match Finder to finish your details.`,
+    }),
+  }).then(async (response) => {
+    if (!response.ok) throw new Error((await response.json()).error || "The invite could not be sent.");
+    button.textContent = "Invite sent";
+    button.classList.add("is-success");
+  }).catch((error) => {
+    button.disabled = false;
+    button.textContent = originalLabel;
+    setInlineFeedback(button, error.message, true);
+  });
+}
+
+function setInlineFeedback(button, message, isError = false) {
+  if (!button?.parentElement) return;
+  let feedback = button.parentElement.querySelector("[data-action-feedback]");
+  if (!feedback) {
+    feedback = document.createElement("span");
+    feedback.dataset.actionFeedback = "true";
+    button.parentElement.append(feedback);
+  }
+  feedback.className = `action-feedback${isError ? " is-error" : ""}`;
+  feedback.textContent = message;
+}
+
+function wireQuizInviteButtons() {
+  root.querySelectorAll("[data-send-quiz-invite]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const kind = button.dataset.recordKind;
+      const records = kind === "business" ? data.businesses : data.campaignRequests;
+      const record = records.find((item) => item.id === button.dataset.recordId);
+      sendQuizInvite(record, kind, button);
+    });
+  });
 }
 
 function myNotifications() {
@@ -3475,8 +3691,8 @@ function myNotifications() {
   return (data.notifications || []).filter((n) => n.forEmail === email).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
-// Approve/Deny/Hold map onto the existing match statuses — no new status
-// values needed. Approve notifies the other side; deny/hold are silent.
+// Approve/Deny/Hold map onto the existing match statuses and notify every
+// participant so no one has to infer what happened from a stale dashboard.
 function respondToMatch(match, decision) {
   const decisionMap = { approve: "approved", deny: "declined", hold: "held" };
   upsertMatchDecision(match.request.id, match.business.id, myRole(), decisionMap[decision]);
@@ -3542,7 +3758,7 @@ function requestCard(request, { showCompleteProfile = false, adminDirectory = fa
         <span class="tag">${escapeHtml(campaignStage(request))}</span>
       </div>
       <div class="directory-card-footer">
-        ${adminDirectory ? `<div class="directory-card-actions"><button type="button" class="link-btn" data-view-entity data-entity-type="request" data-entity-id="${escapeHtml(request.id)}">View details ${ICONS.arrowRight}</button><button type="button" class="secondary-btn" data-complete-profile="request" data-record-id="${escapeHtml(request.id)}">Complete profile</button></div>` : showCompleteProfile ? `<button type="button" class="link-btn" data-complete-profile="request" data-record-id="${escapeHtml(request.id)}">Complete profile ${ICONS.arrowRight}</button>` : `<button type="button" class="link-btn" data-view-entity data-entity-type="request" data-entity-id="${escapeHtml(request.id)}">View details ${ICONS.arrowRight}</button>`}
+        ${adminDirectory ? `<div class="directory-card-actions"><button type="button" class="link-btn" data-view-entity data-entity-type="request" data-entity-id="${escapeHtml(request.id)}">View details ${ICONS.arrowRight}</button><button type="button" class="secondary-btn" data-complete-profile="request" data-record-id="${escapeHtml(request.id)}">Edit profile</button><button type="button" class="secondary-btn" data-send-quiz-invite data-record-kind="request" data-record-id="${escapeHtml(request.id)}">Send quiz invite</button></div>` : showCompleteProfile ? `<button type="button" class="link-btn" data-complete-profile="request" data-record-id="${escapeHtml(request.id)}">Complete profile ${ICONS.arrowRight}</button>` : `<button type="button" class="link-btn" data-view-entity data-entity-type="request" data-entity-id="${escapeHtml(request.id)}">View details ${ICONS.arrowRight}</button>`}
       </div>
       ${request.successDetails ? `<p class="small-note directory-outcome">Outcome: ${escapeHtml(request.successDetails)}</p>` : ""}
     </article>
@@ -3578,7 +3794,7 @@ function businessCard(business, { showCompleteProfile = false, adminDirectory = 
         ${[...(business.causeAreas || []), ...(business.contributionTypes || []), ...(business.offerTypes || []), ...(business.fulfillmentOptions || [])].map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}
       </div>
       <div class="directory-card-footer">
-        ${adminDirectory ? `<div class="directory-card-actions"><button type="button" class="link-btn" data-view-entity data-entity-type="business" data-entity-id="${escapeHtml(business.id)}">View details ${ICONS.arrowRight}</button><button type="button" class="secondary-btn" data-complete-profile="business" data-record-id="${escapeHtml(business.id)}">Complete profile</button></div>` : showCompleteProfile ? `<button type="button" class="link-btn" data-complete-profile="business" data-record-id="${escapeHtml(business.id)}">Complete profile ${ICONS.arrowRight}</button>` : `<button type="button" class="link-btn" data-view-entity data-entity-type="business" data-entity-id="${escapeHtml(business.id)}">View details ${ICONS.arrowRight}</button>`}
+        ${adminDirectory ? `<div class="directory-card-actions"><button type="button" class="link-btn" data-view-entity data-entity-type="business" data-entity-id="${escapeHtml(business.id)}">View details ${ICONS.arrowRight}</button><button type="button" class="secondary-btn" data-complete-profile="business" data-record-id="${escapeHtml(business.id)}">Edit profile</button><button type="button" class="secondary-btn" data-send-quiz-invite data-record-kind="business" data-record-id="${escapeHtml(business.id)}">Send quiz invite</button></div>` : showCompleteProfile ? `<button type="button" class="link-btn" data-complete-profile="business" data-record-id="${escapeHtml(business.id)}">Complete profile ${ICONS.arrowRight}</button>` : `<button type="button" class="link-btn" data-view-entity data-entity-type="business" data-entity-id="${escapeHtml(business.id)}">View details ${ICONS.arrowRight}</button>`}
       </div>
     </article>
   `;

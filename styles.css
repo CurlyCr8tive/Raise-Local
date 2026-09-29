@@ -1118,6 +1118,22 @@ h1 {
   padding: 7px 10px;
 }
 
+.directory-card-actions .secondary-btn.is-success {
+  background: var(--mint);
+  color: var(--ink);
+}
+
+.action-feedback {
+  flex-basis: 100%;
+  color: var(--forest);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.action-feedback.is-error {
+  color: var(--coral);
+}
+
 .profile-detail-hero {
   align-items: center;
   background: var(--panel);

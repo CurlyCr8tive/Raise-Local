@@ -12,7 +12,7 @@ This guide is for the live walkthrough and for day-to-day use of the current dem
 
 2. Open [Raise Local](http://localhost:4102).
 3. Use the demo workspace rather than a real account for presentations.
-4. Open the account menu and choose **Reset Demo Data** before rehearsing. This keeps the seeded Fresh Start Pantry and Yamaas match available.
+4. Open the account menu and choose **Reset Demo Data** before rehearsing. This restores the controlled presentation records, including the Fresh Start Pantry + Yamaas match, YES Academy + Sofia & Grace, and Grove Park planning record.
 5. Keep the Verified Consulting owner preview and client preview in separate browser tabs.
 
 ## Verified Consulting
@@ -47,6 +47,10 @@ Open [Raise Local](http://localhost:4102) and choose **View Demo Workspace**. Th
 | Business | `demo-business@raiselocal.example` | Review opportunities and approve, hold, or decline a match |
 
 The demo identities are presentation identities. Do not use them for production data.
+
+Grove Park Foundation is also retained as a presentation-planning nonprofit
+record with its Atlanta campaign context and October 1 to December 15 campaign
+window. Treat its contact details as unverified until Tenyse confirms them.
 
 ### Nonprofit flow
 
@@ -102,8 +106,10 @@ Campaign, business, and match detail pages include a **Shared notes** section.
 Each campaign request and partner profile has one canonical record. Nonprofits and businesses own their core facts; Tenyse owns operational review, quality, matching context, and coordination.
 
 - Nonconflicting edits are merged into the same record.
-- If Tenyse proposes a different value for a field the client already supplied, the client value remains visible and the proposal is listed for review.
-- The record keeps who last edited it, when it changed, and which fields came from the client or admin.
+- Tenyse and trusted admins can update current campaign and business details directly, including fields originally entered by a client.
+- When an admin changes a client-entered value, the latest value becomes live and the previous value is retained in the admin edit history.
+- The record keeps who last edited it, when it changed, the revision number, and which fields came from the client or admin.
+- Record edits notify the record owner and the configured Tenyse/admin notification recipients after the server's Gmail delivery is configured.
 - Separate campaigns remain separate records even when they belong to the same organization.
 
 ## Resetting The Demo

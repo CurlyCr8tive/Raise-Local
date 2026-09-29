@@ -2,6 +2,10 @@ import { normalizeSupportNeeds } from "./matching.js?v=3607856";
 
 const STORAGE_KEY = "raise_local_platform_v2";
 
+export function emptyData() {
+  return { campaignRequests: [], businesses: [], matches: [], notifications: [] };
+}
+
 export const DEMO_DATA = {
   campaignRequests: [
     {
@@ -358,20 +362,33 @@ export const DEMO_DATA = {
   notifications: [],
 };
 
-const DEMO_REQUEST_IDS = new Set(DEMO_DATA.campaignRequests.map((record) => record.id));
-const DEMO_BUSINESS_IDS = new Set(DEMO_DATA.businesses.map((record) => record.id));
+// Keep rehearsal records isolated from live account data while preserving the
+// named presentation records in the demo workspace.
+const DEMO_REQUEST_IDS = new Set(["request-fresh-start", "request-grove-park", "request-young-excellence"]);
+const DEMO_BUSINESS_IDS = new Set(["biz-yamaas", "biz-sofia-grace"]);
 
 function isMockEmail(email) {
   return /\.example$/i.test(String(email || "").trim());
+}
+
+function demoSeedData() {
+  return {
+    campaignRequests: DEMO_DATA.campaignRequests.filter((record) => DEMO_REQUEST_IDS.has(record.id)),
+    businesses: DEMO_DATA.businesses.filter((record) => DEMO_BUSINESS_IDS.has(record.id)),
+    matches: [],
+    notifications: [],
+    comments: [],
+  };
 }
 
 export function loadData({ includeDemo = false } = {}) {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) {
     return includeDemo
-      ? structuredClone(DEMO_DATA)
+      ? structuredClone(demoSeedData())
       : { campaignRequests: [], businesses: [], matches: [], notifications: [], comments: [] };
   }
+
   try {
     const parsed = JSON.parse(raw);
     // Upgrades old partner-type labels (see LEGACY_SUPPORT_NEEDS in
@@ -393,16 +410,17 @@ export function loadData({ includeDemo = false } = {}) {
     }
     const existingRequestIds = new Set(campaignRequests.map((record) => record.id));
     const existingBusinessIds = new Set(businesses.map((record) => record.id));
+    const demo = demoSeedData();
     return {
-      campaignRequests: includeDemo ? [...campaignRequests, ...DEMO_DATA.campaignRequests.filter((record) => !existingRequestIds.has(record.id))] : campaignRequests,
-      businesses: includeDemo ? [...businesses, ...DEMO_DATA.businesses.filter((record) => !existingBusinessIds.has(record.id))] : businesses,
+      campaignRequests: includeDemo ? [...campaignRequests, ...demo.campaignRequests.filter((record) => !existingRequestIds.has(record.id))] : campaignRequests,
+      businesses: includeDemo ? [...businesses, ...demo.businesses.filter((record) => !existingBusinessIds.has(record.id))] : businesses,
       matches: Array.isArray(parsed.matches) ? parsed.matches : [],
       notifications: Array.isArray(parsed.notifications) ? parsed.notifications : [],
       comments: Array.isArray(parsed.comments) ? parsed.comments : [],
     };
   } catch {
     return includeDemo
-      ? structuredClone(DEMO_DATA)
+      ? structuredClone(demoSeedData())
       : { campaignRequests: [], businesses: [], matches: [], notifications: [], comments: [] };
   }
 }
@@ -412,6 +430,6 @@ export function saveData(data) {
 }
 
 export function resetDemoData() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(DEMO_DATA));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(demoSeedData()));
   return loadData({ includeDemo: true });
 }

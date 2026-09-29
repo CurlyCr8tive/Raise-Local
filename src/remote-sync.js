@@ -238,6 +238,19 @@ function toCommentRow(comment) {
   };
 }
 
+function fromNotificationRow(row) {
+  return {
+    id: row.id,
+    forEmail: row.for_email || "",
+    message: row.message || "",
+    requestId: row.request_id || "",
+    businessId: row.business_id || "",
+    type: row.type || "workflow",
+    read: Boolean(row.read),
+    createdAt: row.created_at || new Date().toISOString(),
+  };
+}
+
 export async function loadRemoteData({ admin = false, email = "" } = {}) {
   if (isDemoMode()) return null;
   let requestQuery = supabase.from("campaign_requests").select("*");
@@ -251,15 +264,16 @@ export async function loadRemoteData({ admin = false, email = "" } = {}) {
     businessQuery = businessQuery.eq("email", email);
   }
 
-  const [requestsResult, businessesResult, matchesResult, commentsResult, campaignPoolResult, businessPoolResult] = await Promise.all([
+  const [requestsResult, businessesResult, matchesResult, commentsResult, notificationsResult, campaignPoolResult, businessPoolResult] = await Promise.all([
     requestQuery,
     businessQuery,
     supabase.from("matches").select("*"),
     supabase.from("campaign_comments").select("*").order("created_at", { ascending: true }),
+    supabase.from("notifications").select("*").order("created_at", { ascending: false }),
     ...poolQueries,
   ]);
   if (commentsResult.error) console.error("Supabase campaign comments load skipped:", commentsResult.error.message);
-  const failed = [requestsResult, businessesResult, matchesResult, campaignPoolResult, businessPoolResult].find((result) => result.error);
+  const failed = [requestsResult, businessesResult, matchesResult, notificationsResult, campaignPoolResult, businessPoolResult].find((result) => result.error);
   if (failed) {
     console.error("Supabase remote data load failed:", failed.error.message);
     return null;
@@ -273,6 +287,7 @@ export async function loadRemoteData({ admin = false, email = "" } = {}) {
     businesses: [...new Map(businessRows.map((row) => [row.id, fromBusinessRow(row)])).values()],
     matches: (matchesResult.data || []).map(fromMatchRow),
     comments: commentsResult.error ? [] : (commentsResult.data || []).map(fromCommentRow),
+    notifications: (notificationsResult?.data || []).map(fromNotificationRow),
   };
 }
 
@@ -280,6 +295,18 @@ export async function syncCampaignRequest(request) {
   if (isDemoMode()) return false;
   const { error } = await supabase.from("campaign_requests").insert(toRequestRow(request));
   if (error) console.error("Supabase campaign_requests sync failed:", error.message);
+  return !error;
+}
+
+export async function syncAdminNotification({ message, requestId = null, businessId = null, type = "workflow" }) {
+  if (isDemoMode()) return false;
+  const { error } = await supabase.rpc("create_raise_local_admin_notification", {
+    p_message: message,
+    p_request_id: requestId,
+    p_business_id: businessId,
+    p_type: type,
+  });
+  if (error) console.error("Supabase admin notification sync failed:", error.message);
   return !error;
 }
 
