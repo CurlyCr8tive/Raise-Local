@@ -399,6 +399,42 @@ export const DEMO_DATA = {
       qualityStatus: "potential_lead",
       leadSource: "Manual Grove Park presentation list",
     },
+    {
+      id: "biz-sofia-grace",
+      name: "Sofia & Grace",
+      website: "https://sofiaandgrace.example",
+      socialLinks: "Instagram: @sofiaandgrace",
+      contactName: "Sofia Reyes",
+      email: "hello@sofiaandgrace.example",
+      phone: "555-0131",
+      category: "Food and beverage",
+      businessGoals: ["Foot traffic", "Brand awareness", "Social media exposure", "Long-term nonprofit partnerships"],
+      serviceAreas: ["Brooklyn", "Manhattan"],
+      fulfillmentScope: "Local",
+      causeAreas: ["Youth", "Food access", "Education"],
+      contributionTypes: ["Product donation", "Percent of sales"],
+      partnershipTypes: ["Fundraising", "Percentage of sales campaign", "Product donation"],
+      offerTypes: ["Food & beverage", "Products or corporate gifting"],
+      productsServices: "Cookie boxes, dessert trays, seasonal fundraiser bundles, and pickup campaigns.",
+      averagePriceRange: "$24-$48",
+      minimumOrderRequirement: 300,
+      minimumCapacity: 30,
+      maximumCapacity: 180,
+      idealEventSize: 100,
+      campaignCap: 2,
+      activeCampaigns: 0,
+      estimatedUnitContribution: 12,
+      availableFrom: "2026-09-10",
+      availableTo: "2026-11-30",
+      fulfillmentOptions: ["Pickup", "Delivery"],
+      leadTimeDays: 10,
+      orgTypesSupported: ["School / PTA", "501(c)(3) nonprofit"],
+      notes: "Backup demo business. Cookie shop interview validated appetite for local cause partnerships.",
+      rating: 4.6,
+      reviewNote: "Warm brand fit for school and youth campaigns.",
+      unavailable: false,
+      status: "ready",
+    },
   ],
   matches: [],
   notifications: [],
@@ -406,8 +442,8 @@ export const DEMO_DATA = {
 
 // Keep rehearsal records isolated from live account data while preserving the
 // named presentation records in the demo workspace.
-const DEMO_REQUEST_IDS = new Set(["request-grove-park"]);
-const DEMO_BUSINESS_IDS = new Set(["biz-grove-market-coffee", "biz-westside-creative-studio", "biz-atlanta-wellness-partners"]);
+const DEMO_REQUEST_IDS = new Set(["request-grove-park", "request-young-excellence"]);
+const DEMO_BUSINESS_IDS = new Set(["biz-grove-market-coffee", "biz-westside-creative-studio", "biz-atlanta-wellness-partners", "biz-sofia-grace"]);
 
 function isMockEmail(email) {
   return /\.example$/i.test(String(email || "").trim());

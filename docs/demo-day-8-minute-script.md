@@ -102,6 +102,8 @@ Open [Raise Local](http://localhost:4102), choose **View Demo Workspace**, and r
 
 Use the seeded **Grove Park Foundation** campaign as the primary story. The demo now includes a small, manually curated set of Atlanta business profiles labeled **Potential Lead**. These are presentation leads only; they are not confirmed Raise Local partners until Tenyse or the business confirms participation.
 
+Keep **YES Academy Inc. + Sofia & Grace** as the backup demo path if Tenyse wants to show a second, cleaner example with a more familiar business/nonprofit pairing.
+
 ### 4:20-4:45, Nonprofit signal
 
 Switch to **Nonprofit** and open Campaign Requests.

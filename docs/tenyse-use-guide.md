@@ -12,7 +12,7 @@ This guide is for the live walkthrough and for day-to-day use of the current dem
 
 2. Open [Raise Local](http://localhost:4102).
 3. Use the demo workspace rather than a real account for presentations.
-4. Open the account menu and choose **Reset Demo Data** before rehearsing. This restores the Grove Park presentation path with manually seeded Atlanta potential business leads.
+4. Open the account menu and choose **Reset Demo Data** before rehearsing. This restores the Grove Park presentation path with manually seeded Atlanta potential business leads, plus YES Academy + Sofia & Grace as a backup demo path.
 5. Keep the Verified Consulting owner preview and client preview in separate browser tabs.
 
 ## Verified Consulting
@@ -53,6 +53,10 @@ record with its Atlanta campaign context and October 1 to December 15 campaign
 window. The seeded Atlanta businesses are marked **potential lead** and should
 not be described as confirmed partners until Tenyse or the business confirms
 participation.
+
+YES Academy Inc. and Sofia & Grace remain available as a secondary walkthrough
+if Tenyse wants a cleaner nonprofit/business example after the Grove Park
+presentation story.
 
 ### Nonprofit flow
 
