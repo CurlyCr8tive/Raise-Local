@@ -40,8 +40,7 @@ import { escapeHtml, formatDateTime, statusLabel } from "./format.js";
 import { emptyState, wireEmptyStates } from "./ui.js";
 
 function demoAccessAllowed() {
-  const params = new URLSearchParams(window.location.search);
-  return params.get("demo") === "1" || ["localhost", "127.0.0.1"].includes(window.location.hostname);
+  return true;
 }
 
 function currentLocalData() {
@@ -856,7 +855,7 @@ function renderLanding() {
         <div class="landing-actions">
           <button class="primary-btn" type="button" id="landing-start">Find a Partner</button>
           <button class="secondary-btn" type="button" id="landing-login">Log in</button>
-          ${canUseDemo ? `<button class="link-btn" type="button" id="landing-demo">Explore Demo Workspace</button>` : ""}
+          ${canUseDemo ? `<button class="link-btn" type="button" id="landing-demo">View Demo Workspace</button>` : ""}
         </div>
         ${authError ? `<p class="form-error" role="alert">${escapeHtml(authError)}</p>` : ""}
       </section>
@@ -1124,7 +1123,7 @@ function renderLogin() {
         <button class="primary-btn" type="submit" style="width:100%;">Log in</button>
       </form>
       <button class="link-btn" type="button" id="forgot-password" style="margin-top:14px;">Forgot password?</button>
-      ${canUseDemo ? `<div class="auth-divider"><span>or</span></div><button class="secondary-btn" type="button" id="demo-login" style="width:100%;">Open Demo Workspace</button>` : ""}
+      ${canUseDemo ? `<div class="auth-divider"><span>or</span></div><button class="secondary-btn" type="button" id="demo-login" style="width:100%;">View Demo Workspace</button>` : ""}
       <p class="muted" style="margin-top:14px;">New here? <button class="link-btn" type="button" id="login-back">Find your match instead</button></p>
     </section>
   `;
