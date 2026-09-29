@@ -120,7 +120,8 @@ export function splitSelections(value) {
     .filter(Boolean);
 }
 
-function fitLabel(total) {
+function fitLabel(total, rejected = false) {
+  if (rejected) return "Not a fit";
   if (total >= 85) return "Strong fit";
   if (total >= 70) return "Good fit";
   return "Possible fit";
@@ -139,7 +140,7 @@ export function scoreMatch(request, business) {
 
   return {
     total: decision.total,
-    label: fitLabel(decision.total),
+    label: fitLabel(decision.total, decision.rejected),
     forecast: forecast(request, business),
     filters: Object.fromEntries(decision.stages.map((stage) => [stage.key, stage.passed])),
     decisionStages: decision.stages,
@@ -150,9 +151,10 @@ export function scoreMatch(request, business) {
 }
 
 export function buildMatches(campaignRequests, businesses, existingMatches = []) {
-  return campaignRequests
-    .flatMap((request) =>
-      businesses.map((business) => {
+  const matchesByRequest = campaignRequests
+    .map((request) =>
+      businesses
+        .map((business) => {
         const score = scoreMatch(request, business);
         const saved = existingMatches.find((match) => match.requestId === request.id && match.businessId === business.id);
         return {
@@ -173,11 +175,9 @@ export function buildMatches(campaignRequests, businesses, existingMatches = [])
           ...score,
         };
       })
-    )
-    .filter(
-      (match) =>
-        !match.rejected
-    )
-    .sort((a, b) => b.total - a.total)
-    .slice(0, 5);
+        .filter((match) => !match.rejected)
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 5)
+    );
+  return matchesByRequest.flat().sort((a, b) => b.total - a.total);
 }

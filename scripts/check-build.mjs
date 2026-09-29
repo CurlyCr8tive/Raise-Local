@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { buildMatches, deriveMatchStatus, scoreMatch } from "../src/matching.js";
+import { DEMO_DATA } from "../src/storage.js";
 
 const root = process.cwd();
 const jsFiles = [];
@@ -53,6 +54,7 @@ function assertMatchingRules() {
   };
   const score = scoreMatch(request, business);
   assert.equal(score.total, 100);
+  assert.equal(score.label, "Strong fit");
   assert.deepEqual(score.reasons, [
     "Available during campaign window",
     "Serves Brooklyn",
@@ -62,8 +64,53 @@ function assertMatchingRules() {
     "Capacity range can cover the expected participation",
   ]);
   assert.equal(buildMatches([request], [business])[0].total, 100);
+  const blockedByLocation = scoreMatch({ ...request, geography: "Bronx" }, business);
+  assert.equal(blockedByLocation.rejected, true);
+  assert.equal(blockedByLocation.label, "Not a fit");
   assert.equal(buildMatches([{ ...request, geography: "Bronx" }], [business]).length, 0);
   assert.equal(buildMatches([request], [{ ...business, activeCampaigns: 2 }]).length, 0);
+}
+
+function assertDemoMatchingBoundaries() {
+  const grovePark = DEMO_DATA.campaignRequests.find((request) => request.id === "request-grove-park");
+  const yesAcademy = DEMO_DATA.campaignRequests.find((request) => request.id === "request-young-excellence");
+  const sofiaGrace = DEMO_DATA.businesses.find((business) => business.id === "biz-sofia-grace");
+  const atlantaLead = DEMO_DATA.businesses.find((business) => business.id === "biz-paco-tacos-atl");
+  assert.ok(grovePark, "Grove Park fixture is required for presentation QA.");
+  assert.ok(yesAcademy, "YES Academy fixture is required for backup demo QA.");
+  assert.ok(sofiaGrace, "Sofia & Grace fixture is required for backup demo QA.");
+  assert.ok(atlantaLead, "Atlanta potential lead fixture is required for Grove Park QA.");
+
+  const brooklynBusiness = {
+    id: "brooklyn-business",
+    name: "Brooklyn QA Business",
+    category: "Food and beverage",
+    serviceAreas: ["Brooklyn"],
+    fulfillmentScope: "Local",
+    causeAreas: [grovePark.causeArea],
+    offerTypes: grovePark.supportNeeds,
+    partnershipTypes: grovePark.partnershipTypesNeeded,
+    minimumCapacity: 1,
+    maximumCapacity: 500,
+    minimumOrderRequirement: 100,
+    campaignCap: 2,
+    activeCampaigns: 0,
+  };
+  const groveVsBrooklyn = scoreMatch(grovePark, brooklynBusiness);
+  assert.equal(groveVsBrooklyn.rejected, true);
+  assert.equal(groveVsBrooklyn.label, "Not a fit");
+  assert.ok(groveVsBrooklyn.blockers.includes("Location or service area does not overlap."));
+  assert.equal(buildMatches([grovePark], [brooklynBusiness]).length, 0);
+
+  const groveVsAtlantaLead = scoreMatch(grovePark, atlantaLead);
+  assert.equal(groveVsAtlantaLead.rejected, false);
+  assert.ok(groveVsAtlantaLead.total < 100, "Potential leads must not display as perfect 100% matches.");
+  assert.ok(groveVsAtlantaLead.total <= 92, "Potential leads are capped below confirmed partners.");
+
+  const scopedMatches = buildMatches([grovePark, yesAcademy], DEMO_DATA.businesses);
+  assert.ok(scopedMatches.some((match) => match.request.id === grovePark.id), "Grove Park should keep its Atlanta presentation matches.");
+  assert.ok(scopedMatches.some((match) => match.request.id === yesAcademy.id && match.business.id === sofiaGrace.id), "Backup YES Academy path should still match Sofia & Grace.");
+  assert.ok(scopedMatches.every((match) => !match.rejected), "Rejected matches must not appear in review queues.");
 }
 
 function assertWorkflowFixtures() {
@@ -129,6 +176,7 @@ for (const file of htmlFiles) {
 }
 
 assertMatchingRules();
+assertDemoMatchingBoundaries();
 assertWorkflowFixtures();
 
 console.log(`Build check passed: ${jsFiles.length} JavaScript files, ${htmlFiles.length} HTML files, and matching rules verified.`);

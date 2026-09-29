@@ -19,10 +19,70 @@ function overlaps(left = [], right = []) {
   return left.map(normalize).some((item) => rightSet.has(item));
 }
 
-function containsArea(requestGeo, serviceAreas = []) {
-  const requestArea = normalize(requestGeo);
-  if (!requestArea) return true;
-  return serviceAreas.map(normalize).some((area) => area.includes(requestArea) || requestArea.includes(area));
+function splitGeo(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .split(/[,/;|]+|\band\b/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function expandGeoTerm(term) {
+  const value = normalize(term);
+  const expanded = new Set([value]);
+  if (["nyc", "new york city"].includes(value)) expanded.add("new york");
+  if (["grove park", "westside atlanta"].includes(value)) {
+    expanded.add("atlanta");
+    expanded.add("georgia");
+  }
+  if (["atlanta ga", "atlanta, ga"].includes(value)) {
+    expanded.add("atlanta");
+    expanded.add("georgia");
+  }
+  if (["dmv", "dc", "washington dc", "washington, dc", "maryland", "northern virginia"].includes(value)) {
+    expanded.add("dmv");
+  }
+  if (["dallas-fort worth", "dallas fort worth", "dfw", "rockwall"].includes(value)) {
+    expanded.add("texas");
+  }
+  return [...expanded];
+}
+
+function expandedGeoSet(values) {
+  return new Set(values.flatMap(splitGeo).flatMap(expandGeoTerm));
+}
+
+function locationFit(requestGeo, business) {
+  const requestRaw = splitGeo(requestGeo).map(normalize);
+  const serviceRaw = (business.serviceAreas || []).flatMap(splitGeo).map(normalize);
+  const requestTerms = expandedGeoSet([requestGeo]);
+  const serviceTerms = expandedGeoSet(business.serviceAreas || []);
+  const scope = normalize(business.fulfillmentScope);
+  const areas = (business.serviceAreas || []).map(normalize);
+  const boroughs = new Set(["brooklyn", "queens", "manhattan", "bronx", "staten island"]);
+  if (!requestTerms.size) {
+    return { passed: false, points: 0, reason: "", blocker: "Campaign location is missing, so location fit cannot be trusted." };
+  }
+  if (!serviceTerms.size && !scope) {
+    return { passed: false, points: 0, reason: "", blocker: "Business service area is missing, so location fit cannot be trusted." };
+  }
+  const direct = [...requestTerms].some((term) => serviceTerms.has(term));
+  if (direct) {
+    return { passed: true, points: 18, reason: `Serves ${requestGeo}` };
+  }
+  const requestIsBorough = requestRaw.some((term) => boroughs.has(term));
+  const servesWholeCity = serviceRaw.some((term) => ["nyc", "new york city", "new york"].includes(term));
+  if (requestIsBorough && servesWholeCity) {
+    return { passed: true, points: 15, reason: `Serves the broader ${requestGeo} market` };
+  }
+  if (scope === "national" || areas.includes("national")) {
+    return { passed: true, points: 8, reason: `Can support ${requestGeo} through national fulfillment` };
+  }
+  if (scope === "regional" || areas.includes("regional")) {
+    return { passed: true, points: 6, reason: `May support ${requestGeo} through regional fulfillment` };
+  }
+  return { passed: false, points: 0, reason: "", blocker: "Location or service area does not overlap." };
 }
 
 function parseAmount(value) {
@@ -41,7 +101,14 @@ function dateInsideWindow(request, business) {
 
 function categoryMatches(request, business) {
   const preferences = request.preferredCategories?.length ? request.preferredCategories : [request.businessPreference];
-  return preferences.includes("No preference") || preferences.map(normalize).includes(normalize(business.category));
+  if (preferences.includes("No preference")) return { passed: true, points: 8, reason: "Open to any business category" };
+  const passed = preferences.map(normalize).includes(normalize(business.category));
+  return {
+    passed,
+    points: passed ? 14 : 0,
+    reason: passed ? `Fits ${preferences.join(", ").toLowerCase()} preference` : "",
+    blocker: "Business category does not match the preferred partner type.",
+  };
 }
 
 function capacityMatches(request, business) {
@@ -67,11 +134,11 @@ function campaignCapMatches(business) {
   return !business.unavailable && (!campaignCap || activeCampaigns < campaignCap);
 }
 
-function stageResult(stage, passed, reason, blocker = "") {
+function stageResult(stage, passed, reason, blocker = "", points = passed ? stage.weight : 0) {
   return {
     ...stage,
     passed,
-    points: passed ? stage.weight : 0,
+    points,
     reason: passed ? reason : "",
     blocker: passed ? "" : blocker,
   };
@@ -79,12 +146,14 @@ function stageResult(stage, passed, reason, blocker = "") {
 
 export function evaluateDecisionTreeMatch(request, business) {
   const stageByKey = Object.fromEntries(DECISION_STAGES.map((stage) => [stage.key, stage]));
+  const location = locationFit(request.geography, business);
+  const category = categoryMatches(request, business);
 
   const stages = [
     stageResult(stageByKey.availability, campaignCapMatches(business) && dateInsideWindow(request, business), "Available during campaign window", "Business is unavailable, over campaign capacity, or outside the needed timing."),
-    stageResult(stageByKey.location, containsArea(request.geography, business.serviceAreas), `Serves ${request.geography || "the requested area"}`, "Location or service area does not overlap."),
+    stageResult(stageByKey.location, location.passed, location.reason, location.blocker, location.points),
     stageResult(stageByKey.cause, overlaps([request.causeArea], business.causeAreas || []), `Supports ${request.causeArea}`, "Cause areas do not overlap."),
-    stageResult(stageByKey.businessType, categoryMatches(request, business), `Fits ${((request.preferredCategories || [request.businessPreference]).join(", ")).toLowerCase()} preference`, "Business category does not match the preferred partner type."),
+    stageResult(stageByKey.businessType, category.passed, category.reason, category.blocker, category.points),
     stageResult(
       stageByKey.partnership,
       !request.partnershipTypesNeeded?.length || !business.partnershipTypes?.length || overlaps(request.partnershipTypesNeeded, business.partnershipTypes),
@@ -108,7 +177,9 @@ export function evaluateDecisionTreeMatch(request, business) {
   ];
 
   const blockers = stages.filter((stage) => stage.required && !stage.passed).map((stage) => stage.blocker);
-  const total = stages.reduce((sum, stage) => sum + stage.points, 0);
+  const rawTotal = stages.reduce((sum, stage) => sum + stage.points, 0);
+  const unconfirmedLead = normalize(business.status) === "potential_lead" || normalize(business.qualityStatus) === "potential_lead";
+  const total = blockers.length ? Math.min(rawTotal, 59) : unconfirmedLead ? Math.min(rawTotal, 92) : rawTotal;
 
   return {
     total,
