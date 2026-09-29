@@ -1,6 +1,6 @@
 import { normalizeSupportNeeds } from "./matching.js?v=3607856";
 
-const STORAGE_KEY = "raise_local_platform_v5";
+const STORAGE_KEY = "raise_local_platform_v6";
 
 export function emptyData() {
   return { campaignRequests: [], businesses: [], matches: [], notifications: [] };

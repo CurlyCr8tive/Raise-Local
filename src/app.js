@@ -453,7 +453,7 @@ function currentMatches() {
 }
 
 const NONPROFIT_CORE_QUESTIONS = [
-  { key: "organizationName", label: "What's your organization called?", type: "text", placeholder: "PS 118 PTA" },
+  { key: "organizationName", label: "What's your organization called?", type: "text", placeholder: "Grove Park Foundation" },
   { key: "organizationType", label: "What type of organization are you?", type: "single", options: ORGANIZATION_TYPES },
   { key: "causeArea", label: "What cause are you raising funds for?", type: "single", options: CAUSE_AREAS },
   { key: "campaignDescription", label: "In one line, what's the campaign for?", type: "text", placeholder: "New playground equipment, weekend meal bags, art supplies..." },
@@ -1250,7 +1250,7 @@ function quizInputHtml(question) {
 
 function quizSuggestions(question) {
   const suggestions = {
-    organizationName: ["PS 118 PTA", "Fresh Start Pantry", "YES Academy Inc."],
+    organizationName: ["Grove Park Foundation", "UNITYNow", "YES Academy Inc."],
     campaignDescription: ["Raise money for after-school supplies", "Fund weekend meal bags for local families", "Support a community arts program"],
     campaignType: ["Food-based fundraiser", "Product fundraiser", "Community event"],
     geography: ["Brooklyn", "Queens", "Manhattan", "Bronx", "New York City"],
@@ -2928,7 +2928,7 @@ function requestForm({ quizMode = false } = {}) {
         <h3>Tell us about your organization and what you need.</h3>
       </div>
       <div class="form-grid">
-        ${inputField("request-org", "Organization name", "PS 118 Art Room", "text", ["PS 118 Art Room", "Fresh Start Pantry", "Young Excellence Society"])}
+        ${inputField("request-org", "Organization name", "Grove Park Foundation", "text", ["Grove Park Foundation", "UNITYNow", "YES Academy Inc."])}
         ${selectField("request-type", "Organization type", ORGANIZATION_TYPES)}
         ${inputField("request-contact", "Contact name", "Jordan Lee")}
         ${inputField("request-email", "Email", "contact@example.org", "email")}
