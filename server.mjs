@@ -319,7 +319,7 @@ async function handleGmailApi(req, res, url) {
   }
 
   if (url.pathname === "/api/gmail/send-change-notification" && req.method === "POST") {
-    if (rejectUnsafeRequest(req, res, "gmail:change-notification", 20, 60_000)) return;
+    if (rejectUnsafeRequest(req, res, "gmail:change-notification", 20, 60_000, config.allowedOrigins)) return;
     const body = await readBody(req);
     const recipients = [...new Set([
       ...(Array.isArray(body.recipients) ? body.recipients : []),
@@ -339,7 +339,7 @@ async function handleGmailApi(req, res, url) {
   }
 
   if (url.pathname === "/api/gmail/send-quiz-invite" && req.method === "POST") {
-    if (rejectUnsafeRequest(req, res, "gmail:quiz-invite", 10, 60_000)) return;
+    if (rejectUnsafeRequest(req, res, "gmail:quiz-invite", 10, 60_000, config.allowedOrigins)) return;
     const body = await readBody(req);
     const recipient = String(body.recipient || "").trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(recipient)) return json(res, 400, { error: "Provide a valid quiz invite recipient" }, req);

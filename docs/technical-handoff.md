@@ -157,7 +157,10 @@ The build can send Gmail notifications for suggested matches, client approvals, 
    ```
 
 9. Use `GMAIL_TEST_RECIPIENT_EMAIL` with `/api/gmail/send-test` for an isolated delivery test. Do not use Tenyse's or a real client's address for repeated testing.
-10. Create or use a completed nonprofit or business intake that produces a match. That triggers the first Gmail notification to `GMAIL_NOTIFICATION_EMAIL`. If you then approve it from the business view and the nonprofit view, mutual approval triggers a second notification. Edits to an existing client record notify the record's email plus the configured `GMAIL_ADMIN_EMAILS` recipients. Each message includes `APP_BASE_URL` as the login link.
+10. From an authenticated admin account, use **Send quiz invite** on a campaign request or business profile. The invite goes to the record owner and configured admin recipients.
+11. Create or use a completed nonprofit or business intake that produces a match. The suggested-match email goes to both participating records and configured admin recipients.
+12. Approve, hold, or decline from a client account. The decision email goes to both participating records and configured admin recipients. When both sides approve, the mutual-approval email explains the next Outreach step.
+13. Move the match through outreach sent, partnership confirmed, active, and completed. Each status change is emailed to the same parties. Edits to an existing client record notify the record owner, any matched counterpart, and configured admin recipients. Each message includes `APP_BASE_URL` as the login link.
 
 Current local status as of September 28, 2026:
 
@@ -259,7 +262,9 @@ only see the expected dashboard and records.
 - Suggested matches, approvals, workflow changes, and client notes can send Gmail notifications after OAuth is connected and the deployed origin is allowlisted.
 - Real accounts start from an empty local cache and load only Supabase records after authentication.
 - Raise Local uses same-origin browser API calls (`/api/...`) when the frontend and Node server deploy together; no separate frontend API URL is needed for this architecture.
-- New suggested matches and mutual approval can persist an admin notification in Supabase and send the configured Gmail notification locally; hosted Gmail sending is not production-ready until the route is protected and deployed with secrets.
+- Workflow events can persist notifications in Supabase and send Gmail locally;
+  hosted Gmail sending is not production-ready until the route is protected,
+  deployed with secrets, and verified with a real pilot inbox.
 - The matching assistant is deterministic and explainable; it is not an autonomous agent.
 - Local demo reset affects browser demo state only.
 - The Supabase migration history is currently synced through shared comments, but future schema changes must be pushed before testing hosted features that depend on them.

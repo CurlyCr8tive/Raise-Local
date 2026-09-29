@@ -19,6 +19,8 @@ builder's local machine or personal accounts.
   partnership states.
 - Demo data reset for rehearsal, separate from real authenticated account data.
 - Gmail OAuth notification routes for local testing.
+- Email workflow coverage for quiz invites, matches, decisions, approvals,
+  outreach/status changes, shared notes, and record edits.
 - Render Node service configuration in `render.yaml`.
 - Supabase migrations in `supabase/migrations/`.
 - Technical, user, and presentation guides linked below.
@@ -33,6 +35,9 @@ builder's local machine or personal accounts.
 - Test a complete match using separate accounts and two browsers.
 - Test profile edits after refresh and from a second device.
 - Verify real email delivery to the agreed recipients.
+- Verify each event separately with a pilot inbox: quiz invite, suggested
+  match, approve, hold, decline, mutual approval, outreach/status change,
+  shared note, and record edit.
 - Protect hosted notification routes with the deployment's authentication and
   origin controls before enabling automated sending for real users.
 
@@ -171,11 +176,15 @@ Use separate browser profiles or devices for each role:
 6. Business approves, nonprofit approves, and admin sees mutual approval.
 7. Admin drafts and sends the warm introduction.
 8. Admin marks the partnership confirmed and moves the project toward Active.
-9. The nonprofit and business receive the agreed notifications.
-10. Tenyse/admin receive the match, approval, outreach, and record-edit
+9. Send a quiz invite from admin and confirm the recipient receives a link to
+   the deployed app.
+10. Confirm the nonprofit and business receive suggested-match, approve, hold,
+    decline, mutual-approval, outreach/status, shared-note, and record-edit
     notifications.
-11. Refresh each account and confirm the state persists.
-12. Edit a campaign and business record from client and admin accounts; confirm
+11. Confirm Tenyse/admin receives the same workflow events through the approved
+    admin recipients.
+12. Refresh each account and confirm the state persists.
+13. Edit a campaign and business record from client and admin accounts; confirm
     the latest value persists and the edit metadata is visible to admin.
 
 ## Data Policy
@@ -196,7 +205,10 @@ Use separate browser profiles or devices for each role:
   server deploy together. A separate frontend API URL is not required for the
   current architecture.
 - Hosted Gmail sending needs authenticated server-side authorization and secret
-  configuration before production use.
+  configuration before production use. The browser-facing notification routes
+  are suitable for local testing only until the deployed service adds a
+  verified authenticated gateway; do not treat a successful local request as
+  proof of production delivery.
 - The current matching authority is deterministic and explainable; AI can help
   with drafts and explanations but does not silently decide matches.
 - Google Places is not part of the reliable core handoff. A controlled pilot

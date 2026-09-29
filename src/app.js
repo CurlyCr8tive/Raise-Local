@@ -3178,7 +3178,7 @@ function upsertMatchStatus(requestId, businessId, status) {
   saveData(data);
   if (fromStatus !== status) {
     const match = currentMatches().find((item) => item.request.id === requestId && item.business.id === businessId);
-    if (match) notifyWorkflowStatusChange(match, fromStatus, status);
+    if (match) notifyMatchWorkflowUpdate(match, fromStatus, status);
   }
   syncMatchDecision({
     requestId,
@@ -3195,8 +3195,6 @@ function upsertMatchStatus(requestId, businessId, status) {
     adminNote: existing?.adminNote || "",
     notifiedAt: fields.notifiedAt || existing?.notifiedAt || null,
   });
-  const match = currentMatches().find((item) => item.request.id === requestId && item.business.id === businessId);
-  if (match && fromStatus !== status) notifyMatchWorkflowUpdate(match, fromStatus, status);
 }
 
 function upsertMatchDecision(requestId, businessId, role, decision) {
@@ -3240,7 +3238,7 @@ function upsertMatchOutreach(requestId, businessId) {
   if (index === -1) data.matches.push(match);
   saveData(data);
   const hydratedMatch = currentMatches().find((item) => item.request.id === requestId && item.business.id === businessId);
-  if (hydratedMatch && fromStatus !== hydratedMatch.status) notifyWorkflowStatusChange(hydratedMatch, fromStatus, hydratedMatch.status);
+  if (hydratedMatch) notifyMatchWorkflowUpdate(hydratedMatch, fromStatus, hydratedMatch.status);
   syncMatchDecision({
     requestId,
     businessId,
@@ -3256,8 +3254,6 @@ function upsertMatchOutreach(requestId, businessId) {
     adminNote: match.adminNote || "",
     notifiedAt: match.notifiedAt || match.outreachAt,
   });
-  const hydrated = currentMatches().find((item) => item.request.id === requestId && item.business.id === businessId);
-  if (hydrated) notifyMatchWorkflowUpdate(hydrated, fromStatus, hydrated.status || "outreach_sent");
 }
 
 function upsertMatchFeedback(requestId, businessId, fields) {
@@ -3298,14 +3294,6 @@ function addNotification({ forEmail, message, requestId, businessId, type = "wor
     createdAt: new Date().toISOString(),
   });
   saveData(data);
-}
-
-function triggerGmailNotification({ subject, text, to }) {
-  void fetch("/api/gmail/send-notification", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ subject, text, to }),
-  }).catch(() => {});
 }
 
 function adminNotificationRecipients() {
@@ -3381,13 +3369,11 @@ function notifySharedRecordComment(comment) {
     type: "record_comment",
   }));
   persistAdminNotification({ message, requestId: comment.requestId, businessId: comment.businessId, type: "record_comment" });
-  if (!isAdmin()) {
-    triggerWorkflowEmail({
-      recipients: [...recipients],
-      subject: `New Raise Local client note: ${title}`,
-      text: `${message}\n\nOpen Raise Local to review the note, reply, or update the match/campaign record.`,
-    });
-  }
+  triggerWorkflowEmail({
+    recipients: [...recipients],
+    subject: `New Raise Local client note: ${title}`,
+    text: `${message}\n\nOpen Raise Local to review the note, reply, or update the match/campaign record.`,
+  });
 }
 
 function commentsFor({ requestId = "", businessId = "" }) {
@@ -3616,23 +3602,6 @@ function notifyMatchNoteUpdate(match, changedFields) {
       text: `${message}\n\nOpen Raise Local to review the client note and decide whether follow-up is needed.`,
     });
   }
-}
-
-function notifyWorkflowStatusChange(match, fromStatus, status) {
-  const message = `The Raise Local partnership between ${match.request.organizationName} and ${match.business.name} moved from ${statusLabel(fromStatus)} to ${statusLabel(status)}.`;
-  workflowRecipients(match, adminNotificationRecipients()).forEach((email) => addNotification({
-    forEmail: email,
-    message,
-    requestId: match.request.id,
-    businessId: match.business.id,
-    type: "workflow_status",
-  }));
-  persistAdminNotification({ message, requestId: match.request.id, businessId: match.business.id, type: "workflow_status" });
-  triggerWorkflowEmail({
-    recipients: workflowRecipients(match, adminNotificationRecipients()),
-    subject: `Raise Local partnership update: ${match.request.organizationName} + ${match.business.name}`,
-    text: `${message}\n\nPlease log in to Raise Local to review the partnership details and next action.`,
-  });
 }
 
 function sendQuizInvite(record, kind, button) {
