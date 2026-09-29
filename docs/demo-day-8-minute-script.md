@@ -100,7 +100,7 @@ Show:
 
 Open [Raise Local](http://localhost:4102), choose **View Demo Workspace**, and reset the demo before recording.
 
-Use the seeded **YES Academy Inc. plus Sofia & Grace Cookie Co.** match as the primary story. It mirrors the presentation slide titled “One match, start to finish” and keeps the live walkthrough aligned with the deck's outreach example.
+Use the seeded **Grove Park Foundation** campaign as the primary story. The demo now includes a small, manually curated set of Atlanta business profiles labeled **Potential Lead**. These are presentation leads only; they are not confirmed Raise Local partners until Tenyse or the business confirms participation.
 
 ### 4:20-4:45, Nonprofit signal
 
@@ -108,9 +108,9 @@ Switch to **Nonprofit** and open Campaign Requests.
 
 **Say:**
 
-"YES Academy has a community need: a Harlem toy drive. Instead of searching a giant marketplace, the nonprofit gives Raise Local the cause, location, timing, support type, audience, and goal. The guided intake turns that story into a structured signal."
+"Grove Park Foundation has a community need: neighborhood economic mobility, education, and community wellness support in Atlanta. Instead of searching a giant marketplace, the nonprofit gives Raise Local the cause, location, timing, support type, audience, and goal. The guided intake turns that story into a structured signal."
 
-Open the seeded YES Academy request. Show the campaign description and the **Find New Matches** action. Do not spend the demo typing every field.
+Open the seeded Grove Park request. Show the campaign description and the **Find New Matches** action. Do not spend the demo typing every field.
 
 ### 4:45-5:05, Matching assistant
 
@@ -122,15 +122,19 @@ Choose **Find New Matches** or open Match Review.
 
 ### 5:05-5:45, Strongest match
 
-Open the **YES Academy Inc. + Sofia & Grace Cookie Co.** match.
+Open the strongest **Grove Park Foundation + Atlanta Potential Lead** match.
 
 **Say:**
 
-“This is not just a score. Raise Local can show why this relationship was recommended, what decision path passed, what a first campaign could look like, and what the fundraising scenario might be.”
+"This is not just a score. Raise Local can show why this relationship was recommended, what decision path passed, what a first campaign could look like, and what the fundraising scenario might be."
 
 Point to the suggested campaign approach and scenario. Add:
 
-“The estimate is a planning scenario, not a promise. The parties still agree to the terms.”
+"The estimate is a planning scenario, not a promise. The parties still agree to the terms."
+
+Also point out the business status:
+
+"For this Grove Park presentation, this business is labeled as a potential lead. That means Raise Local can organize a possible outreach target, but the platform does not treat the business as a confirmed partner until they opt in."
 
 ### 5:45-6:15, Business approval
 

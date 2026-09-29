@@ -12,7 +12,7 @@ This guide is for the live walkthrough and for day-to-day use of the current dem
 
 2. Open [Raise Local](http://localhost:4102).
 3. Use the demo workspace rather than a real account for presentations.
-4. Open the account menu and choose **Reset Demo Data** before rehearsing. This restores the controlled presentation records, including the Fresh Start Pantry + Yamaas match, YES Academy + Sofia & Grace, and Grove Park planning record.
+4. Open the account menu and choose **Reset Demo Data** before rehearsing. This restores the Grove Park presentation path with manually seeded Atlanta potential business leads.
 5. Keep the Verified Consulting owner preview and client preview in separate browser tabs.
 
 ## Verified Consulting
@@ -48,9 +48,11 @@ Open [Raise Local](http://localhost:4102) and choose **View Demo Workspace**. Th
 
 The demo identities are presentation identities. Do not use them for production data.
 
-Grove Park Foundation is also retained as a presentation-planning nonprofit
+Grove Park Foundation is the primary Raise Local presentation-planning nonprofit
 record with its Atlanta campaign context and October 1 to December 15 campaign
-window. Treat its contact details as unverified until Tenyse confirms them.
+window. The seeded Atlanta businesses are marked **potential lead** and should
+not be described as confirmed partners until Tenyse or the business confirms
+participation.
 
 ### Nonprofit flow
 

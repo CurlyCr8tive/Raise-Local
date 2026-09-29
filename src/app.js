@@ -3742,8 +3742,9 @@ function requestCard(request, { showCompleteProfile = false, adminDirectory = fa
 }
 
 function businessCard(business, { showCompleteProfile = false, adminDirectory = false } = {}) {
-  const statusClass = business.unavailable ? "status-active" : business.qualityStatus === "needs_review" ? "status-new" : "status-ready";
-  const statusText = business.unavailable ? "paused" : business.qualityStatus === "needs_review" ? "needs review" : "ready";
+  const isPotentialLead = business.status === "potential_lead" || business.qualityStatus === "potential_lead";
+  const statusClass = business.unavailable ? "status-active" : isPotentialLead || business.qualityStatus === "needs_review" ? "status-new" : "status-ready";
+  const statusText = business.unavailable ? "paused" : isPotentialLead ? "potential lead" : business.qualityStatus === "needs_review" ? "needs review" : "ready";
   const photo = businessPhoto(business);
   return `
     <article class="entity-card directory-card">
