@@ -2138,6 +2138,51 @@ function renderBusinesses() {
   wireEntityDetailLinks();
 }
 
+function isPotentialBusinessLead(record) {
+  return record?.status === "potential_lead" || record?.qualityStatus === "potential_lead";
+}
+
+function businessDisplayCategory(record) {
+  if (!record) return "Local business";
+  if (record.category === "Services" && (record.offerTypes || []).includes("Event activation")) {
+    return "Hospitality / event activation";
+  }
+  return record.category || "Local business";
+}
+
+function serviceAreaSummary(record) {
+  const areas = record?.serviceAreas || [];
+  if (!areas.length) return "Local service area not captured";
+  return areas.slice(0, 3).join(", ");
+}
+
+function leadSourceLinks(record) {
+  return [
+    record?.googleMapsUrl ? `<a href="${escapeHtml(record.googleMapsUrl)}" target="_blank" rel="noopener noreferrer">Google/Maps lookup</a>` : "",
+    record?.sourceUrl ? `<a href="${escapeHtml(record.sourceUrl)}" target="_blank" rel="noopener noreferrer">Public source</a>` : "",
+    record?.website ? `<a href="${escapeHtml(record.website)}" target="_blank" rel="noopener noreferrer">Website</a>` : "",
+  ].filter(Boolean).join(" · ");
+}
+
+function businessLeadContext(record) {
+  if (!isPotentialBusinessLead(record)) return "";
+  const links = leadSourceLinks(record);
+  return `
+    <section class="panel lead-context-panel">
+      <div>
+        <p class="eyebrow">Lead status</p>
+        <h3>Researched potential lead - not signed up yet</h3>
+        <p class="muted">${escapeHtml(record.notes || "This business was added from public lead research and must confirm interest before Raise Local treats it as an active partner.")}</p>
+      </div>
+      <div class="detail-facts">
+        <div><span>Source context</span><strong>${escapeHtml(record.leadSource || "Public research record; not registered in Raise Local yet")}</strong>${links ? `<p>${links}</p>` : ""}</div>
+        <div><span>Why it is here</span><strong>${escapeHtml(record.reviewNote || "Potential fit based on location, cause alignment, and partnership type.")}</strong></div>
+        <div><span>Before introduction</span><strong>Confirm interest, availability, and current contact details.</strong></div>
+      </div>
+    </section>
+  `;
+}
+
 function renderEntityDetail() {
   const [type, recordId] = selectedEntityKey.split("::");
   const isBusiness = type === "business";
@@ -2152,13 +2197,21 @@ function renderEntityDetail() {
   const image = isBusiness ? businessPhoto(record) : requestPhoto(record);
   const imageClass = isBrandAsset(image) ? " brand-photo" : "";
   const relatedMatches = currentMatches().filter((match) => (isBusiness ? match.business.id === record.id : match.request.id === record.id));
+  const profileCategory = isBusiness ? businessDisplayCategory(record) : record.causeArea;
+  const profileLocation = isBusiness ? serviceAreaSummary(record) : record.geography;
   setTitle(isBusiness ? "Business Details" : "Campaign Details");
   root.innerHTML = `
     <button type="button" class="back-link" data-entity-back>${ICONS.undo} Back to ${isBusiness ? "Business Profiles" : "Campaign Requests"}</button>
     <section class="profile-detail-hero">
       <div class="profile-detail-image"><img class="${imageClass.trim()}" src="${escapeHtml(image)}" alt="${escapeHtml(name)}" /></div>
-      <div><p class="eyebrow">${isBusiness ? "Local business" : "Nonprofit campaign"}</p><h2>${escapeHtml(name)}</h2><p class="muted">${escapeHtml(isBusiness ? record.category : record.causeArea)} · ${escapeHtml(isBusiness ? (record.serviceAreas || ["Local"])[0] : record.geography)}</p></div>
+      <div>
+        <p class="eyebrow">${isBusiness ? (isPotentialBusinessLead(record) ? "Researched local business lead" : "Local business") : "Nonprofit campaign"}</p>
+        <h2>${escapeHtml(name)}</h2>
+        <p class="muted">${escapeHtml(profileCategory)} · ${escapeHtml(profileLocation)}</p>
+        ${isBusiness && isPotentialBusinessLead(record) ? `<p class="small-note lead-detail-note">This is a real public lead record for outreach research. It is not a confirmed Raise Local partner until the business opts in.</p>` : ""}
+      </div>
     </section>
+    ${isBusiness ? businessLeadContext(record) : ""}
     <section class="profile-detail-grid">
       <section class="panel">
         <p class="eyebrow">${isBusiness ? "What they offer" : "Campaign overview"}</p>
