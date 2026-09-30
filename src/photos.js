@@ -52,6 +52,7 @@ const BUSINESS_PHOTO_OVERRIDES = {
   "biz-eyeland-vibes": "assets/eyeland-vibes.webp",
   "biz-first-choice-brew": "assets/first-choice-brew.webp",
   "biz-sofia-grace": "assets/sofia-grace.png",
+  "biz-billee-redd-hospitality": "assets/billee-redd-hospitality.png",
   // Unique, category-specific fallbacks for seeded partners without supplied imagery.
   "biz-paper-porch": unsplash("1521335629791-ce4aec67dd15"),
 };
@@ -63,6 +64,8 @@ const BUSINESS_NAME_PHOTO_OVERRIDES = {
   "sofia and grace": "assets/sofia-grace.png",
   "eyeland vibes": "assets/eyeland-vibes.webp",
   "first choice brew": "assets/first-choice-brew.webp",
+  "billee redd hospitality (potential lead)": "assets/billee-redd-hospitality.png",
+  "billee redd hospitality": "assets/billee-redd-hospitality.png",
 };
 
 const REQUEST_PHOTO_OVERRIDES = {
