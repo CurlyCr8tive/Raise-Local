@@ -43,6 +43,14 @@ function demoAccessAllowed() {
   return true;
 }
 
+function demoEmailForRole(role) {
+  return {
+    admin: "demo@raiselocal.local",
+    nonprofit: "contact@groveparkfoundation.org",
+    business: "together@sofiaandgrace.com",
+  }[role] || "demo@raiselocal.local";
+}
+
 function currentLocalData() {
   return loadData({ includeDemo: demoMode });
 }
@@ -56,10 +64,24 @@ function introQuizUrl(audience) {
 }
 
 let startLinkApplied = false;
+const initialDemoMode = sessionStorage.getItem("raise_local_demo_mode") === "true" && demoAccessAllowed();
+const initialDemoRole = ["admin", "nonprofit", "business"].includes(sessionStorage.getItem("raise_local_demo_role"))
+  ? sessionStorage.getItem("raise_local_demo_role")
+  : "admin";
 
 function applyStartLinkIfPresent() {
   if (startLinkApplied || session || demoMode) return;
   const params = new URLSearchParams(window.location.search);
+  const demo = params.get("demo");
+  if (demo && demoAccessAllowed()) {
+    startLinkApplied = true;
+    if (["admin", "owner", "nonprofit", "business"].includes(demo)) {
+      enterDemoWorkspace(demo === "owner" ? "admin" : demo);
+      return;
+    }
+    authScreen = "demo-choose";
+    return;
+  }
   const start = params.get("start");
   if (!["nonprofit", "business"].includes(start)) return;
   startLinkApplied = true;
@@ -73,7 +95,7 @@ function applyStartLinkIfPresent() {
   window.history.replaceState({}, "", window.location.pathname);
 }
 
-let data = loadData({ includeDemo: sessionStorage.getItem("raise_local_demo_mode") === "true" && demoAccessAllowed() });
+let data = loadData({ includeDemo: initialDemoMode });
 let activeView = "dashboard";
 let dashboardTab = "matches"; // "matches" | "own" | "counterpart"
 let dashboardSort = "best"; // "best" | "name"
@@ -101,9 +123,9 @@ let inAppProfileCreate = false;
 
 // Pre-auth flow: landing -> quiz-choose -> quiz -> register -> verify-sent
 // -> (user clicks emailed link) -> set-password -> authenticated app.
-let session = null;
-let demoMode = false;
-let demoRole = "admin";
+let session = initialDemoMode ? { user: { email: demoEmailForRole(initialDemoRole), user_metadata: { role: initialDemoRole, password_set: true } } } : null;
+let demoMode = initialDemoMode;
+let demoRole = initialDemoRole;
 let authLoading = true;
 let authScreen = "landing";
 let authError = "";
@@ -371,6 +393,11 @@ function determinePostSessionScreen() {
 }
 
 supabase.auth.onAuthStateChange((event, newSession) => {
+  if (demoMode && event === "INITIAL_SESSION" && !newSession) {
+    authLoading = false;
+    render();
+    return;
+  }
   session = newSession;
   if (event === "SIGNED_OUT") {
     sessionStorage.removeItem("raise_local_demo_mode");
@@ -826,8 +853,13 @@ function renderSettings() {
 
 function renderPreAuth() {
   applyStartLinkIfPresent();
+  if (authScreen === "app") {
+    render();
+    return;
+  }
   const screens = {
     landing: renderLanding,
+    "demo-choose": renderDemoChoose,
     "quiz-choose": renderQuizChoose,
     quiz: renderQuizStep,
     register: renderRegisterPrompt,
@@ -851,7 +883,7 @@ function renderLanding() {
         <div class="landing-actions">
           <button class="primary-btn" type="button" id="landing-start">Find a Partner</button>
           <button class="secondary-btn" type="button" id="landing-login">Log in</button>
-          ${canUseDemo ? `<button class="link-btn" type="button" id="landing-demo">View Demo Workspace</button>` : ""}
+          ${canUseDemo ? `<button class="link-btn" type="button" id="landing-demo">Choose Demo View</button>` : ""}
         </div>
         ${authError ? `<p class="form-error" role="alert">${escapeHtml(authError)}</p>` : ""}
       </section>
@@ -867,10 +899,56 @@ function renderLanding() {
     authError = "";
     render();
   });
-  document.getElementById("landing-demo")?.addEventListener("click", enterDemoWorkspace);
+  document.getElementById("landing-demo")?.addEventListener("click", () => {
+    authScreen = "demo-choose";
+    authError = "";
+    render();
+  });
 }
 
-function enterDemoWorkspace() {
+function renderDemoChoose() {
+  root.innerHTML = `
+    <section class="auth-panel demo-choice-panel">
+      <p class="eyebrow">Demo workspace</p>
+      <h2>Choose the Raise Local view to test.</h2>
+      <p class="muted">Use the same seeded demo data from three different perspectives: nonprofit, small business, or admin/owner.</p>
+      <div class="demo-choice-grid">
+        <button type="button" class="choice-card" data-demo-start-role="nonprofit">
+          <span>Nonprofit flow</span>
+          <strong>Grove Park Foundation</strong>
+          <small>See a nonprofit campaign request, its matched businesses, and approval flow.</small>
+        </button>
+        <button type="button" class="choice-card" data-demo-start-role="business">
+          <span>Small business flow</span>
+          <strong>Sofia & Grace</strong>
+          <small>See the business-side dashboard, campaign opportunities, and match decisions.</small>
+        </button>
+        <button type="button" class="choice-card" data-demo-start-role="admin">
+          <span>Admin / owner flow</span>
+          <strong>Tenyse / Raise Local Admin</strong>
+          <small>Review all campaign requests, business profiles, match review, outreach, and handoff tools.</small>
+        </button>
+      </div>
+      <div class="split-actions">
+        <button class="secondary-btn" type="button" id="demo-back">Back</button>
+        <button class="link-btn" type="button" id="demo-real-login">Use real login instead</button>
+      </div>
+    </section>
+  `;
+  root.querySelectorAll("[data-demo-start-role]").forEach((button) => {
+    button.addEventListener("click", () => enterDemoWorkspace(button.dataset.demoStartRole));
+  });
+  document.getElementById("demo-back").addEventListener("click", () => {
+    authScreen = "landing";
+    render();
+  });
+  document.getElementById("demo-real-login").addEventListener("click", () => {
+    authScreen = "login";
+    render();
+  });
+}
+
+function enterDemoWorkspace(role = "admin") {
   if (!demoAccessAllowed()) {
     authError = "Demo workspace is disabled on this live URL. Use a real account, or open a dedicated demo link.";
     authScreen = "landing";
@@ -879,9 +957,10 @@ function enterDemoWorkspace() {
   }
   demoMode = true;
   sessionStorage.setItem("raise_local_demo_mode", "true");
-  demoRole = "admin";
+  demoRole = ["admin", "nonprofit", "business"].includes(role) ? role : "admin";
+  sessionStorage.setItem("raise_local_demo_role", demoRole);
   data = loadData({ includeDemo: true });
-  session = { user: { email: "demo@raiselocal.local", user_metadata: { role: "admin", password_set: true } } };
+  session = { user: { email: demoEmailForRole(demoRole), user_metadata: { role: demoRole, password_set: true } } };
   authError = "";
   authScreen = "app";
   remoteDataReady = true;
@@ -893,12 +972,7 @@ function enterDemoWorkspace() {
 function switchDemoRole(role) {
   if (!demoMode || !["admin", "nonprofit", "business"].includes(role)) return;
   demoRole = role;
-  const demoEmails = {
-    admin: "demo@raiselocal.local",
-    nonprofit: "demo-nonprofit-2@raiselocal.example",
-    business: "hello@sofiaandgrace.example",
-  };
-  session = { user: { email: demoEmails[role], user_metadata: { role, password_set: true } } };
+  session = { user: { email: demoEmailForRole(role), user_metadata: { role, password_set: true } } };
   sessionStorage.setItem("raise_local_demo_role", role);
   activeView = "dashboard";
   selectedMatchKey = "";
@@ -1119,7 +1193,7 @@ function renderLogin() {
         <button class="primary-btn" type="submit" style="width:100%;">Log in</button>
       </form>
       <button class="link-btn" type="button" id="forgot-password" style="margin-top:14px;">Forgot password?</button>
-      ${canUseDemo ? `<div class="auth-divider"><span>or</span></div><button class="secondary-btn" type="button" id="demo-login" style="width:100%;">View Demo Workspace</button>` : ""}
+      ${canUseDemo ? `<div class="auth-divider"><span>or</span></div><button class="secondary-btn" type="button" id="demo-login" style="width:100%;">Choose Demo View</button>` : ""}
       <p class="muted" style="margin-top:14px;">New here? <button class="link-btn" type="button" id="login-back">Find your match instead</button></p>
     </section>
   `;
@@ -1162,7 +1236,11 @@ function renderLogin() {
     authScreen = "verify-sent";
     render();
   });
-  document.getElementById("demo-login")?.addEventListener("click", enterDemoWorkspace);
+  document.getElementById("demo-login")?.addEventListener("click", () => {
+    authScreen = "demo-choose";
+    authError = "";
+    render();
+  });
 }
 
 function progressCopy(step, total) {

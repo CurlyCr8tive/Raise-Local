@@ -1934,6 +1934,17 @@ body.no-sidebar .view-root {
   margin-top: 18px;
 }
 
+.demo-choice-panel {
+  max-width: 980px;
+}
+
+.demo-choice-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 22px 0 18px;
+}
+
 .form-error {
   background: #ffe6e1;
   border: 1px solid #f3b3a4;
@@ -3274,6 +3285,7 @@ body.no-sidebar .view-root {
   .form-grid,
   .scope-grid,
   .quick-action-grid,
+  .demo-choice-grid,
   .quiz-choice-grid {
     grid-template-columns: 1fr;
   }
