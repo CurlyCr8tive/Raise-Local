@@ -24,7 +24,7 @@ import {
   syncBusinessProfile,
   syncAdminNotification,
   syncBusinessQuality,
-  syncBusinessRating,
+  syncPartnershipRating,
   syncCampaignRequest,
   syncComment,
   syncMatchDecision,
@@ -110,6 +110,13 @@ let campaignSort = "newest"; // "newest" | "oldest" | "upcoming" | "completed"
 let matchCauseFilter = "all";
 let matchLoaderShown = false;
 const QUALITY_REVIEW_THRESHOLD = 2.5;
+const COMPLETED_MATCH_STATUSES = ["completed", "launched"];
+const EXPERIENCE_RATING_FIELDS = [
+  { key: "communicationRating", label: "Communication" },
+  { key: "reliabilityRating", label: "Reliability" },
+  { key: "turnoutRating", label: "Participation / turnout" },
+  { key: "fulfillmentRating", label: "Follow-through" },
+];
 
 let quizAudience = null; // "request" | "business"
 let quizPhase = "choose"; // "choose" | "core" | "profile"
@@ -435,6 +442,16 @@ function mergeMatches(localMatches, remoteMatches) {
   return [...merged.values()];
 }
 
+function mergeRatings(localRatings = [], remoteRatings = []) {
+  const keyFor = (rating) => rating.id || `${rating.requestId}:${rating.businessId}:${rating.raterRole}`;
+  const merged = new Map(localRatings.map((rating) => [keyFor(rating), rating]));
+  remoteRatings.forEach((rating) => {
+    const key = keyFor(rating);
+    merged.set(key, { ...merged.get(key), ...rating });
+  });
+  return [...merged.values()];
+}
+
 async function hydrateRemoteData() {
   if (demoMode || !session || !passwordAlreadySet() || remoteLoading) return;
   const key = `${session.user.id}:${isAdmin() ? "admin" : myRole()}`;
@@ -455,6 +472,7 @@ async function hydrateRemoteData() {
     matches: mergeMatches(data.matches, remote.matches),
     comments: mergeById(data.comments || [], remote.comments || []),
     notifications: mergeById(data.notifications || [], remote.notifications || []),
+    ratings: mergeRatings(data.ratings || [], remote.ratings || []),
   };
   saveData(data);
   remoteLoadKey = key;
@@ -2261,6 +2279,42 @@ function businessLeadContext(record) {
   `;
 }
 
+function experienceHistory(record, isBusiness, relatedMatches) {
+  const relevant = (data.ratings || []).filter((rating) => (
+    isBusiness
+      ? rating.businessId === record.id && rating.ratedRole === "business"
+      : rating.requestId === record.id && rating.ratedRole === "nonprofit"
+  ));
+  if (!relevant.length) {
+    return `
+      <section class="panel experience-history">
+        <p class="eyebrow">Experience history</p>
+        <h3>No completed partnership feedback yet</h3>
+        <p class="muted">Once a partnership is completed, feedback from the other side will appear here.</p>
+      </section>
+    `;
+  }
+  return `
+    <section class="panel experience-history">
+      <p class="eyebrow">Experience history</p>
+      <h3>${relevant.length} completed partnership review${relevant.length === 1 ? "" : "s"}</h3>
+      <div class="experience-list">
+        ${relevant.map((rating) => {
+          const match = relatedMatches.find((item) => item.request.id === rating.requestId && item.business.id === rating.businessId);
+          const partnerName = isBusiness ? match?.request.organizationName : match?.business.name;
+          return `
+            <article>
+              <div><strong>${ratingAverage(rating).toFixed(1)}/5</strong><span>${escapeHtml(partnerName || "Partnership")}</span></div>
+              <p>${escapeHtml(rating.reviewNote || "No written note provided.")}</p>
+              <small>${rating.wouldWorkAgain === true ? "Would work together again" : rating.wouldWorkAgain === false ? "Would not repeat without review" : "Repeat interest not provided"}</small>
+            </article>
+          `;
+        }).join("")}
+      </div>
+    </section>
+  `;
+}
+
 function renderEntityDetail() {
   const [type, recordId] = selectedEntityKey.split("::");
   const isBusiness = type === "business";
@@ -2308,6 +2362,7 @@ function renderEntityDetail() {
       businessId: isBusiness ? record.id : "",
       title: `${name} notes`,
     })}
+    ${experienceHistory(record, isBusiness, relatedMatches)}
     ${isAdmin() && record.pendingChanges?.length ? `<section class="panel change-review"><p class="eyebrow">Review updates</p><h3>Client-owned details were preserved</h3><p class="muted">These fields already had client-provided values, so the proposed admin changes were held for review.</p><div class="change-review-list">${record.pendingChanges.slice(-6).map((change) => `<div><strong>${escapeHtml(humanizeField(change.field))}</strong><span class="muted">Proposed by ${escapeHtml(change.proposedBy || "admin")}</span></div>`).join("")}</div></section>` : ""}
   `;
   root.querySelector("[data-entity-back]").addEventListener("click", () => {
@@ -2610,7 +2665,7 @@ function renderMatchTriage() {
     ${
       active.length
         ? `<section class="panel"><h2>Active Matches</h2></section><section class="match-grid">${active
-            .map((match) => matchCard(match, { showAdminControls: false, showRating: ["accepted", "launched"].includes(match.status) }))
+            .map((match) => matchCard(match, { showAdminControls: false, showRating: COMPLETED_MATCH_STATUSES.includes(match.status) }))
             .join("")}</section>`
         : ""
     }
@@ -2950,21 +3005,72 @@ function wireBinCards() {
   });
 }
 
+function ratingKey(requestId, businessId, raterRole) {
+  return `${requestId}:${businessId}:${raterRole}`;
+}
+
+function ratingForMatch(match, raterRole) {
+  return (data.ratings || []).find((rating) => rating.requestId === match.request.id && rating.businessId === match.business.id && rating.raterRole === raterRole);
+}
+
+function starButtons(field, selected = 0) {
+  return `<div class="star-row" data-rating-field="${field}" data-selected="${Number(selected || 0)}">
+    ${[1, 2, 3, 4, 5].map((n) => `<button type="button" class="star-btn ${n <= Number(selected || 0) ? "filled" : ""}" data-star="${n}" aria-label="${n} star${n === 1 ? "" : "s"}">${ICONS.star}</button>`).join("")}
+  </div>`;
+}
+
+function ratingAverage(rating) {
+  const values = EXPERIENCE_RATING_FIELDS.map((field) => Number(rating?.[field.key] || 0)).filter(Boolean);
+  return values.length ? Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 10) / 10 : Number(rating?.rating || 0);
+}
+
 function ratingWidget(match) {
-  const isBusinessViewer = myRole() === "business";
-  const record = isBusinessViewer ? data.campaignRequests.find((r) => r.id === match.request.id) : data.businesses.find((b) => b.id === match.business.id);
-  const name = isBusinessViewer ? match.request.organizationName : match.business.name;
-  const existing = record?.rating || 0;
+  const raterRole = myRole() === "business" ? "business" : "nonprofit";
+  const ratedRole = raterRole === "business" ? "nonprofit" : "business";
+  const counterpartName = raterRole === "business" ? match.request.organizationName : match.business.name;
+  const existing = ratingForMatch(match, raterRole) || {};
+  const completed = COMPLETED_MATCH_STATUSES.includes(match.status);
   return `
-    <div class="rating-widget" data-rating-widget data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}" data-selected="${existing}">
-      <label>Rate ${escapeHtml(name)}</label>
-      <div class="star-row">
-        ${[1, 2, 3, 4, 5].map((n) => `<button type="button" class="star-btn ${n <= existing ? "filled" : ""}" data-star="${n}" aria-label="${n} star${n === 1 ? "" : "s"}">${ICONS.star}</button>`).join("")}
+    <div class="rating-widget" data-rating-widget data-request-id="${escapeHtml(match.request.id)}" data-business-id="${escapeHtml(match.business.id)}" data-match-id="${escapeHtml(match.id || "")}" data-rater-role="${raterRole}" data-rated-role="${ratedRole}">
+      <div class="rating-widget-head">
+        <div>
+          <p class="eyebrow">Post-campaign feedback</p>
+          <h4>Rate your experience with ${escapeHtml(counterpartName)}</h4>
+        </div>
+        ${existing.createdAt ? `<span class="status-pill status-ready">Submitted</span>` : `<span class="status-pill status-new">Needed</span>`}
       </div>
-      <textarea data-rating-note rows="2" placeholder="Optional review note">${escapeHtml(record?.reviewNote || "")}</textarea>
+      <p class="muted">${completed ? "This feedback stays tied to this completed partnership and helps Raise Local improve future recommendations." : "Feedback opens once the partnership is marked complete."}</p>
+      ${EXPERIENCE_RATING_FIELDS.map((field) => `
+        <label>${field.label}</label>
+        ${starButtons(field.key, existing[field.key])}
+      `).join("")}
+      <label>Would you work together again?</label>
+      <select data-would-work-again>
+        <option value="" ${existing.wouldWorkAgain == null ? "selected" : ""}>Choose one</option>
+        <option value="yes" ${existing.wouldWorkAgain === true ? "selected" : ""}>Yes</option>
+        <option value="no" ${existing.wouldWorkAgain === false ? "selected" : ""}>No</option>
+      </select>
+      <textarea data-rating-note rows="3" placeholder="What should Raise Local know before recommending another partnership like this?">${escapeHtml(existing.reviewNote || "")}</textarea>
       <p class="form-error rating-error" hidden></p>
-      <button type="button" class="secondary-btn" data-submit-rating>Save Rating</button>
+      <button type="button" class="secondary-btn" data-submit-rating ${completed ? "" : "disabled"}>Save Feedback</button>
     </div>
+  `;
+}
+
+function matchRatingSummary(match) {
+  const nonprofitRating = ratingForMatch(match, "nonprofit");
+  const businessRating = ratingForMatch(match, "business");
+  const ratingLine = (rating, empty) => rating
+    ? `<strong>${ratingAverage(rating).toFixed(1)}/5</strong><span>${rating.wouldWorkAgain === true ? "Would work again" : rating.wouldWorkAgain === false ? "Would not repeat" : "Needs review"}${rating.reviewNote ? ` · ${escapeHtml(rating.reviewNote)}` : ""}</span>`
+    : `<strong>Not submitted</strong><span>${empty}</span>`;
+  return `
+    <section class="match-rating-summary">
+      <p class="eyebrow">Experience feedback</p>
+      <div class="rating-summary-grid">
+        <div><span>Nonprofit on business</span>${ratingLine(nonprofitRating, "Waiting for nonprofit feedback after completion.")}</div>
+        <div><span>Business on nonprofit</span>${ratingLine(businessRating, "Waiting for business feedback after completion.")}</div>
+      </div>
+    </section>
   `;
 }
 
@@ -2973,31 +3079,46 @@ function wireRatingWidgets() {
     widget.querySelectorAll("[data-star]").forEach((star) => {
       star.addEventListener("click", () => {
         const value = Number(star.dataset.star);
-        widget.dataset.selected = value;
-        widget.querySelectorAll("[data-star]").forEach((s) => s.classList.toggle("filled", Number(s.dataset.star) <= value));
+        const row = star.closest("[data-rating-field]");
+        row.dataset.selected = value;
+        row.querySelectorAll("[data-star]").forEach((s) => s.classList.toggle("filled", Number(s.dataset.star) <= value));
       });
     });
     widget.querySelector("[data-submit-rating]").addEventListener("click", () => {
-      const value = Number(widget.dataset.selected || 0);
       const error = widget.querySelector(".rating-error");
-      if (!value) {
-        error.textContent = "Choose a star rating before saving.";
+      const fieldValues = Object.fromEntries(EXPERIENCE_RATING_FIELDS.map((field) => [field.key, Number(widget.querySelector(`[data-rating-field="${field.key}"]`)?.dataset.selected || 0)]));
+      const missing = EXPERIENCE_RATING_FIELDS.find((field) => !fieldValues[field.key]);
+      if (missing) {
+        error.textContent = `Choose a ${missing.label.toLowerCase()} rating before saving.`;
+        error.hidden = false;
+        return;
+      }
+      const wouldValue = widget.querySelector("[data-would-work-again]").value;
+      if (!wouldValue) {
+        error.textContent = "Choose whether you would work together again.";
         error.hidden = false;
         return;
       }
       const note = widget.querySelector("[data-rating-note]").value.trim();
-      if (value <= 2 && !note) {
-        error.textContent = "A note is required for ratings of 2 stars or below.";
+      const average = ratingAverage(fieldValues);
+      if ((average <= 2.5 || wouldValue === "no") && !note) {
+        error.textContent = "A note is required for low ratings or when you would not work together again.";
         error.hidden = false;
         widget.querySelector("[data-rating-note]").focus();
         return;
       }
       submitRating(
-        { request: { id: widget.dataset.requestId }, business: { id: widget.dataset.businessId } },
-        value,
-        note
+        { request: { id: widget.dataset.requestId }, business: { id: widget.dataset.businessId }, id: widget.dataset.matchId || "" },
+        {
+          ...fieldValues,
+          rating: average,
+          raterRole: widget.dataset.raterRole,
+          ratedRole: widget.dataset.ratedRole,
+          wouldWorkAgain: wouldValue === "yes" ? true : wouldValue === "no" ? false : null,
+          reviewNote: note,
+        }
       );
-      quizConfirmation = "Thanks for the review!";
+      quizConfirmation = "Thanks for the feedback. Raise Local saved it to this completed partnership.";
       render();
     });
   });
@@ -3016,7 +3137,7 @@ function renderBrief() {
             <li>Campaign request intake.</li>
             <li>Business match profiles.</li>
             <li>Explainable top 3-5 filtered matches.</li>
-            <li>Decline reason notes and simple business ratings.</li>
+            <li>Two-sided post-campaign experience ratings.</li>
             <li>Human review before introductions.</li>
           </ul>
         </div>
@@ -3831,20 +3952,58 @@ function respondToMatch(match, decision) {
   upsertMatchDecision(match.request.id, match.business.id, myRole(), decisionMap[decision]);
 }
 
-// A rating is a trait of the entity being rated, not of the match — it's
-// written onto the counterpart's own record so it shows up everywhere that
-// record appears (its own profile page, the pool directory, etc.), the same
-// way the seeded businesses already carry a rating/reviewNote.
-function submitRating(match, rating, note) {
-  const iAmBusiness = myRole() === "business";
-  const record = iAmBusiness ? data.campaignRequests.find((r) => r.id === match.request.id) : data.businesses.find((b) => b.id === match.business.id);
-  if (record) {
-    const fields = { rating, reviewNote: note };
-    if (!iAmBusiness && rating <= QUALITY_REVIEW_THRESHOLD) fields.qualityStatus = "needs_review";
-    Object.assign(record, fields);
-    if (!iAmBusiness) syncBusinessRating(record, rating, note);
+// Partnership ratings belong to the completed match first. The profile summary
+// is updated second so the directory can show experience history at a glance.
+function submitRating(match, feedback) {
+  data.ratings ||= [];
+  const key = ratingKey(match.request.id, match.business.id, feedback.raterRole);
+  const existing = data.ratings.find((rating) => rating.key === key || (!rating.key && rating.requestId === match.request.id && rating.businessId === match.business.id && rating.raterRole === feedback.raterRole));
+  const record = {
+    id: existing?.id || `rating-${key}`,
+    key,
+    matchId: isUuid(match.id) ? match.id : "",
+    requestId: match.request.id,
+    businessId: match.business.id,
+    createdAt: existing?.createdAt || new Date().toISOString(),
+    ...feedback,
+  };
+  if (existing) Object.assign(existing, record);
+  else data.ratings.push(record);
+
+  if (feedback.ratedRole === "business") {
+    const business = data.businesses.find((b) => b.id === match.business.id);
+    if (business) {
+      const businessRatings = data.ratings.filter((rating) => rating.businessId === business.id && rating.ratedRole === "business");
+      const average = businessRatings.length ? businessRatings.reduce((sum, rating) => sum + Number(rating.rating || 0), 0) / businessRatings.length : feedback.rating;
+      Object.assign(business, {
+        rating: Math.round(average * 10) / 10,
+        reviewNote: feedback.reviewNote,
+        ...(feedback.rating <= QUALITY_REVIEW_THRESHOLD ? { qualityStatus: "needs_review" } : {}),
+      });
+    }
+  } else {
+    const request = data.campaignRequests.find((r) => r.id === match.request.id);
+    if (request) Object.assign(request, { rating: feedback.rating, reviewNote: feedback.reviewNote });
   }
   saveData(data);
+  syncPartnershipRating({
+    matchId: record.matchId || null,
+    requestId: record.requestId,
+    businessId: record.businessId,
+    raterRole: record.raterRole,
+    ratedRole: record.ratedRole,
+    rating: Math.round(Number(record.rating || 0)),
+    communicationRating: record.communicationRating,
+    reliabilityRating: record.reliabilityRating,
+    turnoutRating: record.turnoutRating,
+    fulfillmentRating: record.fulfillmentRating,
+    wouldWorkAgain: record.wouldWorkAgain,
+    note: record.reviewNote,
+  });
+}
+
+function isUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
 }
 
 function entityInitials(name) {
@@ -4092,6 +4251,7 @@ function matchCard(match, { showAdminControls = false, showRating = false, showV
         </details>
       </div>
       ${match.notifiedAt ? `<p class="notification-note">Mutual approval recorded for ${escapeHtml(match.request.organizationName)} and ${escapeHtml(match.business.name)} on ${formatDateTime(match.notifiedAt)}.</p>` : ""}
+      ${showAdminControls && COMPLETED_MATCH_STATUSES.includes(match.status) ? matchRatingSummary(match) : ""}
       ${
         showAdminControls
           ? `

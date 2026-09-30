@@ -3,7 +3,7 @@ import { normalizeSupportNeeds } from "./matching.js?v=3607856";
 const STORAGE_KEY = "raise_local_platform_v6";
 
 export function emptyData() {
-  return { campaignRequests: [], businesses: [], matches: [], notifications: [] };
+  return { campaignRequests: [], businesses: [], matches: [], notifications: [], comments: [], ratings: [] };
 }
 
 export const DEMO_DATA = {
@@ -553,6 +553,7 @@ function demoSeedData() {
     matches: [],
     notifications: [],
     comments: [],
+    ratings: [],
   };
 }
 
@@ -561,7 +562,7 @@ export function loadData({ includeDemo = false } = {}) {
   if (!raw) {
     return includeDemo
       ? structuredClone(demoSeedData())
-      : { campaignRequests: [], businesses: [], matches: [], notifications: [], comments: [] };
+      : { campaignRequests: [], businesses: [], matches: [], notifications: [], comments: [], ratings: [] };
   }
 
   try {
@@ -592,11 +593,12 @@ export function loadData({ includeDemo = false } = {}) {
       matches: Array.isArray(parsed.matches) ? parsed.matches : [],
       notifications: Array.isArray(parsed.notifications) ? parsed.notifications : [],
       comments: Array.isArray(parsed.comments) ? parsed.comments : [],
+      ratings: Array.isArray(parsed.ratings) ? parsed.ratings : [],
     };
   } catch {
     return includeDemo
       ? structuredClone(demoSeedData())
-      : { campaignRequests: [], businesses: [], matches: [], notifications: [], comments: [] };
+      : { campaignRequests: [], businesses: [], matches: [], notifications: [], comments: [], ratings: [] };
   }
 }
 

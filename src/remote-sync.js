@@ -251,6 +251,25 @@ function fromNotificationRow(row) {
   };
 }
 
+function fromRatingRow(row) {
+  return {
+    id: row.id,
+    matchId: row.match_id || "",
+    requestId: row.request_id || "",
+    businessId: row.business_id || "",
+    raterRole: row.rater_role || "nonprofit",
+    ratedRole: row.rated_role || "business",
+    rating: row.rating ?? null,
+    communicationRating: row.communication_rating ?? null,
+    reliabilityRating: row.reliability_rating ?? null,
+    turnoutRating: row.turnout_rating ?? null,
+    fulfillmentRating: row.fulfillment_rating ?? null,
+    wouldWorkAgain: row.would_work_again ?? null,
+    reviewNote: row.review_note || "",
+    createdAt: row.created_at || new Date().toISOString(),
+  };
+}
+
 export async function loadRemoteData({ admin = false, email = "" } = {}) {
   if (isDemoMode()) return null;
   let requestQuery = supabase.from("campaign_requests").select("*");
@@ -264,15 +283,17 @@ export async function loadRemoteData({ admin = false, email = "" } = {}) {
     businessQuery = businessQuery.eq("email", email);
   }
 
-  const [requestsResult, businessesResult, matchesResult, commentsResult, notificationsResult, campaignPoolResult, businessPoolResult] = await Promise.all([
+  const [requestsResult, businessesResult, matchesResult, commentsResult, notificationsResult, ratingsResult, campaignPoolResult, businessPoolResult] = await Promise.all([
     requestQuery,
     businessQuery,
     supabase.from("matches").select("*"),
     supabase.from("campaign_comments").select("*").order("created_at", { ascending: true }),
     supabase.from("notifications").select("*").order("created_at", { ascending: false }),
+    supabase.from("ratings").select("*").order("created_at", { ascending: false }),
     ...poolQueries,
   ]);
   if (commentsResult.error) console.error("Supabase campaign comments load skipped:", commentsResult.error.message);
+  if (ratingsResult.error) console.error("Supabase ratings load skipped:", ratingsResult.error.message);
   const failed = [requestsResult, businessesResult, matchesResult, notificationsResult, campaignPoolResult, businessPoolResult].find((result) => result.error);
   if (failed) {
     console.error("Supabase remote data load failed:", failed.error.message);
@@ -288,6 +309,7 @@ export async function loadRemoteData({ admin = false, email = "" } = {}) {
     matches: (matchesResult.data || []).map(fromMatchRow),
     comments: commentsResult.error ? [] : (commentsResult.data || []).map(fromCommentRow),
     notifications: (notificationsResult?.data || []).map(fromNotificationRow),
+    ratings: ratingsResult.error ? [] : (ratingsResult.data || []).map(fromRatingRow),
   };
 }
 
@@ -447,15 +469,24 @@ export async function syncBusinessQuality(business) {
   return !error;
 }
 
-export async function syncBusinessRating(business, rating, note) {
+export async function syncPartnershipRating({ matchId = null, requestId, businessId, raterRole, ratedRole, rating, communicationRating, reliabilityRating, turnoutRating, fulfillmentRating, wouldWorkAgain, note }) {
   if (isDemoMode()) return false;
-  const { error } = await supabase.from("ratings").insert({
-    business_id: business.id,
+  const { error } = await supabase.from("ratings").upsert({
+    match_id: matchId || null,
+    request_id: requestId,
+    business_id: businessId,
+    rater_role: raterRole,
+    rated_role: ratedRole,
     rating,
+    communication_rating: communicationRating,
+    reliability_rating: reliabilityRating,
+    turnout_rating: turnoutRating,
+    fulfillment_rating: fulfillmentRating,
+    would_work_again: wouldWorkAgain,
     review_note: note || null,
-  });
+  }, { onConflict: "request_id,business_id,rater_role" });
   if (error) console.error("Supabase rating sync failed:", error.message);
-  // A Supabase trigger aggregates the rating and sets the review flag. This
-  // keeps regular authenticated users from needing direct profile update access.
+  // A Supabase trigger aggregates nonprofit feedback about businesses and sets
+  // the quality review flag without granting direct profile update access.
   return !error;
 }
