@@ -456,8 +456,6 @@ const NONPROFIT_CORE_QUESTIONS = [
   { key: "organizationType", label: "What type of organization are you?", type: "single", options: ORGANIZATION_TYPES },
   { key: "causeArea", label: "What cause are you raising funds for?", type: "single", options: CAUSE_AREAS },
   { key: "campaignDescription", label: "In one line, what's the campaign for?", type: "text", placeholder: "New playground equipment, weekend meal bags, art supplies..." },
-  { key: "campaignType", label: "What kind of campaign or fundraiser are you planning?", type: "single", options: EVENT_TYPES },
-  { key: "preferredCategories", label: "What kind of business would be the best partner?", type: "multi", options: BUSINESS_CATEGORIES },
   { key: "supportNeeds", label: "What kind of support do you need from them?", type: "multi", options: SUPPORT_NEEDS },
   { key: "partnershipTypesNeeded", label: "What kind of partnership are you hoping for?", type: "multi", options: PARTNERSHIP_TYPES },
   { key: "geography", label: "Where are you located?", type: "text", placeholder: "Brooklyn, Washington DC, Maryland, zip code..." },
@@ -492,13 +490,11 @@ const BUSINESS_CORE_QUESTIONS = [
   { key: "category", label: "What type of business are you?", type: "single", options: BUSINESS_CATEGORIES.filter((item) => item !== "No preference") },
   { key: "causeAreas", label: "What causes do you want to support?", type: "multi", options: CAUSE_AREAS },
   { key: "offerTypes", label: "What can you offer campaigns?", type: "multi", options: SUPPORT_NEEDS },
-  { key: "pricingPoint", label: "What is the typical price point for the product or service?", type: "text", placeholder: "$15-$40" },
   { key: "partnershipTypes", label: "Which kinds of partnerships are you open to?", type: "multi", options: PARTNERSHIP_TYPES },
   { key: "serviceAreas", label: "Where can you serve campaigns?", type: "text", placeholder: "Brooklyn, Washington DC, Maryland" },
   { key: "minimumOrderRequirement", label: "What's the smallest campaign size worth your time?", type: "number", placeholder: "250" },
   { key: "availabilityPreference", label: "When can you start supporting campaigns?", type: "single", options: AVAILABILITY_OPTIONS },
   { key: "businessGoals", label: "What do you want to get out of partnering?", type: "multi", options: BUSINESS_GOALS },
-  { key: "estimatedUnitContribution", label: "About how much does each sale or order raise for the cause?", type: "number", placeholder: "15" },
 ];
 
 const BUSINESS_CONTACT_QUESTION = { key: "contact", label: "Almost done — how can we reach you?", type: "contact" };

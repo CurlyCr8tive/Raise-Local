@@ -113,6 +113,19 @@ function assertDemoMatchingBoundaries() {
   assert.ok(scopedMatches.every((match) => !match.rejected), "Rejected matches must not appear in review queues.");
 }
 
+function assertIntroQuizLength() {
+  const appSource = readFileSync(join(root, "src/app.js"), "utf8");
+  const countKeysInArray = (name) => {
+    const start = appSource.indexOf(`const ${name} = [`);
+    assert.notEqual(start, -1, `${name} must exist.`);
+    const end = appSource.indexOf("];", start);
+    assert.notEqual(end, -1, `${name} must close.`);
+    return [...appSource.slice(start, end).matchAll(/\bkey:\s*["']/g)].length;
+  };
+  assert.equal(countKeysInArray("NONPROFIT_CORE_QUESTIONS") + 1, 10, "Nonprofit intro quiz must stay at 10 questions including contact.");
+  assert.equal(countKeysInArray("BUSINESS_CORE_QUESTIONS") + 1, 10, "Business intro quiz must stay at 10 questions including contact.");
+}
+
 function assertWorkflowFixtures() {
   const nonprofit = {
     id: "workflow-request",
@@ -177,6 +190,7 @@ for (const file of htmlFiles) {
 
 assertMatchingRules();
 assertDemoMatchingBoundaries();
+assertIntroQuizLength();
 assertWorkflowFixtures();
 
 console.log(`Build check passed: ${jsFiles.length} JavaScript files, ${htmlFiles.length} HTML files, and matching rules verified.`);
