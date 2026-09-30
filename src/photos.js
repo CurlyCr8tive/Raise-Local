@@ -53,6 +53,7 @@ const BUSINESS_PHOTO_OVERRIDES = {
   "biz-first-choice-brew": "assets/first-choice-brew.webp",
   "biz-sofia-grace": "assets/sofia-grace.png",
   "biz-billee-redd-hospitality": "assets/billee-redd-hospitality.png",
+  "biz-paco-tacos-atl": "assets/paco-tacos-atl.png",
   // Unique, category-specific fallbacks for seeded partners without supplied imagery.
   "biz-paper-porch": unsplash("1521335629791-ce4aec67dd15"),
 };
@@ -66,6 +67,8 @@ const BUSINESS_NAME_PHOTO_OVERRIDES = {
   "first choice brew": "assets/first-choice-brew.webp",
   "billee redd hospitality (potential lead)": "assets/billee-redd-hospitality.png",
   "billee redd hospitality": "assets/billee-redd-hospitality.png",
+  "paco tacos atl (potential lead)": "assets/paco-tacos-atl.png",
+  "paco tacos atl": "assets/paco-tacos-atl.png",
 };
 
 const REQUEST_PHOTO_OVERRIDES = {
