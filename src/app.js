@@ -924,7 +924,7 @@ function renderLanding() {
         <p class="landing-copy">Raise Local helps nonprofits find local businesses ready to support their campaigns. Answer a few questions to find partners that fit your goals, location, and timing.</p>
         <div class="landing-actions">
           ${useDemoEntry
-            ? `<button class="primary-btn" type="button" id="landing-start">Find a Partner</button><button class="secondary-btn" type="button" id="landing-demo">Enter Demo Workspace</button><button class="secondary-btn" type="button" id="landing-login">Use Real Login</button>`
+            ? `<button class="primary-btn" type="button" id="landing-start">Find a Partner</button><button class="secondary-btn" type="button" id="landing-login">Use Real Login</button><button class="secondary-btn" type="button" id="landing-demo">Enter Demo Workspace</button>`
             : `<button class="primary-btn" type="button" id="landing-start">Find a Partner</button><button class="secondary-btn" type="button" id="landing-login">Log in</button>${canUseDemo ? `<button class="link-btn" type="button" id="landing-demo">View Demo</button>` : ""}`}
         </div>
         ${demoRequested ? `<p class="form-note demo-access-note">Demo Mode: Owner / Admin / Developer</p>` : ""}
@@ -942,10 +942,6 @@ function renderLanding() {
     render();
   });
   document.getElementById("landing-login").addEventListener("click", () => {
-    if (demoRequested) {
-      enterDemoWorkspace("admin");
-      return;
-    }
     authScreen = "login";
     authError = "";
     render();
