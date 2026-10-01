@@ -45,6 +45,8 @@ function demoAccessAllowed() {
 }
 
 function demoEmailForRole(role) {
+  const stored = sessionStorage.getItem(`raise_local_demo_email_${role}`);
+  if (stored) return stored;
   return {
     admin: "demo@raiselocal.local",
     nonprofit: "contact@groveparkfoundation.org",
@@ -75,13 +77,11 @@ function applyStartLinkIfPresent() {
   const params = new URLSearchParams(window.location.search);
   const demo = params.get("demo");
   if (demo && demoAccessAllowed()) {
-    startLinkApplied = true;
     if (["admin", "owner", "nonprofit", "business"].includes(demo)) {
+      startLinkApplied = true;
       enterDemoWorkspace(demo === "owner" ? "admin" : demo);
       return;
     }
-    enterDemoWorkspace("admin");
-    return;
   }
   if (startLinkApplied) return;
   const start = params.get("start");
@@ -94,6 +94,7 @@ function applyStartLinkIfPresent() {
   quizActiveRecordId = null;
   quizResultsPreview = null;
   quizUpdateMode = false;
+  demoQuizBypass = false;
   authScreen = "quiz";
   window.history.replaceState({}, "", window.location.pathname);
 }
@@ -131,6 +132,7 @@ let quizActiveRecordId = null;
 let quizResultsPreview = null;
 let inAppProfileCreate = false;
 let quizUpdateMode = false;
+let demoQuizBypass = false;
 
 // Pre-auth flow: landing -> quiz-choose -> quiz -> register -> verify-sent
 // -> (user clicks emailed link) -> set-password -> authenticated app.
@@ -702,6 +704,7 @@ function renderAdminIntro() {
       quizResultsPreview = null;
       inAppProfileCreate = true;
       quizUpdateMode = false;
+      demoQuizBypass = false;
       activeView = "complete-profile";
       render();
     });
@@ -912,7 +915,7 @@ function renderLanding() {
         <p class="landing-copy">Raise Local helps nonprofits find local businesses ready to support their campaigns. Answer a few questions to find partners that fit your goals, location, and timing.</p>
         <div class="landing-actions">
           ${useDemoEntry
-            ? `<button class="primary-btn" type="button" id="landing-demo">Enter Demo Workspace</button><button class="secondary-btn" type="button" id="landing-login">Use Real Login</button>`
+            ? `<button class="primary-btn" type="button" id="landing-start">Find a Partner</button><button class="secondary-btn" type="button" id="landing-demo">Enter Demo Workspace</button><button class="secondary-btn" type="button" id="landing-login">Use Real Login</button>`
             : `<button class="primary-btn" type="button" id="landing-start">Find a Partner</button><button class="secondary-btn" type="button" id="landing-login">Log in</button>${canUseDemo ? `<button class="link-btn" type="button" id="landing-demo">View Demo</button>` : ""}`}
         </div>
         ${demoRequested ? `<p class="form-note demo-access-note">Demo Mode: Owner / Admin / Developer</p>` : ""}
@@ -921,6 +924,10 @@ function renderLanding() {
     </div>
   `;
   document.getElementById("landing-start")?.addEventListener("click", () => {
+    if (demoRequested) {
+      startDemoMatchFinder();
+      return;
+    }
     authScreen = "quiz-choose";
     authError = "";
     render();
@@ -937,6 +944,28 @@ function renderLanding() {
   document.getElementById("landing-demo")?.addEventListener("click", () => {
     enterDemoWorkspace("admin");
   });
+}
+
+function startDemoMatchFinder() {
+  if (!demoAccessAllowed()) {
+    authError = "Demo access is not active for this link. Confirm Render has DEMO_ACCESS_TOKEN set to match the token in the URL, then redeploy.";
+    renderLanding();
+    return;
+  }
+  data = loadData({ includeDemo: true });
+  demoQuizBypass = true;
+  demoMode = false;
+  quizAudience = null;
+  quizPhase = "choose";
+  quizStep = 0;
+  quizAnswers = {};
+  quizActiveRecordId = null;
+  quizResultsPreview = null;
+  quizUpdateMode = false;
+  inAppProfileCreate = false;
+  authError = "";
+  authScreen = "quiz-choose";
+  render();
 }
 
 function renderDemoChoose() {
@@ -1500,7 +1529,7 @@ function finishCoreQuiz() {
     data.businesses = [business, ...data.businesses];
     quizActiveRecordId = business.id;
     quizResultsPreview = computeMatchPreview("business", business);
-    syncBusinessProfile(business);
+    if (!demoQuizBypass) syncBusinessProfile(business);
   } else {
     const request = requestFromQuizAnswers();
     initializeRecordMeta(request, inAppProfileCreate ? recordActor().type : "client");
@@ -1508,11 +1537,17 @@ function finishCoreQuiz() {
     data.campaignRequests = [request, ...data.campaignRequests];
     quizActiveRecordId = request.id;
     quizResultsPreview = computeMatchPreview("request", request);
-    syncCampaignRequest(request);
+    if (!demoQuizBypass) syncCampaignRequest(request);
   }
   saveData(data);
-  notifyAdminOfQuizCompletion(quizAudience, createdRecord);
-  notifyAdminOfSuggestedMatches(quizAudience, createdRecord);
+  if (!demoQuizBypass) {
+    notifyAdminOfQuizCompletion(quizAudience, createdRecord);
+    notifyAdminOfSuggestedMatches(quizAudience, createdRecord);
+  }
+  if (demoQuizBypass) {
+    enterDemoAfterQuiz(createdRecord);
+    return;
+  }
   if (inAppProfileCreate) {
     quizConfirmation = quizAudience === "business" ? `${createdRecord.name} was added to the partner network.` : `${createdRecord.organizationName} campaign request was submitted.`;
     quizConfirmationAction = { type: quizAudience === "business" ? "business" : "request", id: createdRecord.id };
@@ -1526,6 +1561,33 @@ function finishCoreQuiz() {
   pendingEmail = quizAnswers.contact?.email || "";
   authError = "";
   authScreen = "register";
+  render();
+}
+
+function enterDemoAfterQuiz(record) {
+  const role = quizAudience === "business" ? "business" : "nonprofit";
+  const email = (record.email || quizAnswers.contact?.email || demoEmailForRole(role)).trim().toLowerCase();
+  sessionStorage.setItem(`raise_local_demo_email_${role}`, email);
+  demoMode = true;
+  demoRole = role;
+  sessionStorage.setItem("raise_local_demo_mode", "true");
+  sessionStorage.setItem("raise_local_demo_role", role);
+  session = { user: { email, user_metadata: { role, password_set: true } } };
+  quizConfirmation = role === "business"
+    ? `${record.name} demo profile was created. Review the campaign matches based on those answers.`
+    : `${record.organizationName} demo request was created. Review the business matches based on those answers.`;
+  quizConfirmationAction = { type: role === "business" ? "business" : "request", id: record.id };
+  authError = "";
+  authScreen = "app";
+  remoteDataReady = true;
+  remoteDataError = "";
+  activeView = "matches";
+  dashboardTab = "matches";
+  selectedMatchKey = "";
+  selectedEntityKey = "";
+  inAppProfileCreate = false;
+  quizUpdateMode = false;
+  demoQuizBypass = false;
   render();
 }
 
@@ -2242,6 +2304,7 @@ function startNewProfileQuiz(kind = "request") {
   quizResultsPreview = null;
   inAppProfileCreate = true;
   quizUpdateMode = false;
+  demoQuizBypass = false;
   authScreen = "app";
   activeView = "complete-profile";
   render();
