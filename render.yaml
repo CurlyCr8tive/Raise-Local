@@ -36,3 +36,5 @@ services:
         sync: false
       - key: GMAIL_SETUP_TOKEN
         sync: false
+      - key: DEMO_ACCESS_TOKEN
+        sync: false
