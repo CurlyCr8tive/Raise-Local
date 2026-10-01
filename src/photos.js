@@ -58,6 +58,11 @@ const BUSINESS_PHOTO_OVERRIDES = {
   "biz-kenekt-cooperative": "assets/kenekt-cooperative.jpg",
   "biz-bankhead-seafood": "assets/bankhead-seafood.png",
   "biz-glaciers-italian-ice": "assets/glaciers-italian-ice.webp",
+  "biz-mahoganybooks": "assets/lead-image-pending.svg",
+  "biz-busboys-and-poets": "assets/lead-image-pending.svg",
+  "biz-spice-suite": "assets/lead-image-pending.svg",
+  "biz-the-museum-dc": "assets/lead-image-pending.svg",
+  "biz-washington-informer": "assets/lead-image-pending.svg",
   "business-fe9b3739-59c6-411d-b1df-c8222bf888ca": "assets/lead-image-pending.svg",
 };
 
@@ -80,6 +85,16 @@ const BUSINESS_NAME_PHOTO_OVERRIDES = {
   "bankhead seafood": "assets/bankhead-seafood.png",
   "glaciers italian ice (potential lead)": "assets/glaciers-italian-ice.webp",
   "glaciers italian ice": "assets/glaciers-italian-ice.webp",
+  "mahoganybooks (potential lead)": "assets/lead-image-pending.svg",
+  "mahoganybooks": "assets/lead-image-pending.svg",
+  "busboys and poets (potential lead)": "assets/lead-image-pending.svg",
+  "busboys and poets": "assets/lead-image-pending.svg",
+  "the spice suite (potential lead)": "assets/lead-image-pending.svg",
+  "the spice suite": "assets/lead-image-pending.svg",
+  "the museum dc (potential lead)": "assets/lead-image-pending.svg",
+  "the museum dc": "assets/lead-image-pending.svg",
+  "the washington informer (potential lead)": "assets/lead-image-pending.svg",
+  "the washington informer": "assets/lead-image-pending.svg",
   "candle light care home health services": "assets/lead-image-pending.svg",
 };
 

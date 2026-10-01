@@ -19,6 +19,11 @@ function overlaps(left = [], right = []) {
   return left.map(normalize).some((item) => rightSet.has(item));
 }
 
+function overlapCount(left = [], right = []) {
+  const rightSet = new Set(right.map(normalize));
+  return left.map(normalize).filter((item) => rightSet.has(item)).length;
+}
+
 function splitGeo(value) {
   return String(value || "")
     .toLowerCase()
@@ -111,6 +116,44 @@ function categoryMatches(request, business) {
   };
 }
 
+function exactLocationOverlap(request, business) {
+  const requestTerms = new Set(splitGeo(request.geography).map(normalize));
+  const serviceTerms = new Set((business.serviceAreas || []).flatMap(splitGeo).map(normalize));
+  if (![...requestTerms].some((term) => serviceTerms.has(term))) return 0;
+  if ([...requestTerms].some((term) => !["dmv", "dc", "atlanta ga"].includes(term) && serviceTerms.has(term))) return 3;
+  return 2;
+}
+
+function categoryTieBreak(request, business) {
+  const preferences = request.preferredCategories?.length ? request.preferredCategories : [request.businessPreference];
+  if (preferences.map(normalize).includes(normalize(business.category))) return 3;
+  if (preferences.includes("No preference")) return 1;
+  return 0;
+}
+
+function potentialLeadScore(request, business, rawTotal) {
+  const sourceCount = [business.googleMapsUrl, business.sourceUrl, business.website].filter(Boolean).length;
+  const contactCount = [business.phone, business.email, business.socialLinks].filter(Boolean).length;
+  const goal = parseAmount(request.fundingGoal);
+  const minimum = parseAmount(business.minimumOrderRequirement || business.minimumCampaignRequirement);
+  const minimumRatio = goal && minimum ? minimum / goal : 0.1;
+  const financialDetail = minimumRatio <= 0.04 ? 3 : minimumRatio <= 0.07 ? 2 : minimumRatio <= 0.1 ? 1 : 0;
+  const leadTime = parseAmount(business.leadTimeDays);
+  const leadTimeDetail = !leadTime ? 0 : leadTime <= 10 ? 2 : leadTime <= 14 ? 1 : 0;
+  const detailScore =
+    exactLocationOverlap(request, business)
+    + categoryTieBreak(request, business)
+    + Math.min(3, overlapCount(request.supportNeeds || [], business.offerTypes || []))
+    + Math.min(2, overlapCount(request.partnershipTypesNeeded || [], business.partnershipTypes || []))
+    + financialDetail
+    + leadTimeDetail
+    + Math.min(2, sourceCount)
+    + Math.min(2, contactCount)
+    + Math.min(2, (business.businessGoals || []).length >= 3 ? 2 : business.businessGoals?.length || 0);
+
+  return Math.min(rawTotal, 92, 72 + detailScore);
+}
+
 function capacityMatches(request, business) {
   const expected = parseAmount(request.expectedParticipation || request.idealSize || request.minimumSize);
   const minimumNeeded = parseAmount(request.minimumSize || request.expectedParticipation);
@@ -179,7 +222,7 @@ export function evaluateDecisionTreeMatch(request, business) {
   const blockers = stages.filter((stage) => stage.required && !stage.passed).map((stage) => stage.blocker);
   const rawTotal = stages.reduce((sum, stage) => sum + stage.points, 0);
   const unconfirmedLead = normalize(business.status) === "potential_lead" || normalize(business.qualityStatus) === "potential_lead";
-  const total = blockers.length ? Math.min(rawTotal, 59) : unconfirmedLead ? Math.min(rawTotal, 92) : rawTotal;
+  const total = blockers.length ? Math.min(rawTotal, 59) : unconfirmedLead ? potentialLeadScore(request, business, rawTotal) : rawTotal;
 
   return {
     total,
