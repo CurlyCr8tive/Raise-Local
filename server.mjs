@@ -293,7 +293,7 @@ function gmailRawMessage({ to, subject, text }) {
     `Subject: ${subject}`,
     "",
     text,
-  ].join("\\r\\n");
+  ].join("\r\n");
   return Buffer.from(mime).toString("base64url");
 }
 

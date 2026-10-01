@@ -126,6 +126,24 @@ function assertIntroQuizLength() {
   assert.equal(countKeysInArray("BUSINESS_CORE_QUESTIONS") + 1, 10, "Business intro quiz must stay at 10 questions including contact.");
 }
 
+function assertGmailRawMessageLineBreaks() {
+  const serverSource = readFileSync(join(root, "server.mjs"), "utf8");
+  assert.equal(serverSource.includes('].join("\\\\r\\\\n");'), false, "Gmail MIME messages must use real CRLF line breaks, not literal \\\\r\\\\n text.");
+  const start = serverSource.indexOf("function gmailRawMessage");
+  const end = serverSource.indexOf("\n}\n\nasync function sendGmailMessage", start);
+  assert.notEqual(start, -1, "gmailRawMessage must exist.");
+  assert.notEqual(end, -1, "gmailRawMessage must be extractable for line-break QA.");
+  const functionSource = serverSource.slice(start, end + 3);
+  const raw = Function("Buffer", `${functionSource}; return gmailRawMessage({ to: "client@example.com", subject: "Line check", text: "Body line" });`)(Buffer);
+  const decoded = Buffer.from(raw, "base64url").toString("utf8");
+  assert.equal(decoded.includes("\\r\\n"), false, "Decoded Gmail MIME message must not contain literal \\\\r\\\\n text.");
+  const lines = decoded.split("\r\n");
+  assert.equal(lines[0], "To: client@example.com");
+  assert.equal(lines[3], "Subject: Line check");
+  assert.equal(lines[4], "");
+  assert.equal(lines[5], "Body line");
+}
+
 function assertWorkflowFixtures() {
   const nonprofit = {
     id: "workflow-request",
@@ -191,6 +209,7 @@ for (const file of htmlFiles) {
 assertMatchingRules();
 assertDemoMatchingBoundaries();
 assertIntroQuizLength();
+assertGmailRawMessageLineBreaks();
 assertWorkflowFixtures();
 
 console.log(`Build check passed: ${jsFiles.length} JavaScript files, ${htmlFiles.length} HTML files, and matching rules verified.`);
