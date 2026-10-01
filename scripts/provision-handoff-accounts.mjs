@@ -88,7 +88,10 @@ async function applyAccount(account) {
   const existing = existingUsers.find((user) => user.email?.toLowerCase() === account.email);
   const userMetadata = { ...(existing?.user_metadata || {}), name: account.name, password_set: true };
   const appMetadata = { ...(existing?.app_metadata || {}) };
-  if (account.role === "admin") appMetadata.role = "admin";
+  if (account.role === "admin") {
+    appMetadata.role = "admin";
+    userMetadata.role = "admin";
+  }
   else userMetadata.role = account.role;
   const assignedPassword = account.password || (existing ? "" : password());
   if (!WRITE) return { ...account, password: assignedPassword || "(unchanged)", exists: Boolean(existing), id: existing?.id || "(created on --write)" };
