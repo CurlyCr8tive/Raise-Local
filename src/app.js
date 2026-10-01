@@ -904,7 +904,7 @@ function renderLanding() {
           <button class="secondary-btn" type="button" id="landing-login">Log in</button>
           ${canUseDemo ? `<button class="link-btn" type="button" id="landing-demo">View Demo</button>` : ""}
         </div>
-        ${demoRequested && !canUseDemo ? `<p class="form-note demo-access-note">This demo preview is private. Use the full demo link with its private token, or log in with an authorized admin account.</p>` : ""}
+        ${demoRequested && !canUseDemo ? `<p class="form-note demo-access-note">Demo Mode: Owner / Admin / Developer</p>` : ""}
         ${authError ? `<p class="form-error" role="alert">${escapeHtml(authError)}</p>` : ""}
       </section>
     </div>
@@ -1213,7 +1213,7 @@ function renderLogin() {
       </form>
       <button class="link-btn" type="button" id="forgot-password" style="margin-top:14px;">Forgot password?</button>
       ${canUseDemo ? `<div class="auth-divider"><span>or</span></div><button class="secondary-btn" type="button" id="demo-login" style="width:100%;">View Demo</button>` : ""}
-      ${demoRequested && !canUseDemo ? `<p class="form-note demo-access-note">This demo preview is private. Use the full demo link with its private token, or log in with an authorized admin account.</p>` : ""}
+      ${demoRequested && !canUseDemo ? `<p class="form-note demo-access-note">Demo Mode: Owner / Admin / Developer</p>` : ""}
       <p class="muted" style="margin-top:14px;">New here? <button class="link-btn" type="button" id="login-back">Find your match instead</button></p>
     </section>
   `;
