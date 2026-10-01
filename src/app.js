@@ -70,7 +70,7 @@ const initialDemoRole = ["admin", "nonprofit", "business"].includes(sessionStora
   : "admin";
 
 function applyStartLinkIfPresent() {
-  if (startLinkApplied || session || demoMode) return;
+  if (session || demoMode) return;
   const params = new URLSearchParams(window.location.search);
   const demo = params.get("demo");
   if (demo && demoAccessAllowed()) {
@@ -82,6 +82,7 @@ function applyStartLinkIfPresent() {
     enterDemoWorkspace("admin");
     return;
   }
+  if (startLinkApplied) return;
   const start = params.get("start");
   if (!["nonprofit", "business"].includes(start)) return;
   startLinkApplied = true;
@@ -1214,6 +1215,7 @@ function renderLogin() {
       <p class="eyebrow">Welcome Back</p>
       <h2>Log in to your Raise Local workspace.</h2>
       <p class="muted">Your workspace is tailored to your role: nonprofit, local business, or Raise Local administrator.</p>
+      ${canUseDemo ? `<div class="demo-access-box"><p class="eyebrow">Demo Mode: Owner / Admin / Developer</p><p class="muted">Use the demo workspace for the presentation preview. Real account logins are separate.</p><button class="secondary-btn" type="button" id="demo-login" style="width:100%;">Enter Demo Workspace</button></div>` : ""}
       ${authError ? `<p class="form-error">${escapeHtml(authError)}</p>` : ""}
       <form id="login-form">
         <div class="field-row"><label for="login-email">Email</label><input id="login-email" type="email" required placeholder="you@example.org" /></div>
@@ -1221,7 +1223,6 @@ function renderLogin() {
         <button class="primary-btn" type="submit" style="width:100%;">Log in</button>
       </form>
       <button class="link-btn" type="button" id="forgot-password" style="margin-top:14px;">Forgot password?</button>
-      ${canUseDemo ? `<div class="auth-divider"><span>or</span></div><button class="secondary-btn" type="button" id="demo-login" style="width:100%;">View Demo</button>` : ""}
       ${demoRequested && !canUseDemo ? `<p class="form-note demo-access-note">Demo Mode: Owner / Admin / Developer</p>` : ""}
       <p class="muted" style="margin-top:14px;">New here? <button class="link-btn" type="button" id="login-back">Find your match instead</button></p>
     </section>
