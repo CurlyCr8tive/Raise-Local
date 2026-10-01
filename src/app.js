@@ -40,7 +40,7 @@ import { escapeHtml, formatDateTime, statusLabel } from "./format.js";
 import { emptyState, wireEmptyStates } from "./ui.js";
 
 function demoAccessAllowed() {
-  return true;
+  return window.RAISE_LOCAL_DEMO_ENABLED === true || ["localhost", "127.0.0.1"].includes(window.location.hostname);
 }
 
 function demoEmailForRole(role) {
@@ -1738,7 +1738,7 @@ function renderAdminDashboard() {
         <div>
           <p class="eyebrow">Live handoff links</p>
           <h2>Invite real nonprofits and businesses into the intake flow.</h2>
-          <p class="muted">These links open the real Match Finder, send Supabase email verification, and create scoped records tied to the user's email. Demo data is available only from localhost or a URL with <code>?demo=1</code>.</p>
+          <p class="muted">These links open the real Match Finder, send Supabase email verification, and create scoped records tied to the user's email. Demo data is available locally or from a private demo-token link.</p>
         </div>
       </div>
       <div class="quick-action-grid">

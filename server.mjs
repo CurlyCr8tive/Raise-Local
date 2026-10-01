@@ -17,6 +17,7 @@ loadEnvFile(join(rootDir, ".env.local"));
 const SUPABASE_URL = process.env.SUPABASE_URL || "https://ojirczskecmcwpkwiomq.supabase.co";
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY ||
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qaXJjenNrZWNtY3dwa3dpb21xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkxMzA0NzQsImV4cCI6MjEwNDcwNjQ3NH0.2pkWYVEZUyKSOby0HoefiyX-a32B_9KRjk0MnNEva3U";
+const DEMO_ACCESS_TOKEN = String(process.env.DEMO_ACCESS_TOKEN || "").trim();
 
 function loadEnvFile(path) {
   if (!existsSync(path)) return;
@@ -224,6 +225,18 @@ function publicAppUrl(req) {
   if (configured) return configured;
   const forwardedProto = String(req.headers["x-forwarded-proto"] || "http").split(",")[0].trim();
   return `${forwardedProto}://${req.headers.host || `localhost:${port}`}`;
+}
+
+function demoAccessAllowed(req, url) {
+  const host = String(req.headers.host || "").split(":")[0];
+  if (["localhost", "127.0.0.1"].includes(host)) return true;
+  return Boolean(DEMO_ACCESS_TOKEN && url.searchParams.get("demo_token") === DEMO_ACCESS_TOKEN);
+}
+
+function injectRuntimeConfig(content, req, url) {
+  const demoEnabled = url.searchParams.has("demo") && demoAccessAllowed(req, url);
+  const config = `<script>window.RAISE_LOCAL_DEMO_ENABLED=${demoEnabled ? "true" : "false"};</script>`;
+  return String(content).replace("</head>", `  ${config}\n</head>`);
 }
 
 function appendAppLink(text, req) {
@@ -457,7 +470,8 @@ const server = createServer(async (req, res) => {
   const filePath = normalize(join(rootDir, requested));
   if (!filePath.startsWith(rootDir + sep)) return json(res, 403, { error: "Forbidden" }, req);
   try {
-    const content = await readFile(filePath);
+    let content = await readFile(filePath);
+    if (filePath.endsWith(".html")) content = injectRuntimeConfig(content, req, url);
     applySecurityHeaders(res, req, filePath.endsWith(".html"));
     res.writeHead(200, { "Content-Type": contentType(filePath), "Cache-Control": filePath.endsWith(".html") ? "no-store" : "public, max-age=300" });
     res.end(content);
