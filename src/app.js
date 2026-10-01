@@ -157,7 +157,13 @@ const navButtons = [...document.querySelectorAll("[data-view]")];
 
 document.getElementById("seed-btn").addEventListener("click", () => {
   if (!demoMode) return;
+  sessionStorage.removeItem("raise_local_demo_email_nonprofit");
+  sessionStorage.removeItem("raise_local_demo_email_business");
   data = resetDemoData();
+  selectedMatchKey = "";
+  selectedEntityKey = "";
+  dashboardTab = "matches";
+  activeView = "dashboard";
   render();
 });
 
@@ -804,7 +810,10 @@ function syncAccountIdentity() {
 
   const roleSwitcher = document.getElementById("demo-role-switcher");
   const seedButton = document.getElementById("seed-btn");
-  if (seedButton) seedButton.hidden = !demoMode;
+  if (seedButton) {
+    seedButton.hidden = !demoMode;
+    seedButton.textContent = isAdmin() ? "Reset Demo Data" : "Start Demo Over";
+  }
   if (roleSwitcher) {
     roleSwitcher.hidden = !demoMode;
     roleSwitcher.querySelectorAll("[data-demo-role]").forEach((button) => {
