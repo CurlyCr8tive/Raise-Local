@@ -890,6 +890,7 @@ function renderPreAuth() {
 
 function renderLanding() {
   const canUseDemo = demoAccessAllowed();
+  const demoRequested = new URLSearchParams(window.location.search).has("demo");
   root.innerHTML = `
     <div class="landing-scene">
       ${communityNetworkSvg()}
@@ -901,8 +902,9 @@ function renderLanding() {
         <div class="landing-actions">
           <button class="primary-btn" type="button" id="landing-start">Find a Partner</button>
           <button class="secondary-btn" type="button" id="landing-login">Log in</button>
-          ${canUseDemo ? `<button class="link-btn" type="button" id="landing-demo">Choose Demo View</button>` : ""}
+          ${canUseDemo ? `<button class="link-btn" type="button" id="landing-demo">View Demo</button>` : ""}
         </div>
+        ${demoRequested && !canUseDemo ? `<p class="form-note demo-access-note">This demo preview is private. Use the full demo link with its private token, or log in with an authorized admin account.</p>` : ""}
         ${authError ? `<p class="form-error" role="alert">${escapeHtml(authError)}</p>` : ""}
       </section>
     </div>
@@ -1199,6 +1201,7 @@ function renderSetPassword() {
 
 function renderLogin() {
   const canUseDemo = demoAccessAllowed();
+  const demoRequested = new URLSearchParams(window.location.search).has("demo");
   root.innerHTML = `
     <section class="auth-panel">
       <p class="eyebrow">Welcome Back</p>
@@ -1211,7 +1214,8 @@ function renderLogin() {
         <button class="primary-btn" type="submit" style="width:100%;">Log in</button>
       </form>
       <button class="link-btn" type="button" id="forgot-password" style="margin-top:14px;">Forgot password?</button>
-      ${canUseDemo ? `<div class="auth-divider"><span>or</span></div><button class="secondary-btn" type="button" id="demo-login" style="width:100%;">Choose Demo View</button>` : ""}
+      ${canUseDemo ? `<div class="auth-divider"><span>or</span></div><button class="secondary-btn" type="button" id="demo-login" style="width:100%;">View Demo</button>` : ""}
+      ${demoRequested && !canUseDemo ? `<p class="form-note demo-access-note">This demo preview is private. Use the full demo link with its private token, or log in with an authorized admin account.</p>` : ""}
       <p class="muted" style="margin-top:14px;">New here? <button class="link-btn" type="button" id="login-back">Find your match instead</button></p>
     </section>
   `;
