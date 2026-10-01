@@ -901,7 +901,7 @@ function renderPreAuth() {
 function renderLanding() {
   const canUseDemo = demoAccessAllowed();
   const demoRequested = new URLSearchParams(window.location.search).has("demo");
-  const useDemoEntry = demoRequested && canUseDemo;
+  const useDemoEntry = demoRequested;
   root.innerHTML = `
     <div class="landing-scene">
       ${communityNetworkSvg()}
@@ -926,6 +926,10 @@ function renderLanding() {
     render();
   });
   document.getElementById("landing-login").addEventListener("click", () => {
+    if (demoRequested) {
+      enterDemoWorkspace("admin");
+      return;
+    }
     authScreen = "login";
     authError = "";
     render();
@@ -979,7 +983,7 @@ function renderDemoChoose() {
 
 function enterDemoWorkspace(role = "admin") {
   if (!demoAccessAllowed()) {
-    authError = "Demo workspace is disabled on this live URL. Use a real account, or open a dedicated demo link.";
+    authError = "Demo access is not active for this link. Confirm Render has DEMO_ACCESS_TOKEN set to match the token in the URL, then redeploy.";
     authScreen = "landing";
     render();
     return;
@@ -1212,12 +1216,13 @@ function renderSetPassword() {
 function renderLogin() {
   const canUseDemo = demoAccessAllowed();
   const demoRequested = new URLSearchParams(window.location.search).has("demo");
+  const showDemoEntry = canUseDemo || demoRequested;
   root.innerHTML = `
     <section class="auth-panel">
       <p class="eyebrow">Welcome Back</p>
       <h2>Log in to your Raise Local workspace.</h2>
       <p class="muted">Your workspace is tailored to your role: nonprofit, local business, or Raise Local administrator.</p>
-      ${canUseDemo ? `<div class="demo-access-box"><p class="eyebrow">Demo Mode: Owner / Admin / Developer</p><p class="muted">Use the demo workspace for the presentation preview. Real account logins are separate.</p><button class="secondary-btn" type="button" id="demo-login" style="width:100%;">Enter Demo Workspace</button></div>` : ""}
+      ${showDemoEntry ? `<div class="demo-access-box"><p class="eyebrow">Demo Mode: Owner / Admin / Developer</p><p class="muted">Use the demo workspace for the presentation preview. Real account logins are separate.</p><button class="secondary-btn" type="button" id="demo-login" style="width:100%;">Enter Demo Workspace</button></div>` : ""}
       ${authError ? `<p class="form-error">${escapeHtml(authError)}</p>` : ""}
       <form id="login-form">
         <div class="field-row"><label for="login-email">Email</label><input id="login-email" type="email" required placeholder="you@example.org" /></div>
