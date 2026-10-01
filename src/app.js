@@ -79,7 +79,7 @@ function applyStartLinkIfPresent() {
       enterDemoWorkspace(demo === "owner" ? "admin" : demo);
       return;
     }
-    authScreen = "demo-choose";
+    enterDemoWorkspace("admin");
     return;
   }
   const start = params.get("start");
@@ -920,9 +920,7 @@ function renderLanding() {
     render();
   });
   document.getElementById("landing-demo")?.addEventListener("click", () => {
-    authScreen = "demo-choose";
-    authError = "";
-    render();
+    enterDemoWorkspace("admin");
   });
 }
 
@@ -1259,9 +1257,7 @@ function renderLogin() {
     render();
   });
   document.getElementById("demo-login")?.addEventListener("click", () => {
-    authScreen = "demo-choose";
-    authError = "";
-    render();
+    enterDemoWorkspace("admin");
   });
 }
 
