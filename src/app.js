@@ -91,6 +91,7 @@ function applyStartLinkIfPresent() {
   quizAnswers = {};
   quizActiveRecordId = null;
   quizResultsPreview = null;
+  quizUpdateMode = false;
   authScreen = "quiz";
   window.history.replaceState({}, "", window.location.pathname);
 }
@@ -127,6 +128,7 @@ let quizConfirmationAction = null;
 let quizActiveRecordId = null;
 let quizResultsPreview = null;
 let inAppProfileCreate = false;
+let quizUpdateMode = false;
 
 // Pre-auth flow: landing -> quiz-choose -> quiz -> register -> verify-sent
 // -> (user clicks emailed link) -> set-password -> authenticated app.
@@ -697,6 +699,7 @@ function renderAdminIntro() {
       quizActiveRecordId = null;
       quizResultsPreview = null;
       inAppProfileCreate = true;
+      quizUpdateMode = false;
       activeView = "complete-profile";
       render();
     });
@@ -831,6 +834,7 @@ function renderSettings() {
           <div><span>Profile status</span><strong>${record ? (complete ? "Complete" : "Needs more detail") : `No ${profileLabel} yet`}</strong></div>
         </div>
         <div class="split-actions">
+          ${record && !isAdmin() ? `<button type="button" class="secondary-btn" data-settings-review-quiz>Review Match Finder answers</button>` : ""}
           ${record && !isAdmin() ? `<button type="button" class="primary-btn" data-settings-edit>${complete ? "Edit my profile" : "Complete my profile"} ${ICONS.arrowRight}</button>` : ""}
           <button type="button" class="secondary-btn" data-settings-logout>Log out</button>
         </div>
@@ -857,12 +861,16 @@ function renderSettings() {
     </section>
   `;
 
+  root.querySelector("[data-settings-review-quiz]")?.addEventListener("click", () => {
+    startExistingCoreQuiz(isBusinessViewer ? "business" : "request", record.id);
+  });
   root.querySelector("[data-settings-edit]")?.addEventListener("click", () => {
     quizAudience = isBusinessViewer ? "business" : "request";
     quizActiveRecordId = record.id;
     quizPhase = "profile";
     quizStep = 0;
     quizAnswers = {};
+    quizUpdateMode = false;
     activeView = "complete-profile";
     render();
   });
@@ -1072,6 +1080,7 @@ function renderQuizChoose() {
       quizAnswers = {};
       quizActiveRecordId = null;
       quizResultsPreview = null;
+      quizUpdateMode = false;
       authScreen = "quiz";
       render();
     });
@@ -1471,6 +1480,10 @@ function isBlankAnswer(question, answer) {
 }
 
 function finishCoreQuiz() {
+  if (quizUpdateMode && quizActiveRecordId) {
+    finishCoreQuizUpdate();
+    return;
+  }
   let createdRecord;
   if (quizAudience === "business") {
     const business = businessFromQuizAnswers();
@@ -1497,6 +1510,7 @@ function finishCoreQuiz() {
     quizConfirmationAction = { type: quizAudience === "business" ? "business" : "request", id: createdRecord.id };
     activeView = quizAudience === "business" ? "businesses" : "requests";
     inAppProfileCreate = false;
+    quizUpdateMode = false;
     authScreen = "app";
     render();
     return;
@@ -1504,6 +1518,45 @@ function finishCoreQuiz() {
   pendingEmail = quizAnswers.contact?.email || "";
   authError = "";
   authScreen = "register";
+  render();
+}
+
+function finishCoreQuizUpdate() {
+  let updatedRecord = null;
+  let conflicts = [];
+  if (quizAudience === "business") {
+    const business = data.businesses.find((item) => item.id === quizActiveRecordId);
+    if (business) {
+      const before = structuredClone(business);
+      conflicts = applyProfilePatch(business, businessCorePatch(), "business");
+      updateBusinessProfile(business);
+      saveData(data);
+      triggerRecordChangeNotification(business, "business", changedRecordFields(before, business));
+      updatedRecord = business;
+    }
+  } else {
+    const request = data.campaignRequests.find((item) => item.id === quizActiveRecordId);
+    if (request) {
+      const before = structuredClone(request);
+      conflicts = applyProfilePatch(request, requestCorePatch(), "request");
+      updateCampaignRequest(request);
+      saveData(data);
+      triggerRecordChangeNotification(request, "request", changedRecordFields(before, request));
+      updatedRecord = request;
+    }
+  }
+  if (updatedRecord) {
+    notifyAdminOfSuggestedMatches(quizAudience, updatedRecord);
+    quizResultsPreview = computeMatchPreview(quizAudience === "business" ? "business" : "request", updatedRecord);
+  }
+  quizConfirmation = conflicts.length
+    ? `Match Finder answers updated. ${conflicts.length} previously client-entered field${conflicts.length === 1 ? "" : "s"} was changed and logged for review.`
+    : "Match Finder answers updated. Your latest answers are now tied to this same profile.";
+  quizConfirmationAction = updatedRecord ? { type: quizAudience === "business" ? "business" : "request", id: updatedRecord.id } : null;
+  quizUpdateMode = false;
+  inAppProfileCreate = false;
+  authScreen = "app";
+  activeView = quizAudience === "business" ? "businesses" : "requests";
   render();
 }
 
@@ -1557,16 +1610,25 @@ function computeMatchPreview(kind, record) {
 }
 
 function renderCompleteProfile() {
-  setTitle(quizAudience === "business" ? "Complete Business Profile" : "Complete Campaign Profile");
+  const isCoreReview = quizPhase === "core" && quizUpdateMode;
+  setTitle(isCoreReview
+    ? (quizAudience === "business" ? "Review Business Match Finder" : "Review Campaign Match Finder")
+    : (quizAudience === "business" ? "Complete Business Profile" : "Complete Campaign Profile"));
   const questions = activeQuestionList();
   const question = questions[quizStep];
   const total = questions.length;
   const progress = Math.round(((quizStep + 1) / total) * 100);
-  const heading = quizAudience === "business" ? "Complete Your Business Profile" : "Complete Your Campaign Profile";
+  const heading = isCoreReview
+    ? (quizAudience === "business" ? "Review Your Business Match Finder Answers" : "Review Your Campaign Match Finder Answers")
+    : (quizAudience === "business" ? "Complete Your Business Profile" : "Complete Your Campaign Profile");
+  const helper = isCoreReview
+    ? "These answers drive matching. Update anything that changed; this will update the same record instead of creating a duplicate."
+    : "Add deeper detail when you're ready. These answers stay tied to the same profile or campaign.";
 
   root.innerHTML = `
     <section class="panel quiz-panel">
       <h2>${heading}</h2>
+      <p class="muted">${helper}</p>
       ${quizQuestionHtml(question, progress, total)}
     </section>
   `;
@@ -1615,6 +1677,28 @@ function requestFromQuizAnswers() {
     status: "new",
     rating: null,
     reviewNote: "",
+  };
+}
+
+function requestCorePatch() {
+  const contact = quizAnswers.contact || {};
+  return {
+    organizationName: quizAnswers.organizationName || "",
+    organizationType: quizAnswers.organizationType || "",
+    contactName: contact.contactName || "",
+    email: contact.email || "",
+    phone: contact.phone || "",
+    campaignDescription: quizAnswers.campaignDescription || "",
+    campaignType: quizAnswers.campaignType || "",
+    fundingGoal: Number(quizAnswers.fundingGoal) || 0,
+    timingPreference: quizAnswers.timingPreference || "",
+    causeArea: quizAnswers.causeArea || "",
+    businessPreference: quizAnswers.preferredCategories?.[0] || "No preference",
+    preferredCategories: quizAnswers.preferredCategories || [],
+    eventType: quizAnswers.campaignType || "",
+    partnershipTypesNeeded: quizAnswers.partnershipTypesNeeded || [],
+    supportNeeds: quizAnswers.supportNeeds || [],
+    geography: quizAnswers.geography || "",
   };
 }
 
@@ -1680,6 +1764,26 @@ function businessFromQuizAnswers() {
     reviewNote: "",
     unavailable: false,
     status: "ready",
+  };
+}
+
+function businessCorePatch() {
+  const contact = quizAnswers.contact || {};
+  return {
+    name: quizAnswers.name || "",
+    contactName: contact.contactName || "",
+    email: contact.email || "",
+    phone: contact.phone || "",
+    category: quizAnswers.category || "",
+    pricingPoint: quizAnswers.pricingPoint || "",
+    businessGoals: quizAnswers.businessGoals || [],
+    serviceAreas: splitSelections(quizAnswers.serviceAreas),
+    causeAreas: quizAnswers.causeAreas || [],
+    partnershipTypes: quizAnswers.partnershipTypes || [],
+    offerTypes: quizAnswers.offerTypes || [],
+    minimumOrderRequirement: Number(quizAnswers.minimumOrderRequirement) || 0,
+    estimatedUnitContribution: Number(quizAnswers.estimatedUnitContribution) || 0,
+    availabilityPreference: quizAnswers.availabilityPreference || "",
   };
 }
 
@@ -2129,9 +2233,69 @@ function startNewProfileQuiz(kind = "request") {
   quizActiveRecordId = null;
   quizResultsPreview = null;
   inAppProfileCreate = true;
+  quizUpdateMode = false;
   authScreen = "app";
   activeView = "complete-profile";
   render();
+}
+
+function startExistingCoreQuiz(kind, recordId) {
+  const record = kind === "business"
+    ? data.businesses.find((item) => item.id === recordId)
+    : data.campaignRequests.find((item) => item.id === recordId);
+  if (!record) return;
+  quizAudience = kind === "business" ? "business" : "request";
+  quizPhase = "core";
+  quizStep = 0;
+  quizAnswers = coreAnswersFromRecord(record, kind);
+  quizActiveRecordId = record.id;
+  quizResultsPreview = null;
+  inAppProfileCreate = false;
+  quizUpdateMode = true;
+  authScreen = "app";
+  activeView = "complete-profile";
+  render();
+}
+
+function coreAnswersFromRecord(record, kind) {
+  if (kind === "business") {
+    return {
+      name: record.name || "",
+      category: record.category || "",
+      causeAreas: record.causeAreas || [],
+      offerTypes: record.offerTypes || [],
+      partnershipTypes: record.partnershipTypes || [],
+      serviceAreas: (record.serviceAreas || []).join(", "),
+      minimumOrderRequirement: String(record.minimumOrderRequirement || ""),
+      availabilityPreference: record.availabilityPreference || "",
+      businessGoals: record.businessGoals || [],
+      pricingPoint: record.pricingPoint || "",
+      estimatedUnitContribution: String(record.estimatedUnitContribution || ""),
+      contact: {
+        contactName: record.contactName || "",
+        email: record.email || myEmail(),
+        phone: record.phone || "",
+      },
+    };
+  }
+  return {
+    organizationName: record.organizationName || "",
+    organizationType: record.organizationType || "",
+    campaignDescription: record.campaignDescription || "",
+    campaignType: record.campaignType || record.eventType || "",
+    fundingGoal: String(record.fundingGoal || ""),
+    timingPreference: record.timingPreference || "",
+    causeArea: record.causeArea || "",
+    preferredCategories: record.preferredCategories?.length ? record.preferredCategories : [record.businessPreference || "No preference"],
+    partnershipTypesNeeded: record.partnershipTypesNeeded || [],
+    supportNeeds: record.supportNeeds || [],
+    geography: record.geography || "",
+    contact: {
+      contactName: record.contactName || "",
+      email: record.email || myEmail(),
+      phone: record.phone || "",
+    },
+  };
 }
 
 function sortCampaignRequests(requests) {
@@ -2405,8 +2569,14 @@ function wireCompleteProfileLinks() {
       quizPhase = "profile";
       quizStep = 0;
       quizAnswers = {};
+      quizUpdateMode = false;
       activeView = "complete-profile";
       render();
+    });
+  });
+  root.querySelectorAll("[data-review-quiz]").forEach((button) => {
+    button.addEventListener("click", () => {
+      startExistingCoreQuiz(button.dataset.reviewQuiz, button.dataset.recordId);
     });
   });
 }
@@ -4050,7 +4220,7 @@ function requestCard(request, { showCompleteProfile = false, adminDirectory = fa
         <span class="tag">${escapeHtml(campaignStage(request))}</span>
       </div>
       <div class="directory-card-footer">
-        ${adminDirectory ? `<div class="directory-card-actions"><button type="button" class="link-btn" data-view-entity data-entity-type="request" data-entity-id="${escapeHtml(request.id)}">View details ${ICONS.arrowRight}</button><button type="button" class="secondary-btn" data-complete-profile="request" data-record-id="${escapeHtml(request.id)}">Edit profile</button><button type="button" class="secondary-btn" data-send-quiz-invite data-record-kind="request" data-record-id="${escapeHtml(request.id)}">Send quiz invite</button></div>` : showCompleteProfile ? `<button type="button" class="link-btn" data-complete-profile="request" data-record-id="${escapeHtml(request.id)}">Complete profile ${ICONS.arrowRight}</button>` : `<button type="button" class="link-btn" data-view-entity data-entity-type="request" data-entity-id="${escapeHtml(request.id)}">View details ${ICONS.arrowRight}</button>`}
+        ${adminDirectory ? `<div class="directory-card-actions"><button type="button" class="link-btn" data-view-entity data-entity-type="request" data-entity-id="${escapeHtml(request.id)}">View details ${ICONS.arrowRight}</button><button type="button" class="secondary-btn" data-review-quiz="request" data-record-id="${escapeHtml(request.id)}">Review Match Finder answers</button><button type="button" class="secondary-btn" data-complete-profile="request" data-record-id="${escapeHtml(request.id)}">Edit profile</button><button type="button" class="secondary-btn" data-send-quiz-invite data-record-kind="request" data-record-id="${escapeHtml(request.id)}">Send quiz invite</button></div>` : showCompleteProfile ? `<div class="directory-card-actions"><button type="button" class="link-btn" data-review-quiz="request" data-record-id="${escapeHtml(request.id)}">Review Match Finder answers ${ICONS.arrowRight}</button><button type="button" class="secondary-btn" data-complete-profile="request" data-record-id="${escapeHtml(request.id)}">Complete profile</button></div>` : `<button type="button" class="link-btn" data-view-entity data-entity-type="request" data-entity-id="${escapeHtml(request.id)}">View details ${ICONS.arrowRight}</button>`}
       </div>
       ${request.successDetails ? `<p class="small-note directory-outcome">Outcome: ${escapeHtml(request.successDetails)}</p>` : ""}
     </article>
@@ -4097,7 +4267,7 @@ function businessCard(business, { showCompleteProfile = false, adminDirectory = 
         ${[...(business.causeAreas || []), ...(business.contributionTypes || []), ...(business.offerTypes || []), ...(business.fulfillmentOptions || [])].map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}
       </div>
       <div class="directory-card-footer">
-        ${adminDirectory ? `<div class="directory-card-actions"><button type="button" class="link-btn" data-view-entity data-entity-type="business" data-entity-id="${escapeHtml(business.id)}">View details ${ICONS.arrowRight}</button><button type="button" class="secondary-btn" data-complete-profile="business" data-record-id="${escapeHtml(business.id)}">Edit profile</button><button type="button" class="secondary-btn" data-send-quiz-invite data-record-kind="business" data-record-id="${escapeHtml(business.id)}">Send quiz invite</button></div>` : showCompleteProfile ? `<button type="button" class="link-btn" data-complete-profile="business" data-record-id="${escapeHtml(business.id)}">Complete profile ${ICONS.arrowRight}</button>` : `<button type="button" class="link-btn" data-view-entity data-entity-type="business" data-entity-id="${escapeHtml(business.id)}">View details ${ICONS.arrowRight}</button>`}
+        ${adminDirectory ? `<div class="directory-card-actions"><button type="button" class="link-btn" data-view-entity data-entity-type="business" data-entity-id="${escapeHtml(business.id)}">View details ${ICONS.arrowRight}</button><button type="button" class="secondary-btn" data-review-quiz="business" data-record-id="${escapeHtml(business.id)}">Review Match Finder answers</button><button type="button" class="secondary-btn" data-complete-profile="business" data-record-id="${escapeHtml(business.id)}">Edit profile</button><button type="button" class="secondary-btn" data-send-quiz-invite data-record-kind="business" data-record-id="${escapeHtml(business.id)}">Send quiz invite</button></div>` : showCompleteProfile ? `<div class="directory-card-actions"><button type="button" class="link-btn" data-review-quiz="business" data-record-id="${escapeHtml(business.id)}">Review Match Finder answers ${ICONS.arrowRight}</button><button type="button" class="secondary-btn" data-complete-profile="business" data-record-id="${escapeHtml(business.id)}">Complete profile</button></div>` : `<button type="button" class="link-btn" data-view-entity data-entity-type="business" data-entity-id="${escapeHtml(business.id)}">View details ${ICONS.arrowRight}</button>`}
       </div>
     </article>
   `;
