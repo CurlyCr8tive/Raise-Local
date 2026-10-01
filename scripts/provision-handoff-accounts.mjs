@@ -13,34 +13,49 @@ function password() {
   return `RaiseLocal${randomBytes(4).toString("hex")}!26`;
 }
 
+function hasArg(name) {
+  return process.argv.includes(name);
+}
+
+function accountPassword(prefix) {
+  return hasArg(`${prefix}-password`) ? argValue(`${prefix}-password`, "") : "";
+}
+
 const accounts = [
   {
     label: "Tenyse admin",
-    email: argValue("--tenyse-email", "tenyse@verifiedconsulting.com").trim().toLowerCase(),
+    email: argValue("--tenyse-email", "").trim().toLowerCase(),
     name: argValue("--tenyse-name", "Tenyse Williams").trim(),
     role: "admin",
-    password: argValue("--tenyse-password", password()),
+    password: accountPassword("--tenyse"),
+  },
+  {
+    label: "Developer admin",
+    email: argValue("--developer-email", "").trim().toLowerCase(),
+    name: argValue("--developer-name", "Developer Admin").trim(),
+    role: "admin",
+    password: accountPassword("--developer"),
   },
   {
     label: "Jessica tester/admin",
     email: argValue("--jessica-email", "").trim().toLowerCase(),
     name: argValue("--jessica-name", "Jessica").trim(),
     role: "admin",
-    password: argValue("--jessica-password", password()),
+    password: accountPassword("--jessica"),
   },
   {
     label: "Internal nonprofit test",
     email: argValue("--nonprofit-email", "").trim().toLowerCase(),
     name: argValue("--nonprofit-name", "Internal Nonprofit Test").trim(),
     role: "nonprofit",
-    password: argValue("--nonprofit-password", password()),
+    password: accountPassword("--nonprofit"),
   },
   {
     label: "Internal business test",
     email: argValue("--business-email", "").trim().toLowerCase(),
     name: argValue("--business-name", "Internal Business Test").trim(),
     role: "business",
-    password: argValue("--business-password", password()),
+    password: accountPassword("--business"),
   },
 ].filter((account) => account.email);
 
@@ -75,19 +90,22 @@ async function applyAccount(account) {
   const appMetadata = { ...(existing?.app_metadata || {}) };
   if (account.role === "admin") appMetadata.role = "admin";
   else userMetadata.role = account.role;
-  if (!WRITE) return { ...account, exists: Boolean(existing), id: existing?.id || "(created on --write)" };
+  const assignedPassword = account.password || (existing ? "" : password());
+  if (!WRITE) return { ...account, password: assignedPassword || "(unchanged)", exists: Boolean(existing), id: existing?.id || "(created on --write)" };
   if (existing) {
+    const body = { email_confirm: true, user_metadata: userMetadata, app_metadata: appMetadata };
+    if (assignedPassword) body.password = assignedPassword;
     await admin.auth(`/users/${existing.id}`, {
       method: "PUT",
-      body: { password: account.password, email_confirm: true, user_metadata: userMetadata, app_metadata: appMetadata },
+      body,
     });
-    return { ...account, exists: true, id: existing.id };
+    return { ...account, password: assignedPassword || "(unchanged)", exists: true, id: existing.id };
   }
   const created = await admin.auth("/users", {
     method: "POST",
-    body: { email: account.email, password: account.password, email_confirm: true, user_metadata: userMetadata, app_metadata: appMetadata },
+    body: { email: account.email, password: assignedPassword, email_confirm: true, user_metadata: userMetadata, app_metadata: appMetadata },
   });
-  return { ...account, exists: false, id: created.id };
+  return { ...account, password: assignedPassword, exists: false, id: created.id };
 }
 
 const applied = [];
