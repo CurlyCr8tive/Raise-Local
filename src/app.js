@@ -3195,7 +3195,7 @@ function triageCard(match, isBusinessViewer) {
             <button type="button" class="triage-btn approve" data-decision="approve" aria-label="Approve this match">${ICONS.check}<span>Approve</span></button>
           </div>
         </div>
-        <div class="flip-card-back">
+        <div class="flip-card-back" aria-hidden="true">
           <span class="flip-check">${ICONS.check}</span>
           <h3>Your decision is recorded.</h3>
           <p class="muted">The other side can now review the opportunity. When both sides approve, Raise Local coordinates outreach.</p>
@@ -3217,6 +3217,7 @@ function wireMatchTriageCards(freshMatches) {
           render();
           return;
         }
+        cardEl.querySelector(".flip-card-back")?.setAttribute("aria-hidden", "false");
         cardEl.classList.add("is-flipped");
         setTimeout(() => {
           respondToMatch(match, decision);
