@@ -240,8 +240,7 @@ function demoAccessAllowed(req, url) {
 
 function injectRuntimeConfig(content, req, url) {
   const demoEnabled = url.searchParams.has("demo") && demoAccessAllowed(req, url);
-  const config = `<script>window.RAISE_LOCAL_DEMO_ENABLED=${demoEnabled ? "true" : "false"};</script>`;
-  return String(content).replace("</head>", `  ${config}\n</head>`);
+  return String(content).replace("<html ", `<html data-demo-enabled="${demoEnabled ? "true" : "false"}" `);
 }
 
 function appendAppLink(text, req) {

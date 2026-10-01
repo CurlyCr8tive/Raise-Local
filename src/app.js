@@ -41,6 +41,7 @@ import { emptyState, wireEmptyStates } from "./ui.js";
 
 function demoAccessAllowed() {
   return window.RAISE_LOCAL_DEMO_ENABLED === true
+    || document.documentElement.dataset.demoEnabled === "true"
     || ["localhost", "127.0.0.1"].includes(window.location.hostname);
 }
 
