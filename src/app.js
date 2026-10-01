@@ -34,7 +34,7 @@ import {
   updateCampaignRequest,
 } from "./remote-sync.js";
 import { supabase } from "./supabase-client.js";
-import { HERO_PHOTO, businessPhoto, isBrandAsset, requestPhoto } from "./photos.js?v=photos-2";
+import { HERO_PHOTO, businessPhoto, isBrandAsset, requestPhoto } from "./photos.js?v=photos-3";
 import { ICONS } from "./icons.js";
 import { escapeHtml, formatDateTime, statusLabel } from "./format.js";
 import { emptyState, wireEmptyStates } from "./ui.js";
@@ -1407,7 +1407,7 @@ function quizSuggestions(question) {
     idealSize: ["50", "100", "250"],
     mustHaves: ["Local service area, reliable communication, and capacity for the campaign size."],
     niceToHaves: ["Pickup or delivery, social promotion, and flexible campaign dates."],
-    name: ["Yamaas Olive Oil & Vinegar", "Sofia & Grace", "Paper Porch Goods"],
+    name: ["Yamaas Olive Oil & Vinegar", "Sofia & Grace", "First Choice Brew"],
     pricingPoint: ["$15-$40", "$25-$75", "$50-$120"],
     serviceAreas: ["Brooklyn, Queens", "Manhattan", "New York City"],
     minimumOrderRequirement: ["50", "100", "250"],

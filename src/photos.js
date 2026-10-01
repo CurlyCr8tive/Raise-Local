@@ -59,8 +59,6 @@ const BUSINESS_PHOTO_OVERRIDES = {
   "biz-bankhead-seafood": "assets/bankhead-seafood.png",
   "biz-glaciers-italian-ice": "assets/glaciers-italian-ice.webp",
   "business-fe9b3739-59c6-411d-b1df-c8222bf888ca": "assets/lead-image-pending.svg",
-  // Unique, category-specific fallbacks for seeded partners without supplied imagery.
-  "biz-paper-porch": unsplash("1521335629791-ce4aec67dd15"),
 };
 
 // Older browser/demo records may have a different id. Name fallbacks keep
@@ -103,7 +101,7 @@ const REQUEST_NAME_PHOTO_OVERRIDES = {
 };
 
 export function isBrandAsset(photo) {
-  return ["assets/eyeland-vibes.webp", "assets/first-choice-brew.webp", "assets/grove-park-foundation.jpg", "assets/lead-image-pending.svg", "assets/sofia-grace.png", "assets/unity-now-supplied.png"].includes(photo);
+  return String(photo || "").startsWith("assets/");
 }
 
 export function businessPhoto(business) {
