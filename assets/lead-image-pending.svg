@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" role="img" aria-labelledby="title desc">
+  <title id="title">Image pending</title>
+  <desc id="desc">Branded placeholder for public lead research records without a verified image.</desc>
+  <rect width="640" height="420" fill="#004030"/>
+  <circle cx="105" cy="95" r="52" fill="#f6892a"/>
+  <circle cx="540" cy="335" r="42" fill="#c9e2d5"/>
+  <path d="M128 296c70-78 157-118 260-118 51 0 93 10 126 30" fill="none" stroke="#c9e2d5" stroke-width="9" stroke-linecap="round" opacity=".55"/>
+  <rect x="178" y="136" width="284" height="148" rx="14" fill="#f7fbf8"/>
+  <path d="M232 237V176h52v61h-17v-31h-18v31h-17Zm84 0v-61h48c14 0 25 4 33 12 8 7 12 17 12 30s-4 23-12 31c-8 8-19 12-33 12h-48Zm17-15h30c9 0 16-2 21-7 5-4 7-10 7-17s-2-13-7-17c-5-4-12-6-21-6h-30Z" fill="#004030"/>
+  <text x="320" y="322" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="26" font-weight="800" fill="#f7fbf8">Public lead image pending</text>
+</svg>

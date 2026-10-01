@@ -34,7 +34,7 @@ import {
   updateCampaignRequest,
 } from "./remote-sync.js";
 import { supabase } from "./supabase-client.js";
-import { HERO_PHOTO, businessPhoto, isBrandAsset, requestPhoto } from "./photos.js";
+import { HERO_PHOTO, businessPhoto, isBrandAsset, requestPhoto } from "./photos.js?v=photos-2";
 import { ICONS } from "./icons.js";
 import { escapeHtml, formatDateTime, statusLabel } from "./format.js";
 import { emptyState, wireEmptyStates } from "./ui.js";

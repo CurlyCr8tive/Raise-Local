@@ -54,6 +54,11 @@ const BUSINESS_PHOTO_OVERRIDES = {
   "biz-sofia-grace": "assets/sofia-grace.png",
   "biz-billee-redd-hospitality": "assets/billee-redd-hospitality.png",
   "biz-paco-tacos-atl": "assets/paco-tacos-atl.png",
+  "biz-casa-de-luz": "assets/casa-de-luz.webp",
+  "biz-kenekt-cooperative": "assets/kenekt-cooperative.jpg",
+  "biz-bankhead-seafood": "assets/bankhead-seafood.png",
+  "biz-glaciers-italian-ice": "assets/glaciers-italian-ice.webp",
+  "business-fe9b3739-59c6-411d-b1df-c8222bf888ca": "assets/lead-image-pending.svg",
   // Unique, category-specific fallbacks for seeded partners without supplied imagery.
   "biz-paper-porch": unsplash("1521335629791-ce4aec67dd15"),
 };
@@ -69,6 +74,15 @@ const BUSINESS_NAME_PHOTO_OVERRIDES = {
   "billee redd hospitality": "assets/billee-redd-hospitality.png",
   "paco tacos atl (potential lead)": "assets/paco-tacos-atl.png",
   "paco tacos atl": "assets/paco-tacos-atl.png",
+  "casa de luz (potential lead)": "assets/casa-de-luz.webp",
+  "casa de luz": "assets/casa-de-luz.webp",
+  "the ke'nekt cooperative (potential lead)": "assets/kenekt-cooperative.jpg",
+  "the ke'nekt cooperative": "assets/kenekt-cooperative.jpg",
+  "bankhead seafood (potential lead)": "assets/bankhead-seafood.png",
+  "bankhead seafood": "assets/bankhead-seafood.png",
+  "glaciers italian ice (potential lead)": "assets/glaciers-italian-ice.webp",
+  "glaciers italian ice": "assets/glaciers-italian-ice.webp",
+  "candle light care home health services": "assets/lead-image-pending.svg",
 };
 
 const REQUEST_PHOTO_OVERRIDES = {
@@ -89,7 +103,7 @@ const REQUEST_NAME_PHOTO_OVERRIDES = {
 };
 
 export function isBrandAsset(photo) {
-  return ["assets/eyeland-vibes.webp", "assets/first-choice-brew.webp", "assets/grove-park-foundation.jpg", "assets/sofia-grace.png", "assets/unity-now-supplied.png"].includes(photo);
+  return ["assets/eyeland-vibes.webp", "assets/first-choice-brew.webp", "assets/grove-park-foundation.jpg", "assets/lead-image-pending.svg", "assets/sofia-grace.png", "assets/unity-now-supplied.png"].includes(photo);
 }
 
 export function businessPhoto(business) {
