@@ -40,7 +40,8 @@ import { escapeHtml, formatDateTime, statusLabel } from "./format.js";
 import { emptyState, wireEmptyStates } from "./ui.js";
 
 function demoAccessAllowed() {
-  return window.RAISE_LOCAL_DEMO_ENABLED === true || ["localhost", "127.0.0.1"].includes(window.location.hostname);
+  return window.RAISE_LOCAL_DEMO_ENABLED === true
+    || ["localhost", "127.0.0.1"].includes(window.location.hostname);
 }
 
 function demoEmailForRole(role) {
@@ -900,6 +901,7 @@ function renderPreAuth() {
 function renderLanding() {
   const canUseDemo = demoAccessAllowed();
   const demoRequested = new URLSearchParams(window.location.search).has("demo");
+  const useDemoEntry = demoRequested && canUseDemo;
   root.innerHTML = `
     <div class="landing-scene">
       ${communityNetworkSvg()}
@@ -909,16 +911,16 @@ function renderLanding() {
         <h2>Welcome to Raise Local.</h2>
         <p class="landing-copy">Raise Local helps nonprofits find local businesses ready to support their campaigns. Answer a few questions to find partners that fit your goals, location, and timing.</p>
         <div class="landing-actions">
-          <button class="primary-btn" type="button" id="landing-start">Find a Partner</button>
-          <button class="secondary-btn" type="button" id="landing-login">Log in</button>
-          ${canUseDemo ? `<button class="link-btn" type="button" id="landing-demo">View Demo</button>` : ""}
+          ${useDemoEntry
+            ? `<button class="primary-btn" type="button" id="landing-demo">Enter Demo Workspace</button><button class="secondary-btn" type="button" id="landing-login">Use Real Login</button>`
+            : `<button class="primary-btn" type="button" id="landing-start">Find a Partner</button><button class="secondary-btn" type="button" id="landing-login">Log in</button>${canUseDemo ? `<button class="link-btn" type="button" id="landing-demo">View Demo</button>` : ""}`}
         </div>
-        ${demoRequested && !canUseDemo ? `<p class="form-note demo-access-note">Demo Mode: Owner / Admin / Developer</p>` : ""}
+        ${demoRequested ? `<p class="form-note demo-access-note">Demo Mode: Owner / Admin / Developer</p>` : ""}
         ${authError ? `<p class="form-error" role="alert">${escapeHtml(authError)}</p>` : ""}
       </section>
     </div>
   `;
-  document.getElementById("landing-start").addEventListener("click", () => {
+  document.getElementById("landing-start")?.addEventListener("click", () => {
     authScreen = "quiz-choose";
     authError = "";
     render();

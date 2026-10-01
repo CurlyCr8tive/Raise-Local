@@ -18,6 +18,10 @@ const SUPABASE_URL = process.env.SUPABASE_URL || "https://ojirczskecmcwpkwiomq.s
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY ||
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qaXJjenNrZWNtY3dwa3dpb21xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkxMzA0NzQsImV4cCI6MjEwNDcwNjQ3NH0.2pkWYVEZUyKSOby0HoefiyX-a32B_9KRjk0MnNEva3U";
 const DEMO_ACCESS_TOKEN = String(process.env.DEMO_ACCESS_TOKEN || "").trim();
+const DEMO_ACCESS_TOKENS = new Set([
+  DEMO_ACCESS_TOKEN,
+  ...String(process.env.DEMO_ACCESS_TOKEN_FALLBACKS || "").split(",").map((token) => token.trim()),
+].filter(Boolean));
 
 function loadEnvFile(path) {
   if (!existsSync(path)) return;
@@ -230,7 +234,8 @@ function publicAppUrl(req) {
 function demoAccessAllowed(req, url) {
   const host = String(req.headers.host || "").split(":")[0];
   if (["localhost", "127.0.0.1"].includes(host)) return true;
-  return Boolean(DEMO_ACCESS_TOKEN && url.searchParams.get("demo_token") === DEMO_ACCESS_TOKEN);
+  const token = String(url.searchParams.get("demo_token") || "");
+  return DEMO_ACCESS_TOKENS.has(token);
 }
 
 function injectRuntimeConfig(content, req, url) {
