@@ -1604,6 +1604,7 @@ textarea {
   margin-left: auto;
   margin-right: auto;
   max-width: 1080px;
+  text-align: center;
 }
 
 .intro-hero {
@@ -2273,6 +2274,7 @@ body.no-sidebar .view-root {
   margin-right: auto;
   margin-bottom: 0;
   max-width: 980px;
+  text-align: center;
 }
 
 .loop-list {
@@ -2412,6 +2414,7 @@ body.no-sidebar .view-root {
 }
 
 .dashboard-hero-reference .hero-copy {
+  justify-self: center;
   text-align: center;
 }
 
