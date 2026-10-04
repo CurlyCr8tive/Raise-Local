@@ -11,17 +11,32 @@ const DECISION_STAGES = [
 ];
 
 function normalize(value) {
-  return String(value || "").trim().toLowerCase();
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/\s+/g, " ");
+}
+
+function expandMatchTerm(value) {
+  const normalized = normalize(value);
+  const expanded = new Set([normalized]);
+  if (normalized === "community event") {
+    expanded.add("event sponsorship");
+    expanded.add("hosted event");
+    expanded.add("event activation");
+  }
+  return [...expanded];
 }
 
 function overlaps(left = [], right = []) {
-  const rightSet = new Set(right.map(normalize));
-  return left.map(normalize).some((item) => rightSet.has(item));
+  const rightSet = new Set(right.flatMap(expandMatchTerm));
+  return left.flatMap(expandMatchTerm).some((item) => rightSet.has(item));
 }
 
 function overlapCount(left = [], right = []) {
-  const rightSet = new Set(right.map(normalize));
-  return left.map(normalize).filter((item) => rightSet.has(item)).length;
+  const rightSet = new Set(right.flatMap(expandMatchTerm));
+  return left.flatMap(expandMatchTerm).filter((item) => rightSet.has(item)).length;
 }
 
 function splitGeo(value) {

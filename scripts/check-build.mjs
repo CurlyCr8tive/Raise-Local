@@ -64,6 +64,8 @@ function assertMatchingRules() {
     "Capacity range can cover the expected participation",
   ]);
   assert.equal(buildMatches([request], [business])[0].total, 100);
+  assert.equal(scoreMatch({ ...request, supportNeeds: ["Food & beverage"] }, { ...business, offerTypes: ["Food and beverage"] }).rejected, false);
+  assert.equal(scoreMatch({ ...request, partnershipTypesNeeded: ["Community event"] }, { ...business, partnershipTypes: ["Hosted event"] }).rejected, false);
   const blockedByLocation = scoreMatch({ ...request, geography: "Bronx" }, business);
   assert.equal(blockedByLocation.rejected, true);
   assert.equal(blockedByLocation.label, "Not a fit");
@@ -72,14 +74,21 @@ function assertMatchingRules() {
 }
 
 function assertDemoMatchingBoundaries() {
+  const storageSource = readFileSync(join(root, "src/storage.js"), "utf8");
   const grovePark = DEMO_DATA.campaignRequests.find((request) => request.id === "request-grove-park");
+  const unityNow = DEMO_DATA.campaignRequests.find((request) => request.id === "request-unity-now");
   const yesAcademy = DEMO_DATA.campaignRequests.find((request) => request.id === "request-young-excellence");
   const sofiaGrace = DEMO_DATA.businesses.find((business) => business.id === "biz-sofia-grace");
   const atlantaLead = DEMO_DATA.businesses.find((business) => business.id === "biz-paco-tacos-atl");
+  const dmvLead = DEMO_DATA.businesses.find((business) => business.id === "biz-busboys-and-poets");
   assert.ok(grovePark, "Grove Park fixture is required for presentation QA.");
+  assert.ok(unityNow, "UNITYNow fixture is required for DMV demo QA.");
   assert.ok(yesAcademy, "YES Academy fixture is required for backup demo QA.");
   assert.ok(sofiaGrace, "Sofia & Grace fixture is required for backup demo QA.");
   assert.ok(atlantaLead, "Atlanta potential lead fixture is required for Grove Park QA.");
+  assert.ok(dmvLead, "DMV potential lead fixture is required for UNITYNow QA.");
+  assert.ok(storageSource.includes('"request-unity-now"'), "UNITYNow must stay included in the demo workspace allowlist.");
+  assert.ok(storageSource.includes('"biz-busboys-and-poets"'), "DMV leads must stay included in the demo workspace allowlist.");
 
   const brooklynBusiness = {
     id: "brooklyn-business",

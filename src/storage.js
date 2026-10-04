@@ -739,8 +739,22 @@ export const DEMO_DATA = {
 
 // Keep rehearsal records isolated from live account data while preserving the
 // named presentation records in the demo workspace.
-const DEMO_REQUEST_IDS = new Set(["request-grove-park", "request-young-excellence"]);
-const DEMO_BUSINESS_IDS = new Set(["business-fe9b3739-59c6-411d-b1df-c8222bf888ca", "biz-paco-tacos-atl", "biz-casa-de-luz", "biz-kenekt-cooperative", "biz-bankhead-seafood", "biz-billee-redd-hospitality", "biz-glaciers-italian-ice", "biz-sofia-grace"]);
+const DEMO_REQUEST_IDS = new Set(["request-grove-park", "request-unity-now", "request-young-excellence"]);
+const DEMO_BUSINESS_IDS = new Set([
+  "business-fe9b3739-59c6-411d-b1df-c8222bf888ca",
+  "biz-paco-tacos-atl",
+  "biz-mahoganybooks",
+  "biz-busboys-and-poets",
+  "biz-spice-suite",
+  "biz-the-museum-dc",
+  "biz-washington-informer",
+  "biz-casa-de-luz",
+  "biz-kenekt-cooperative",
+  "biz-bankhead-seafood",
+  "biz-billee-redd-hospitality",
+  "biz-glaciers-italian-ice",
+  "biz-sofia-grace",
+]);
 
 function isMockEmail(email) {
   return /\.example$/i.test(String(email || "").trim());
