@@ -156,21 +156,56 @@ The build can send Gmail notifications for suggested matches, client approvals, 
    curl -s http://localhost:4102/api/gmail/status
    ```
 
-9. Use `GMAIL_TEST_RECIPIENT_EMAIL` with `/api/gmail/send-test` for an isolated delivery test. Do not use Tenyse's or a real client's address for repeated testing.
+9. Set `GMAIL_TEST_RECIPIENT_EMAIL` to a pilot inbox before using `/api/gmail/send-test`. This keeps delivery checks away from Tenyse and real clients while still proving Gmail works end to end.
 10. From an authenticated admin account, use **Send quiz invite** on a campaign request or business profile. The invite goes to the record owner and configured admin recipients.
 11. Create or use a completed nonprofit or business intake that produces a match. The suggested-match email goes to both participating records and configured admin recipients.
 12. Approve, hold, or decline from a client account. The decision email goes to both participating records and configured admin recipients. When both sides approve, the mutual-approval email explains the next Outreach step.
 13. Move the match through outreach sent, partnership confirmed, active, and completed. Each status change is emailed to the same parties. Edits to an existing client record notify the record owner, any matched counterpart, and configured admin recipients. Each message includes `APP_BASE_URL` as the login link.
 
-Current local status as of September 28, 2026:
+### Notification map
+
+Owner/admin/developer users should be notified when:
+
+- A nonprofit or business completes the intro quiz.
+- A new suggested match is ready for review.
+- A client approves, holds, or declines a match.
+- Both sides approve a match.
+- A match status changes.
+- A shared note/comment is added.
+- Important profile/campaign fields change, especially timing, capacity, status, lead time, or campaign dates.
+
+Nonprofits should be notified when:
+
+- Their verification/login email is sent after quiz submission.
+- They receive or can review a new match.
+- The business approves, holds, or declines a match.
+- Both sides approve and next steps begin.
+- The match status changes.
+- A shared note is added.
+- Their campaign/profile is updated by an admin.
+- They are prompted after completion to rate the business/partnership.
+
+Small businesses should be notified when:
+
+- Their verification/login email is sent after quiz submission.
+- They receive or can review a nonprofit match.
+- The nonprofit approves, holds, or declines a match.
+- Both sides approve and intro/outreach begins.
+- The match status changes.
+- A shared note is added.
+- Their business profile is updated by an admin.
+- They are prompted after completion to rate the nonprofit/partnership.
+
+Current local status as of October 5, 2026:
 
 ```text
-Gmail configured: no
-Gmail connected: no
-Notification recipient configured: no
+Gmail configured: yes
+Gmail connected: yes
+Notification recipient configured: yes
+Test recipient configured: yes, using a pilot inbox for delivery checks
 ```
 
-This is expected until Verified Consulting supplies or owns the Google Cloud OAuth client and sender Gmail account.
+Hosted production must repeat this setup in Render environment variables using Verified Consulting-owned Google Cloud credentials and the approved sender account.
 
 The OAuth refresh token is stored in the ignored local `.gmail-token.json` file. Never commit it. For hosted use, keep that token and all Google credentials on the server, and allowlist only the real deployed origin.
 

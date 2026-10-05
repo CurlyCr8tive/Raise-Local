@@ -183,17 +183,39 @@ Gmail notification sending requires:
 - Deployed redirect URI added to the OAuth client.
 - Gmail sender account authorization.
 - Refresh token stored in Render as `GMAIL_REFRESH_TOKEN`.
+- A pilot delivery inbox configured as `GMAIL_TEST_RECIPIENT_EMAIL` before test sends.
 
-The application should send notifications for:
+Owner/admin/developer users should be notified when:
 
-- New intake/quiz completion.
-- Suggested match creation.
-- Nonprofit decision.
-- Business decision.
-- Mutual approval.
-- Outreach/status changes.
-- Shared notes/comments.
-- Record edits that affect a campaign, business profile, or match.
+- A nonprofit or business completes the intro quiz.
+- A new suggested match is ready for review.
+- A client approves, holds, or declines a match.
+- Both sides approve a match.
+- A match status changes.
+- A shared note/comment is added.
+- Important profile/campaign fields change, especially timing, capacity, status, lead time, or campaign dates.
+
+Nonprofits should be notified when:
+
+- Their verification/login email is sent after quiz submission.
+- They receive or can review a new match.
+- The business approves, holds, or declines a match.
+- Both sides approve and next steps begin.
+- The match status changes.
+- A shared note is added.
+- Their campaign/profile is updated by an admin.
+- They are prompted after completion to rate the business/partnership.
+
+Small businesses should be notified when:
+
+- Their verification/login email is sent after quiz submission.
+- They receive or can review a nonprofit match.
+- The nonprofit approves, holds, or declines a match.
+- Both sides approve and intro/outreach begins.
+- The match status changes.
+- A shared note is added.
+- Their business profile is updated by an admin.
+- They are prompted after completion to rate the nonprofit/partnership.
 
 ## 12. What To Test In The Handoff Meeting
 
@@ -236,4 +258,3 @@ Use this sequence:
 9. Agree on next priority: Gmail test, image cleanup, Google Places Phase 2, or
    PR platform handoff.
 10. Confirm what will be sent after the meeting.
-

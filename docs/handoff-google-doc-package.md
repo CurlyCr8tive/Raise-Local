@@ -102,8 +102,31 @@ GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 GOOGLE_REDIRECT_URI=https://YOUR_DEPLOYED_DOMAIN/api/gmail/oauth2callback
 GMAIL_NOTIFICATION_EMAIL=tenyse-or-admin-inbox@example.com
+GMAIL_TEST_RECIPIENT_EMAIL=pilot-test-inbox@example.com
 GMAIL_ALLOWED_ORIGINS=https://YOUR_DEPLOYED_DOMAIN
 ```
+
+Use `GMAIL_TEST_RECIPIENT_EMAIL` for `/api/gmail/send-test` before sending
+anything to Tenyse or client inboxes.
+
+### Notification map
+
+Owner/admin/developer users should be notified when a nonprofit or business
+completes the intro quiz, a suggested match is ready for review, a client
+approves/holds/declines, both sides approve, a match status changes, a shared
+note/comment is added, or important campaign/profile fields change.
+
+Nonprofits should be notified when their verification/login email is sent, they
+can review a new match, the business approves/holds/declines, both sides approve
+and next steps begin, the match status changes, a shared note is added, their
+campaign/profile is updated by an admin, or the completed partnership is ready
+for a business rating.
+
+Small businesses should be notified when their verification/login email is sent,
+they can review a nonprofit match, the nonprofit approves/holds/declines, both
+sides approve and intro/outreach begins, the match status changes, a shared note
+is added, their profile is updated by an admin, or the completed partnership is
+ready for a nonprofit rating.
 
 Then open:
 

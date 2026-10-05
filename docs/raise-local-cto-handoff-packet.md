@@ -147,6 +147,25 @@ separate pilot inbox or test account, not Tenyse or a real client. Live workflow
 notifications use `GMAIL_NOTIFICATION_EMAIL`, the record owner's email, and
 the configured admin recipients.
 
+### Notification map
+
+Owner/admin/developer users should be notified when a nonprofit or business
+completes the intro quiz, a suggested match is ready for review, a client
+approves/holds/declines, both sides approve, a match status changes, a shared
+note/comment is added, or important campaign/profile fields change.
+
+Nonprofits should be notified when their verification/login email is sent, they
+can review a new match, the business approves/holds/declines, both sides approve
+and next steps begin, the match status changes, a shared note is added, their
+campaign/profile is updated by an admin, or the completed partnership is ready
+for a business rating.
+
+Small businesses should be notified when their verification/login email is sent,
+they can review a nonprofit match, the nonprofit approves/holds/declines, both
+sides approve and intro/outreach begins, the match status changes, a shared note
+is added, their profile is updated by an admin, or the completed partnership is
+ready for a nonprofit rating.
+
 ## Deployment Guide
 
 The current application is a Node web service, not a static site. The same
