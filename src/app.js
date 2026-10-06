@@ -151,6 +151,16 @@ let remoteLoading = false;
 let remoteDataReady = false;
 let remoteDataError = "";
 
+function urlIndicatesPasswordRecovery() {
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const search = new URLSearchParams(window.location.search);
+  return hash.get("type") === "recovery"
+    || search.get("type") === "recovery"
+    || hash.has("access_token") && hash.get("type") !== "signup";
+}
+
+if (urlIndicatesPasswordRecovery()) passwordRecovery = true;
+
 const root = document.getElementById("view-root");
 const title = document.getElementById("page-title");
 const sidebarEl = document.getElementById("app-sidebar");
@@ -257,6 +267,7 @@ document.getElementById("global-search")?.addEventListener("change", (event) => 
 });
 
 function passwordAlreadySet() {
+  if (passwordRecovery) return false;
   return Boolean(session?.user?.user_metadata?.password_set);
 }
 
@@ -430,12 +441,12 @@ supabase.auth.onAuthStateChange((event, newSession) => {
     remoteLoadKey = "";
     remoteDataReady = false;
     remoteDataError = "";
-  } else if (session && ["INITIAL_SESSION", "SIGNED_IN", "USER_UPDATED"].includes(event)) {
-    isolateRealAccountData();
-    determinePostSessionScreen();
   } else if (event === "PASSWORD_RECOVERY") {
     passwordRecovery = true;
     authScreen = "set-password";
+  } else if (session && ["INITIAL_SESSION", "SIGNED_IN", "USER_UPDATED"].includes(event)) {
+    isolateRealAccountData();
+    determinePostSessionScreen();
   }
   authLoading = false;
   render();
@@ -1252,7 +1263,7 @@ function renderSetPassword() {
       ${authError ? `<p class="form-error">${escapeHtml(authError)}</p>` : ""}
       <form id="set-password-form">
         <div class="field-row"><label for="set-password-input">Password</label><input id="set-password-input" type="password" minlength="6" required placeholder="At least 6 characters" /></div>
-        <button class="primary-btn" type="submit" style="width:100%;">Go to My Dashboard</button>
+        <button class="primary-btn" type="submit" style="width:100%;">${passwordRecovery ? "Save New Password" : "Go to My Dashboard"}</button>
       </form>
     </section>
   `;
@@ -1274,6 +1285,9 @@ function renderSetPassword() {
     }
     if (updated.user) session = { ...session, user: updated.user };
     passwordRecovery = false;
+    if (window.location.hash || new URLSearchParams(window.location.search).has("type")) {
+      window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
+    }
     authScreen = "app";
     activeView = "dashboard";
     render();

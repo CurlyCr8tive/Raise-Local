@@ -226,6 +226,14 @@ function assertDemoResetAndFlowWiring() {
   assert.ok(reset.businesses.some((record) => record.id === "biz-sofia-grace"), "Demo reset must restore the backup confirmed business flow.");
 }
 
+function assertPasswordRecoveryGuard() {
+  const appSource = readFileSync(join(root, "src/app.js"), "utf8");
+  assert.ok(appSource.includes("urlIndicatesPasswordRecovery()"), "Password reset links must be detected before normal sign-in routing.");
+  assert.ok(appSource.includes('event === "PASSWORD_RECOVERY"'), "Supabase PASSWORD_RECOVERY events must force the set-password screen.");
+  assert.ok(appSource.includes("if (passwordRecovery) return false;"), "Password recovery must not use existing password_set metadata to skip the reset form.");
+  assert.ok(appSource.includes("Save New Password"), "Password recovery screen must clearly ask the user to save a new password.");
+}
+
 function assertDemoDataVisualPolish() {
   const assetExists = (path) => existsSync(join(root, path));
   const isPotentialLead = (record) => record.status === "potential_lead" || record.qualityStatus === "potential_lead";
@@ -347,6 +355,7 @@ assertMatchingRules();
 assertDemoMatchingBoundaries();
 assertDemoDataVisualPolish();
 assertDemoResetAndFlowWiring();
+assertPasswordRecoveryGuard();
 assertIntroQuizLength();
 assertGmailRawMessageLineBreaks();
 assertWorkflowFixtures();
