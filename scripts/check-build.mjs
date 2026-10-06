@@ -4,7 +4,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { buildMatches, deriveMatchStatus, scoreMatch } from "../src/matching.js";
 import { businessPhoto, requestPhoto } from "../src/photos.js";
-import { DEMO_DATA } from "../src/storage.js";
+import { DEMO_DATA, resetDemoData } from "../src/storage.js";
 
 const root = process.cwd();
 const jsFiles = [];
@@ -121,6 +121,109 @@ function assertDemoMatchingBoundaries() {
   assert.ok(scopedMatches.some((match) => match.request.id === grovePark.id), "Grove Park should keep its Atlanta presentation matches.");
   assert.ok(scopedMatches.some((match) => match.request.id === yesAcademy.id && match.business.id === sofiaGrace.id), "Backup YES Academy path should still match Sofia & Grace.");
   assert.ok(scopedMatches.every((match) => !match.rejected), "Rejected matches must not appear in review queues.");
+
+  const groveMatches = buildMatches([grovePark], DEMO_DATA.businesses);
+  assert.ok(groveMatches.length, "Grove Park should produce Atlanta presentation matches.");
+  assert.ok(groveMatches.every((match) => match.total <= 92), "Grove Park potential leads must stay below confirmed-partner scores.");
+  assert.equal(new Set(groveMatches.map((match) => match.total)).size, groveMatches.length, "Grove Park potential leads should not collapse into identical tie scores.");
+  assert.ok(groveMatches.every((match) => (match.business.serviceAreas || []).some((area) => /atlanta|grove park|westside/i.test(area))), "Grove Park should show Atlanta/Grove Park leads only.");
+
+  const unityMatches = buildMatches([unityNow], DEMO_DATA.businesses);
+  assert.ok(unityMatches.length, "UNITYNow should produce DMV presentation matches.");
+  assert.equal(new Set(unityMatches.map((match) => match.total)).size, unityMatches.length, "UNITYNow potential leads should not collapse into identical tie scores.");
+  assert.ok(unityMatches.every((match) => (match.business.serviceAreas || []).some((area) => /dmv|washington|dc|maryland|virginia|national harbor|oxon hill|hyattsville|arlington/i.test(area))), "UNITYNow should show DMV leads only.");
+  assert.equal(scoreMatch(grovePark, dmvLead).rejected, true, "Grove Park should not match DMV leads without a location fit.");
+  assert.equal(scoreMatch(unityNow, atlantaLead).rejected, true, "UNITYNow should not match Atlanta leads without a location fit.");
+
+  const perfectBusinesses = ["biz-paco-tacos-atl", "biz-bankhead-seafood", "biz-casa-de-luz", "biz-glaciers-italian-ice"].map((id, index) => ({
+    ...DEMO_DATA.businesses.find((business) => business.id === id),
+    id: `confirmed-perfect-${index}`,
+    name: `Confirmed Perfect ${index + 1}`,
+    status: "ready",
+    qualityStatus: "ready",
+    serviceAreas: ["Atlanta, GA"],
+    category: "Food and beverage",
+    causeAreas: ["Community"],
+    offerTypes: ["Corporate sponsorship", "Professional services", "Event activation"],
+    partnershipTypes: ["Fundraising", "Event sponsorship", "Event activation"],
+    minimumCapacity: 1,
+    maximumCapacity: 999,
+    minimumOrderRequirement: 1,
+    activeCampaigns: 0,
+    campaignCap: 3,
+    availableFrom: "2026-09-01",
+    availableTo: "2026-12-31",
+  }));
+  const perfectMatches = buildMatches([grovePark], perfectBusinesses);
+  assert.equal(perfectMatches.length, 4, "The 100% edge-case fixture should produce all four confirmed matches.");
+  assert.ok(perfectMatches.every((match) => match.total === 100), "Only confirmed ready businesses with every required variable aligned should be able to show 100.");
+
+  const nonprofitQuizRequest = {
+    id: "qa-nonprofit-dmv",
+    causeArea: "Education",
+    businessPreference: "No preference",
+    preferredCategories: ["Services", "Retail", "Local media"],
+    geography: "Washington, DC",
+    supportNeeds: ["Corporate sponsorship", "Professional services", "Event activation"],
+    partnershipTypesNeeded: ["Fundraising", "Event sponsorship", "Corporate sponsorship"],
+    expectedParticipation: 100,
+    minimumSize: 50,
+    idealSize: 100,
+    fundingGoal: 5000,
+    startDate: "2026-10-15",
+    endDate: "2026-12-15",
+  };
+  const nonprofitQuizMatches = buildMatches([nonprofitQuizRequest], DEMO_DATA.businesses);
+  assert.ok(nonprofitQuizMatches.length, "A new DMV nonprofit intro quiz should return business matches.");
+  assert.ok(nonprofitQuizMatches.every((match) => /dmv|washington|dc|maryland|virginia|national harbor|oxon hill|hyattsville|arlington/i.test((match.business.serviceAreas || []).join(" "))), "A new DMV nonprofit intro quiz should only return DMV-compatible businesses.");
+
+  const smallBusinessQuizProfile = {
+    id: "qa-business-brooklyn-dessert",
+    category: "Food and beverage",
+    serviceAreas: ["Brooklyn", "Manhattan"],
+    fulfillmentScope: "Local",
+    causeAreas: ["Youth", "Education", "Food access"],
+    contributionTypes: ["Percent of sales", "Product donation"],
+    offerTypes: ["Food & beverage", "Products or corporate gifting"],
+    partnershipTypes: ["Fundraising", "Percentage of sales campaign", "Product donation"],
+    businessGoals: ["Foot traffic", "Brand awareness", "Community visibility"],
+    minimumCapacity: 30,
+    maximumCapacity: 180,
+    idealEventSize: 100,
+    minimumOrderRequirement: 250,
+    campaignCap: 2,
+    activeCampaigns: 0,
+    estimatedUnitContribution: 12,
+    availableFrom: "2026-09-01",
+    availableTo: "2026-12-31",
+  };
+  const smallBusinessQuizMatches = buildMatches(DEMO_DATA.campaignRequests, [smallBusinessQuizProfile]);
+  assert.ok(smallBusinessQuizMatches.some((match) => match.request.id === "request-young-excellence"), "A new Brooklyn/Manhattan small-business intro quiz should match YES Academy.");
+  assert.equal(smallBusinessQuizMatches.some((match) => match.request.id === "request-grove-park"), false, "A new Brooklyn/Manhattan small-business intro quiz should not match Grove Park.");
+  assert.equal(smallBusinessQuizMatches.some((match) => match.request.id === "request-unity-now"), false, "A new Brooklyn/Manhattan small-business intro quiz should not match UNITYNow.");
+}
+
+function assertDemoResetAndFlowWiring() {
+  const appSource = readFileSync(join(root, "src/app.js"), "utf8");
+  assert.ok(appSource.includes("startDemoMatchFinder()"), "Demo links must keep a no-login intro quiz entry.");
+  assert.ok(appSource.includes("enterDemoAfterQuiz(createdRecord)"), "Demo quiz completion must enter the matching workspace without forcing login.");
+  assert.ok(appSource.includes('id="landing-demo"'), "Demo landing must keep an Enter Demo Workspace button.");
+  assert.ok(appSource.includes("resetDemoData()"), "Demo workspace must keep the reset demo data action.");
+  assert.ok(appSource.includes('data-demo-start-role="admin"'), "Demo workspace must keep the admin/owner role entry.");
+  assert.ok(appSource.includes('data-demo-start-role="nonprofit"'), "Demo workspace must keep the nonprofit role entry.");
+  assert.ok(appSource.includes('data-demo-start-role="business"'), "Demo workspace must keep the business role entry.");
+
+  const memory = new Map();
+  globalThis.localStorage = {
+    getItem: (key) => memory.get(key) || null,
+    setItem: (key, value) => memory.set(key, String(value)),
+  };
+  const reset = resetDemoData();
+  assert.ok(reset.campaignRequests.some((record) => record.id === "request-grove-park"), "Demo reset must restore Grove Park.");
+  assert.ok(reset.campaignRequests.some((record) => record.id === "request-unity-now"), "Demo reset must restore UNITYNow.");
+  assert.ok(reset.businesses.some((record) => record.id === "biz-paco-tacos-atl"), "Demo reset must restore Atlanta potential leads.");
+  assert.ok(reset.businesses.some((record) => record.id === "biz-busboys-and-poets"), "Demo reset must restore DMV potential leads.");
+  assert.ok(reset.businesses.some((record) => record.id === "biz-sofia-grace"), "Demo reset must restore the backup confirmed business flow.");
 }
 
 function assertDemoDataVisualPolish() {
@@ -243,6 +346,7 @@ for (const file of htmlFiles) {
 assertMatchingRules();
 assertDemoMatchingBoundaries();
 assertDemoDataVisualPolish();
+assertDemoResetAndFlowWiring();
 assertIntroQuizLength();
 assertGmailRawMessageLineBreaks();
 assertWorkflowFixtures();

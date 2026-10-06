@@ -151,10 +151,19 @@ function potentialLeadScore(request, business, rawTotal) {
   const contactCount = [business.phone, business.email, business.socialLinks].filter(Boolean).length;
   const goal = parseAmount(request.fundingGoal);
   const minimum = parseAmount(business.minimumOrderRequirement || business.minimumCampaignRequirement);
+  const idealSize = parseAmount(request.idealSize || request.expectedParticipation || request.minimumSize);
+  const businessIdeal = parseAmount(business.idealEventSize || business.maximumCapacity || business.minimumCapacity);
+  const unitContribution = parseAmount(business.estimatedUnitContribution);
   const minimumRatio = goal && minimum ? minimum / goal : 0.1;
   const financialDetail = minimumRatio <= 0.04 ? 3 : minimumRatio <= 0.07 ? 2 : minimumRatio <= 0.1 ? 1 : 0;
   const leadTime = parseAmount(business.leadTimeDays);
   const leadTimeDetail = !leadTime ? 0 : leadTime <= 10 ? 2 : leadTime <= 14 ? 1 : 0;
+  const capacityDelta = idealSize && businessIdeal ? Math.abs(idealSize - businessIdeal) : 75;
+  const capacityNuance = Math.max(0, 1 - Math.min(capacityDelta, 100) / 100);
+  const financialNuance = Math.max(0, 1 - Math.min(minimumRatio, 0.12) / 0.12);
+  const leadTimeNuance = leadTime ? Math.max(0, 1 - Math.min(leadTime, 30) / 30) : 0;
+  const contributionNuance = Math.min(unitContribution, 25) / 25;
+  const campaignCapacityNuance = Math.min(parseAmount(business.campaignCap), 3) / 3;
   const detailScore =
     exactLocationOverlap(request, business)
     + categoryTieBreak(request, business)
@@ -165,8 +174,18 @@ function potentialLeadScore(request, business, rawTotal) {
     + Math.min(2, sourceCount)
     + Math.min(2, contactCount)
     + Math.min(2, (business.businessGoals || []).length >= 3 ? 2 : business.businessGoals?.length || 0);
+  const operationalNuance = Math.min(
+    0.9,
+    capacityNuance * 0.25
+      + financialNuance * 0.2
+      + leadTimeNuance * 0.15
+      + contributionNuance * 0.15
+      + campaignCapacityNuance * 0.1
+      + Math.min(1, contactCount / 3) * 0.05
+      + Math.min(1, sourceCount / 3) * 0.05
+  );
 
-  return Math.min(rawTotal, 92, 72 + detailScore);
+  return Math.round(Math.min(rawTotal, 92, 72 + detailScore + operationalNuance) * 100) / 100;
 }
 
 function capacityMatches(request, business) {
