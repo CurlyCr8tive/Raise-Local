@@ -261,6 +261,28 @@ sent.
 | Tenyse password reset | Supabase accepted reset request | Tenyse can use **Forgot password?** on the real login page if she cannot log in. |
 | Jessica password reset | Still needs client-side confirmation | Jessica can use **Forgot password?** on the real login page if she cannot log in. |
 
+### Supabase table check
+
+Direct service-role verification against the linked Raise Local Supabase project
+showed that the database is not empty, but some workflow tables do not yet have
+persisted activity.
+
+| Table | Result | Notes |
+| --- | --- | --- |
+| `campaign_requests` | Has rows | Sample records include Grove Park Foundation, UNITYNow, YES Academy Inc., Jessica/test-created records, and another Grove Park Foundation row. |
+| `business_profiles` | Has rows | Sample records include Eyeland Vibes, First Choice Brew, Yamaas Olive Oil & Vinegar, The Ke'nekt Cooperative, Billee Redd Hospitality, Bankhead Seafood, Glaciers Italian Ice, and Sofia & Grace. |
+| `matches` | Empty at check time | Demo/generated matches may be rendering from local/demo logic instead of persisted match records. Confirm whether live match creation should save rows during the next QA pass. |
+| `match_events` | Empty at check time | No persisted match status history was found yet. |
+| `campaign_comments` | Empty at check time | No shared comment/note rows were found yet. |
+| `notifications` | Empty at check time | No persisted in-app notification rows were found yet. |
+| `ratings` | Empty at check time | No completed-partnership rating rows were found yet. |
+
+If Supabase appears blank in the dashboard, confirm the user is viewing the
+linked project `Raise Local`, the `public` schema, and the Table Editor tables
+listed above. Campaign and business records exist, while workflow-history tables
+will stay empty until actions create persisted matches, notes, notifications, or
+ratings.
+
 ### Gmail notification status
 
 | Item | Result | Notes |
