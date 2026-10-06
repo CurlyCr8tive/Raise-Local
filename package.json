@@ -8,6 +8,7 @@
     "start": "node server.mjs",
     "check": "node scripts/check-build.mjs",
     "handoff:audit-live-data": "node scripts/audit-live-data.mjs",
+    "handoff:backfill-suggested-matches": "node scripts/backfill-suggested-matches.mjs",
     "handoff:provision-accounts": "node scripts/provision-handoff-accounts.mjs"
   }
 }

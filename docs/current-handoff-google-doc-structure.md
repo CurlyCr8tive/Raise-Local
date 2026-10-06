@@ -264,24 +264,24 @@ sent.
 ### Supabase table check
 
 Direct service-role verification against the linked Raise Local Supabase project
-showed that the database is not empty, but some workflow tables do not yet have
-persisted activity.
+showed that the database is not empty. Suggested matches have now been
+backfilled so live Supabase reflects generated recommendations.
 
 | Table | Result | Notes |
 | --- | --- | --- |
 | `campaign_requests` | Has rows | Sample records include Grove Park Foundation, UNITYNow, YES Academy Inc., Jessica/test-created records, and another Grove Park Foundation row. |
 | `business_profiles` | Has rows | Sample records include Eyeland Vibes, First Choice Brew, Yamaas Olive Oil & Vinegar, The Ke'nekt Cooperative, Billee Redd Hospitality, Bankhead Seafood, Glaciers Italian Ice, and Sofia & Grace. |
-| `matches` | Empty at check time | Demo/generated matches may be rendering from local/demo logic instead of persisted match records. Confirm whether live match creation should save rows during the next QA pass. |
-| `match_events` | Empty at check time | No persisted match status history was found yet. |
-| `campaign_comments` | Empty at check time | No shared comment/note rows were found yet. |
-| `notifications` | Empty at check time | No persisted in-app notification rows were found yet. |
-| `ratings` | Empty at check time | No completed-partnership rating rows were found yet. |
+| `matches` | Has rows | 9 suggested match rows were backfilled from the current matching rules. Future suggested matches are persisted when live quiz/admin workflows identify them. |
+| `match_events` | Has rows | 9 `suggested_match_created` event rows were backfilled so match history is visible in Supabase. |
+| `campaign_comments` | Ready, no rows yet | Shared notes will persist when a user/admin adds a note. No fake note rows were created. |
+| `notifications` | Ready, no rows yet | A new safe notification RPC was added so workflow notifications can persist after authenticated live actions. No fake notification rows were created. |
+| `ratings` | Ready, no rows yet | The two-sided rating migration is now applied. Rows will appear after completed-match rating submissions. No fake rating rows were created. |
 
 If Supabase appears blank in the dashboard, confirm the user is viewing the
 linked project `Raise Local`, the `public` schema, and the Table Editor tables
-listed above. Campaign and business records exist, while workflow-history tables
-will stay empty until actions create persisted matches, notes, notifications, or
-ratings.
+listed above. Campaign, business, suggested match, and match-event rows now
+exist. Comments, notifications, and ratings should only appear after real
+workflow actions create them.
 
 ### Gmail notification status
 

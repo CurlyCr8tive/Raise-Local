@@ -29,6 +29,7 @@ import {
   syncComment,
   syncMatchDecision,
   syncMatchFeedback,
+  syncNotification,
   loadRemoteData,
   updateBusinessProfile,
   updateCampaignRequest,
@@ -507,6 +508,37 @@ function confirmationMarkup() {
 
 function currentMatches() {
   return buildMatches(data.campaignRequests, data.businesses, data.matches);
+}
+
+function persistSuggestedMatch(match) {
+  if (!match || match.rejected) return;
+  const existing = data.matches.find((item) => item.requestId === match.request.id && item.businessId === match.business.id);
+  if (!existing) {
+    data.matches.push({
+      requestId: match.request.id,
+      businessId: match.business.id,
+      status: "suggested",
+      nonprofitDecision: "",
+      businessDecision: "",
+      outreachStatus: "not_started",
+    });
+    saveData(data);
+  }
+  void syncMatchDecision({
+    requestId: match.request.id,
+    businessId: match.business.id,
+    status: existing?.status || "suggested",
+    fromStatus: existing ? existing.status || "suggested" : null,
+    nonprofitDecision: existing?.nonprofitDecision || "",
+    businessDecision: existing?.businessDecision || "",
+    outreachStatus: existing?.outreachStatus || "not_started",
+    outreachMessage: existing?.outreachMessage || "",
+    outreachAt: existing?.outreachAt || null,
+    declineReason: existing?.declineReason || "",
+    declineNote: existing?.declineNote || "",
+    adminNote: existing?.adminNote || "",
+    notifiedAt: existing?.notifiedAt || null,
+  });
 }
 
 const NONPROFIT_CORE_QUESTIONS = [
@@ -3801,6 +3833,7 @@ function addNotification({ forEmail, message, requestId, businessId, type = "wor
     createdAt: new Date().toISOString(),
   });
   saveData(data);
+  void syncNotification({ forEmail: normalizedEmail, message, requestId, businessId, type });
 }
 
 function adminNotificationRecipients() {
@@ -4027,6 +4060,7 @@ function notifyAdminOfSuggestedMatches(kind, record) {
     ? buildMatches(data.campaignRequests, [record], data.matches)
     : buildMatches([record], data.businesses, data.matches);
   matches.filter((match) => !["declined", "on_hold"].includes(match.status)).forEach((match) => {
+    persistSuggestedMatch(match);
     const completedBy = kind === "business" ? match.business.name : match.request.organizationName;
     const message = `New Raise Local match: ${match.request.organizationName} + ${match.business.name}. ${completedBy} completed the intro quiz and a potential partner match is ready for review.`;
     const alreadyNotified = (data.notifications || []).some((notification) => notification.type === "suggested_match" && notification.requestId === match.request.id && notification.businessId === match.business.id);

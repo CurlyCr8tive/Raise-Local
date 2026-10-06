@@ -332,6 +332,19 @@ export async function syncAdminNotification({ message, requestId = null, busines
   return !error;
 }
 
+export async function syncNotification({ forEmail, message, requestId = null, businessId = null, type = "workflow" }) {
+  if (isDemoMode() || !forEmail || !message) return false;
+  const { error } = await supabase.rpc("create_raise_local_notification", {
+    p_for_email: forEmail,
+    p_message: message,
+    p_request_id: requestId || null,
+    p_business_id: businessId || null,
+    p_type: type,
+  });
+  if (error) console.error("Supabase notification sync failed:", error.message);
+  return !error;
+}
+
 export async function syncBusinessProfile(business) {
   if (isDemoMode()) return false;
   const { error } = await supabase.from("business_profiles").insert(toBusinessRow(business));
