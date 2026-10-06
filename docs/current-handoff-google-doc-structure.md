@@ -245,7 +245,60 @@ Use this sequence:
   attribution, and outreach rules are approved.
 - Continue full UI/functionality testing on real accounts after each deploy.
 
-## 14. 4:30 Meeting Agenda
+## 14. Current Verification Results
+
+Use this section to track what has been verified after the handoff email was
+sent.
+
+### Access and login
+
+| Item | Result | Notes |
+| --- | --- | --- |
+| Live app reachable | Verified | `https://app.raiselocal.fund` loads and `/api/health` returns `ok: true`. |
+| Tenyse account | Verified in Supabase | `tenyse@verifiedconsulting.com` exists, email is confirmed, password is set, and `app_metadata.role` is `admin`. |
+| Jessica account | Verified in Supabase | `jessicadorismond@gmail.com` exists, email is confirmed, password is set, and `app_metadata.role` is `admin`. No recorded sign-in yet at the time of verification. |
+| Cherice account | Verified in Supabase | `cherice.heron@pursuit.org` exists, email is confirmed, password is set, and `app_metadata.role` is `admin`. |
+| Tenyse password reset | Supabase accepted reset request | Tenyse can use **Forgot password?** on the real login page if she cannot log in. |
+| Jessica password reset | Still needs client-side confirmation | Jessica can use **Forgot password?** on the real login page if she cannot log in. |
+
+### Gmail notification status
+
+| Item | Result | Notes |
+| --- | --- | --- |
+| Google Cloud / Gmail API setup | Mostly configured | Gmail API, OAuth client, and Render environment values appear to be in place. |
+| Live Gmail connection | Not fully verified | Live Gmail status reported `connected: false`, which means the hosted Render app still needs the Gmail sender account to complete OAuth authorization or needs a valid refresh token loaded into Render. |
+| Hosted email notification test | Not complete | Do not mark live email notifications as verified until the hosted app reports `connected: true` and a test email is received from the live site. |
+| Gmail setup instructions | Added | See `docs/live-gmail-authentication-instructions.md` for the exact steps Tenyse/Jessica can complete without sharing Gmail passwords. |
+
+### Matching and demo QA
+
+| Item | Result | Notes |
+| --- | --- | --- |
+| Nonprofit intro quiz length | Verified locally | Nonprofit intake has 10 questions. |
+| Small-business intro quiz length | Verified locally | Business intake has 10 questions. |
+| Grove Park matching | Verified locally | Grove Park returns Atlanta-relevant potential leads and blocks DMV/Brooklyn-style mismatches. |
+| UNITYNow / DMV matching | Verified locally | UNITYNow returns DMV-relevant potential leads and does not fall into Grove Park/Atlanta matches unless answers justify it. |
+| YES Academy / Sofia & Grace backup path | Verified locally | Backup confirmed-partner style demo remains available. |
+| Tie-break scoring | Implemented locally | Potential leads no longer need to display as identical scores when their fit details differ. |
+| Demo workspace reset/access | Needs final hosted smoke test | Confirm after latest GitHub push and Render redeploy. |
+
+### Data and image polish
+
+| Item | Result | Notes |
+| --- | --- | --- |
+| Fake/mock live records | Previously audited clean | Live audit found `0` mock/demo campaign requests and `0` mock/demo business profiles. Re-run before final launch if more testing occurs. |
+| Potential lead labels | Improved locally | Public leads are labeled as potential/public research leads, not confirmed Raise Local members. |
+| Remaining real photos | In progress | Continue replacing mismatched or generic stock photos with verified/client-approved images. |
+| Image consistency | In progress | Confirm images match across dashboard cards, detail pages, match cards, and profile views. |
+
+### GitHub and deployment
+
+| Item | Result | Notes |
+| --- | --- | --- |
+| Local commits | Pending push | Local branch has unpushed commits that should be pushed to GitHub before final Render redeploy. |
+| Render redeploy | Needed after push | After pushing, manually redeploy or confirm auto-deploy from `main`. |
+
+## 15. 4:30 Meeting Agenda
 
 1. Confirm what changed since the last call.
 2. Confirm private demo link behavior.
