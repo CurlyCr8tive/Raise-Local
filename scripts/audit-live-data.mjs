@@ -9,44 +9,43 @@ const CONFIRM = argValue("--confirm", "");
 readEnv(root);
 const admin = createSupabaseAdmin(requiredSupabaseEnv());
 
-const DEMO_REQUEST_IDS = [
+// Only list legacy fake/demo records here. Real nonprofits and real business
+// leads must be preserved even when they were seeded for a presentation path.
+const LEGACY_FAKE_REQUEST_IDS = [
   "request-fresh-start",
-  "request-grove-park",
-  "request-unity-now",
   "request-art-room",
-  "request-young-excellence",
 ];
-const DEMO_BUSINESS_IDS = [
-  "biz-yamaas",
-  "biz-eyeland-vibes",
-  "biz-first-choice-brew",
-  "biz-sofia-grace",
+const LEGACY_FAKE_BUSINESS_IDS = [
   "biz-paper-porch",
 ];
+const LEGACY_FAKE_REQUEST_NAMES = ["PS 120", "PS 118 Art Room", "Fresh Start Pantry"];
+const LEGACY_FAKE_BUSINESS_NAMES = ["Paper Porch"];
 
 async function rows(table, query) {
   return admin.rest(`${table}?${query}&select=*`);
 }
 
-const [mockRequestsByEmail, mockRequestsById, mockBusinessesByEmail, mockBusinessesById] = await Promise.all([
+const [mockRequestsByEmail, mockRequestsById, mockRequestsByName, mockBusinessesByEmail, mockBusinessesById, mockBusinessesByName] = await Promise.all([
   rows("campaign_requests", "email=ilike.*.example"),
-  rows("campaign_requests", `id=in.(${DEMO_REQUEST_IDS.join(",")})`),
+  rows("campaign_requests", `id=in.(${LEGACY_FAKE_REQUEST_IDS.join(",")})`),
+  rows("campaign_requests", `organization_name=in.(${LEGACY_FAKE_REQUEST_NAMES.map(encodeURIComponent).join(",")})`),
   rows("business_profiles", "email=ilike.*.example"),
-  rows("business_profiles", `id=in.(${DEMO_BUSINESS_IDS.join(",")})`),
+  rows("business_profiles", `id=in.(${LEGACY_FAKE_BUSINESS_IDS.join(",")})`),
+  rows("business_profiles", `name=in.(${LEGACY_FAKE_BUSINESS_NAMES.map(encodeURIComponent).join(",")})`),
 ]);
 
-const requestIds = [...new Set([...mockRequestsByEmail, ...mockRequestsById].map((row) => row.id))];
-const businessIds = [...new Set([...mockBusinessesByEmail, ...mockBusinessesById].map((row) => row.id))];
+const requestIds = [...new Set([...mockRequestsByEmail, ...mockRequestsById, ...mockRequestsByName].map((row) => row.id))];
+const businessIds = [...new Set([...mockBusinessesByEmail, ...mockBusinessesById, ...mockBusinessesByName].map((row) => row.id))];
 
 console.log("Raise Local live-data audit");
 console.log(`Supabase: ${new URL(process.env.SUPABASE_URL).host}`);
-console.log(`Mock/demo campaign requests found: ${requestIds.length}`);
+console.log(`Legacy fake/mock campaign requests found: ${requestIds.length}`);
 requestIds.forEach((id) => console.log(`  - ${id}`));
-console.log(`Mock/demo business profiles found: ${businessIds.length}`);
+console.log(`Legacy fake/mock business profiles found: ${businessIds.length}`);
 businessIds.forEach((id) => console.log(`  - ${id}`));
 
 if (!DELETE_MOCK) {
-  console.log("\nDry run only. Re-run with --delete-mock --confirm DELETE_MOCK_DATA to delete these live Supabase rows.");
+  console.log("\nDry run only. Re-run with --delete-mock --confirm DELETE_MOCK_DATA to delete only these legacy fake/mock live Supabase rows.");
   process.exit(0);
 }
 

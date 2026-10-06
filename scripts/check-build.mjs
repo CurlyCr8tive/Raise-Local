@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { buildMatches, deriveMatchStatus, scoreMatch } from "../src/matching.js";
+import { businessPhoto, requestPhoto } from "../src/photos.js";
 import { DEMO_DATA } from "../src/storage.js";
 
 const root = process.cwd();
@@ -122,6 +123,30 @@ function assertDemoMatchingBoundaries() {
   assert.ok(scopedMatches.every((match) => !match.rejected), "Rejected matches must not appear in review queues.");
 }
 
+function assertDemoDataVisualPolish() {
+  const assetExists = (path) => existsSync(join(root, path));
+  const isPotentialLead = (record) => record.status === "potential_lead" || record.qualityStatus === "potential_lead";
+
+  for (const request of DEMO_DATA.campaignRequests) {
+    const photo = requestPhoto(request);
+    assert.equal(photo.startsWith("assets/"), true, `${request.organizationName} must use a reviewed local image asset, not generic stock.`);
+    assert.ok(assetExists(photo), `${request.organizationName} image asset is missing: ${photo}`);
+    assert.notEqual(/ps\s*120/i.test(request.organizationName), true, "PS 120 is not a real seeded nonprofit and must not return.");
+  }
+
+  for (const business of DEMO_DATA.businesses) {
+    const photo = businessPhoto(business);
+    assert.equal(photo.startsWith("assets/"), true, `${business.name} must use a reviewed local asset or neutral placeholder, not generic stock.`);
+    assert.ok(assetExists(photo), `${business.name} image asset is missing: ${photo}`);
+    if (isPotentialLead(business)) {
+      assert.ok(/\(Potential Lead\)/i.test(business.name) || business.id.startsWith("business-"), `${business.name} must be visibly labeled as a potential lead.`);
+      assert.ok(business.leadSource, `${business.name} must explain where the lead came from.`);
+      assert.ok(business.googleMapsUrl || business.sourceUrl || business.website, `${business.name} must keep a public verification/source link.`);
+      assert.match(`${business.notes} ${business.leadSource}`, /not (?:signed up|registered)|not confirmed/i, `${business.name} must say it is not a confirmed Raise Local partner.`);
+    }
+  }
+}
+
 function assertIntroQuizLength() {
   const appSource = readFileSync(join(root, "src/app.js"), "utf8");
   const countKeysInArray = (name) => {
@@ -217,6 +242,7 @@ for (const file of htmlFiles) {
 
 assertMatchingRules();
 assertDemoMatchingBoundaries();
+assertDemoDataVisualPolish();
 assertIntroQuizLength();
 assertGmailRawMessageLineBreaks();
 assertWorkflowFixtures();

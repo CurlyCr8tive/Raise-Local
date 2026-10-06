@@ -2487,6 +2487,10 @@ function businessDisplayCategory(record) {
   return record.category || "Local business";
 }
 
+function businessLeadLabel(record) {
+  return isPotentialBusinessLead(record) ? "Potential lead - public research" : "Business";
+}
+
 function serviceAreaSummary(record) {
   const areas = record?.serviceAreas || [];
   if (!areas.length) return "Local service area not captured";
@@ -4375,6 +4379,7 @@ function scoreGauge(total) {
 function matchPreviewCard(match, { viewerIsBusiness = false } = {}) {
   const photo = viewerIsBusiness ? requestPhoto(match.request) : businessPhoto(match.business);
   const brandClass = isBrandAsset(photo) ? " brand-photo" : "";
+  const potentialLead = isPotentialBusinessLead(match.business);
   return `
     <article class="match-preview-card">
       <span class="match-preview-menu">${ICONS.dots}</span>
@@ -4386,9 +4391,11 @@ function matchPreviewCard(match, { viewerIsBusiness = false } = {}) {
           <span class="tag-sep">×</span>
           <span class="tag tag-business">Business</span>
           <span class="tag">${escapeHtml(match.business.category)}</span>
+          ${potentialLead ? `<span class="tag">Potential lead</span>` : ""}
         </div>
         <h3>${escapeHtml(match.request.organizationName)} × ${escapeHtml(match.business.name)}</h3>
         <p>${escapeHtml(match.reasons?.[0] || match.forecast || "")}</p>
+        ${potentialLead ? `<p class="small-note lead-source-note">Public lead research only. This business has not signed up with Raise Local yet.</p>` : ""}
         <div class="match-preview-meta">
           <span>${ICONS.mapPin} ${escapeHtml(match.request.geography)}</span>
           <span>${ICONS.calendar} ${escapeHtml(match.request.timingPreference || "Timing flexible")}</span>
@@ -4460,6 +4467,7 @@ function matchCard(match, { showAdminControls = false, showRating = false, showV
   const businessImage = businessPhoto(match.business);
   const nonprofitBrand = isBrandAsset(nonprofitImage) ? " brand-photo" : "";
   const businessBrand = isBrandAsset(businessImage) ? " brand-photo" : "";
+  const potentialLead = isPotentialBusinessLead(match.business);
   return `
     <article class="match-card">
       <div class="match-visual" aria-label="${escapeHtml(match.request.organizationName)} and ${escapeHtml(match.business.name)}">
@@ -4481,11 +4489,12 @@ function matchCard(match, { showAdminControls = false, showRating = false, showV
         <div class="match-head">
           <div>
             <h3>${escapeHtml(match.request.organizationName)} <span aria-hidden="true">+</span> ${escapeHtml(match.business.name)}</h3>
-            <p class="muted">${escapeHtml(match.request.causeArea)} · ${escapeHtml(match.request.geography)}</p>
+            <p class="muted">${escapeHtml(match.request.causeArea)} · ${escapeHtml(match.request.geography)} · ${escapeHtml(businessLeadLabel(match.business))}</p>
           </div>
           <span class="status-pill status-ready">${escapeHtml(statusLabel(match.status))}</span>
         </div>
         <p class="match-summary">${escapeHtml(match.reasons?.[0] || match.request.campaignDescription)}</p>
+        ${potentialLead ? `<p class="small-note lead-source-note"><strong>Potential lead:</strong> ${escapeHtml(match.business.leadSource || "Public lead research; not registered in Raise Local yet")} ${match.business.googleMapsUrl || match.business.sourceUrl ? `<br>${leadSourceLinks(match.business)}` : ""}</p>` : ""}
         <p class="forecast">${escapeHtml(match.forecast)}</p>
         <p class="muted match-goals">Business goals: ${escapeHtml((match.business.businessGoals || []).slice(0, 3).join(", ") || "Not captured yet")}</p>
         <p class="match-consent">Nonprofit: <strong>${escapeHtml(statusLabel(match.nonprofitDecision || "awaiting"))}</strong> · Business: <strong>${escapeHtml(statusLabel(match.businessDecision || "awaiting"))}</strong></p>
